@@ -73,6 +73,7 @@ class MergeTree
     public:
         struct      CollapseEvent   { static const char* name() { return "collapsed"; } };
         struct      EraseEvent      { static const char* name() { return "erased"; } };
+        struct      FindStepEvent   { static const char* name() { return "find-step"; } };
 
     private:
         VertexNeighborMap&

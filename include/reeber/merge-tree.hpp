@@ -26,7 +26,10 @@ find(const Vertex& x) const
     Neighbor xn = (*this)[x];
     Neighbor res = xn;
     while (compressed_parent(res) != 0)
+    {
+        COUNTER(FindStepEvent)++;
         res = compressed_parent(res);
+    }
 
     // compress the path to res
     Neighbor up = compressed_parent(xn);

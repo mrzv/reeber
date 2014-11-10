@@ -90,8 +90,11 @@ int main(int argc, char** argv)
     r::compute_merge_tree(mt, domain, g);
     fmt::print("Tree constructed: {}\n", mt.size());
 
+#ifdef COUNTERS
     fmt::print("{}\n", COUNTER(MergeTree::CollapseEvent));
     fmt::print("{}\n", COUNTER(MergeTree::EraseEvent));
+    fmt::print("{}\n", COUNTER(MergeTree::FindStepEvent));
+#endif
 
     size_t leaves = 0;
     BOOST_FOREACH(MergeTree::Neighbor n, ((const MergeTree&) mt).nodes() | boost::adaptors::map_values)
