@@ -6,11 +6,14 @@
 
 #include <boost/foreach.hpp>
 #include <boost/lambda/lambda.hpp>
+#include <boost/range/adaptor/map.hpp>
 
 #include "serialization.h"
 
 namespace reeber
 {
+
+namespace ba = boost::adaptors;
 
 template<class Vertex_, class Value_>
 struct MergeTreeNode
@@ -66,12 +69,17 @@ class MergeTree
         void        swap(MergeTree& other)              { std::swap(negate_, other.negate_); nodes_.swap(other.nodes_); }
 
         bool        negate() const                      { return negate_; }
+        void        set_negate(bool negate)             { negate_ = negate; }
 
         template<class T>
         bool        cmp(const T& x, const T& y) const   { return negate_ ? x > y : x < y; }
 
         const VertexNeighborMap&
                     nodes() const                       { return nodes_; }
+
+        Neighbor    find_root() const                   { BOOST_FOREACH(Neighbor n, nodes() | ba::map_values) if (!n->parent) return n; return 0; }
+        size_t      count_roots() const                 { size_t s = 0; BOOST_FOREACH(Neighbor n, nodes() | ba::map_values) if (!n->parent) ++s; return s; }
+        void        reset_aux() const                   { BOOST_FOREACH(Neighbor n, nodes() | ba::map_values) aux_neighbor(n) = 0; }
 
         friend struct ::reeber::Serialization<MergeTree>;
 
@@ -94,6 +102,21 @@ class MergeTree
         template<class MT, class F>
         friend void
         traverse_persistence(const MT& mt, const F& f);
+
+        template<class MT, class S>
+        friend void
+        sparsify(MT& mt, const S& s);
+
+        template<class MT, class S>
+        friend void
+        sparsify(MT& out, const MT& in, const S& s);
+
+        template<class MT>
+        friend void
+        merge(MT& mt, const std::vector<MT>& trees);
+
+        template<class MT, class P>
+        void remove_degree2(MT& mt, const P& p);
 
     private:
         bool                        negate_;
@@ -118,10 +141,18 @@ void compute_merge_tree(MergeTree& mt, const Topology& topology, const Function&
 template<class MergeTree, class Functor>
 void traverse_persistence(const MergeTree& mt, const Functor& f);
 
-// TODO: set up union topology from the trees and feed it into compute_merge_tree()
-template<class MergeTree>
-void    merge(std::vector<MergeTree>& trees);
+template<class MergeTree, class Special>
+void sparsify(MergeTree& mt, const Special& special);
 
+template<class MergeTree, class Special>
+void sparsify(MergeTree& out, const MergeTree& in, const Special& special);
+
+template<class MergeTree>
+void merge(MergeTree& mt, const std::vector<MergeTree>& trees);
+
+// preserve indicates whether the a degree-2 node should be collapsed or removed
+template<class MergeTree, class Preserve>
+void remove_degree2(MergeTree& mt, const Preserve& preserve);
 
 }
 

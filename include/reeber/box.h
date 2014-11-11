@@ -20,6 +20,7 @@ class Box
         typedef             typename GridProxy::Vertex                              Position;
 
         struct              InternalTest;
+        struct              BoundaryTest;
         struct              BoundsTest;
         struct              PositionToVertex;
 
@@ -39,7 +40,7 @@ class Box
                                       const FreudenthalLinkRange> >                 Link;
 
 
-                            Box()                                                   {}
+                            Box(): g_(0, Position())                                {}
                             Box(const Position& shape):
                                 g_(0, shape), to_(shape - Position::one())          {}
                             Box(const Position& shape,
@@ -59,10 +60,10 @@ class Box
         size_t              size() const                                            { size_t c = 1; for (unsigned i = 0; i < D; ++i) c *= (to_[i] - from_[i] + 1); return c; }
 
         VertexRange         vertices() const                                        { return boost::iterator_range<VI>(VI::begin(from_, to_), VI::end(from_, to_))
-                                                                                                | ba::transformed(PositionToVertex(*this)); }
+                                                                                                | ba::transformed(position_to_vertex()); }
         Link                link(const Position& p) const                           { return FreudenthalLinkRange(FreudenthalLinkIterator::begin(p), FreudenthalLinkIterator::end(p))
-                                                                                                | ba::filtered(BoundsTest(*this))
-                                                                                                | ba::transformed(PositionToVertex(*this)); }
+                                                                                                | ba::filtered(bounds_test())
+                                                                                                | ba::transformed(position_to_vertex()); }
         Link                link(const Vertex& v) const                             { return link(g_.vertex(v)); }
 
         Box                 intersect(const Box& other) const;
@@ -76,6 +77,12 @@ class Box
         bool                boundary(const Vertex& v, bool deg = false) const       { return boundary(g_.vertex(v), deg); }
         Box                 side(unsigned axis, bool upper) const;
 
+        InternalTest        internal_test() const                                   { return InternalTest(*this); }
+        BoundaryTest        boundary_test() const                                   { return BoundaryTest(*this); }
+        BoundsTest          bounds_test() const                                     { return BoundsTest(*this); }
+        PositionToVertex    position_to_vertex() const                              { return PositionToVertex(*this); }
+
+
         void                swap(Box& other)                                        { g_.swap(other.g_); std::swap(from_, other.from_); std::swap(to_, other.to_); }
 
         bool                operator==(const Box& other) const                      { return from_ == other.from_ && to_ == other.to_; }
@@ -88,6 +95,13 @@ class Box
         {
                             InternalTest(const Box& box): box_(box)                 {}
             bool            operator()(const Vertex& v) const                       { return !box_.boundary(v); }
+            const Box&      box_;
+        };
+
+        struct BoundaryTest
+        {
+                            BoundaryTest(const Box& box): box_(box)                 {}
+            bool            operator()(const Vertex& v) const                       { return box_.boundary(v); }
             const Box&      box_;
         };
 

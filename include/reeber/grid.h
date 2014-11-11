@@ -117,6 +117,35 @@ struct Grid: public GridRef<C,D>
         }
 };
 
+
+template<class C, unsigned D>
+struct OffsetGrid: public Grid<C, D>
+{
+    typedef         Grid<C,D>                               Grid;
+    typedef         typename Grid::Value                    Value;
+    typedef         typename Grid::Vertex                   Vertex;
+    typedef         typename Grid::Index                    Index;
+    typedef         GridRef<void*, 3>                       GridProxy;      // used for translation operations on the full grid
+
+                    OffsetGrid(const Vertex& full_shape, const Vertex& from, const Vertex& to):
+                        Grid(to - from + Vertex::one()),
+                        g_(0, full_shape),
+                        offset(from)                        {}
+
+    // These operations take global indices as input and translate them into the local values
+    template<class Int>
+    Value           operator()(const Point<Int, D>& v) const            { return Grid::operator()(v - offset); }
+
+    template<class Int>
+    Value&          operator()(const Point<Int, D>& v)                  { return Grid::operator()(v - offset); }
+
+    Value           operator()(Index i) const                           { return Grid::operator()(g_.vertex(i) - offset); }
+    Value&          operator()(Index i)                                 { return Grid::operator()(g_.vertex(i) - offset); }
+
+    GridProxy       g_;
+    Vertex          offset;
+};
+
 }
 
 #endif
