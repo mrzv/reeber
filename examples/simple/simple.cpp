@@ -12,6 +12,7 @@
 #include <reeber/merge-tree.h>
 #include <reeber/grid.h>
 #include <reeber/box.h>
+#include <reeber/merge-tree-serialization.h>
 namespace r = reeber;
 
 #include "format.h"
@@ -38,11 +39,11 @@ int main(int argc, char** argv)
     ;
     bool        negate      = ops >> Present('n', "negate", "sweep superlevel sets");
 
-    std::string infn;
+    std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
-        !(ops >> PosOption(infn)))
+        !(ops >> PosOption(infn) >> PosOption(outfn)))
     {
-        fmt::print("Usage: {} IN.npy\n{}", argv[0], ops);
+        fmt::print("Usage: {} IN.npy OUT.mt\n{}", argv[0], ops);
         return 1;
     }
 
@@ -103,4 +104,17 @@ int main(int argc, char** argv)
             ++leaves;
     }
     fmt::print("Leaves: {}\n", leaves);
+
+    if (outfn != "-")
+    {
+        diy::BinaryBuffer bb;
+        diy::save(bb, mt);
+        //reeber::Serialization<MergeTree>::save(bb, mt, false);
+        std::ofstream out(outfn.c_str());
+        out.write(&bb.buffer[0], bb.size());
+    }
+
+    dlog::prof.flush();     // TODO: this is necessary because the profile file will close before
+                            //       the global dlog::prof goes out of scope and flushes the events.
+                            //       Need to eventually fix this.
 }

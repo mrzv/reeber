@@ -7,6 +7,8 @@
 #include <boost/foreach.hpp>
 #include <boost/lambda/lambda.hpp>
 
+#include "serialization.h"
+
 namespace reeber
 {
 
@@ -69,6 +71,8 @@ class MergeTree
 
         const VertexNeighborMap&
                     nodes() const                       { return nodes_; }
+
+        friend struct ::reeber::Serialization<MergeTree>;
 
     public:
         struct      CollapseEvent   { static const char* name() { return "collapsed"; } };

@@ -59,7 +59,7 @@ template<class MergeTree, class Topology, class Function, class Collapsible>
 void
 reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Function& f, const Collapsible& collapsible)
 {
-    PROF << "compute-merge-tree";
+    dlog::prof << "compute-merge-tree";
     typedef     typename Topology::Vertex       Vertex;
     typedef     typename Topology::Link         Link;
     typedef     typename Function::Value        Value;
@@ -121,5 +121,5 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
             ++it;
         }
     }
-    PROF >> "compute-merge-tree";
+    dlog::prof >> "compute-merge-tree";
 }
