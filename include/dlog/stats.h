@@ -93,7 +93,12 @@ struct Profiler
     void    enter(std::string name);
     inline
     void    exit(std::string name);
-    void    flush()                                     { output_events(); for (size_t i = 0; i < outs.size(); ++i) outs[i]->flush(); events.clear(); }
+    void    flush()
+    {
+        output_events();
+        for (size_t i = 0; i < outs.size(); ++i)
+            outs[i]->flush();
+    }
 
     private:
     inline
@@ -207,6 +212,7 @@ output_events()
             out << clock_to_string(e.stamp - start) << (e.begin ? " <" : " >") << e.name << '\n';
         }
     }
+    events.clear();
 }
 #endif // PROFILE
 
