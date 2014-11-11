@@ -23,7 +23,8 @@ struct MergeTreeNode
     typedef                     MergeTreeNode*                  Neighbor;
     typedef                     std::vector<Neighbor>           Neighbors;
 
-    // TODO?: add operator<(const MergeTreeNode& other)
+    bool                        operator<(const MergeTreeNode& other) const     { return value < other.value || (value == other.value && vertex < other.vertex); }
+    bool                        operator>(const MergeTreeNode& other) const     { return value > other.value || (value == other.value && vertex > other.vertex); }
 
     Neighbor                    parent;
     Neighbors                   children;
@@ -84,11 +85,15 @@ class MergeTree
                     nodes()                             { return nodes_; }
 
         static
-        Neighbor&   compressed_parent(Neighbor n)       { return (Neighbor&) n->aux; }
+        Neighbor&   aux_neighbor(Neighbor n)            { return (Neighbor&) n->aux; }
 
         template<class MT, class T, class F, class C>
         friend void
         compute_merge_tree(MT& mt, const T& t, const F& f, const C& c);
+
+        template<class MT, class F>
+        friend void
+        traverse_persistence(const MT& mt, const F& f);
 
     private:
         bool                        negate_;
@@ -110,6 +115,8 @@ void compute_merge_tree(MergeTree& mt, const Topology& topology, const Function&
     compute_merge_tree(mt, topology, f, boost::lambda::constant(true));
 }
 
+template<class MergeTree, class Functor>
+void traverse_persistence(const MergeTree& mt, const Functor& f);
 
 // TODO: set up union topology from the trees and feed it into compute_merge_tree()
 template<class MergeTree>

@@ -1,8 +1,9 @@
 #ifndef REEBER_MERGE_TREE_SERIALIZATION_H
 #define REEBER_MERGE_TREE_SERIALIZATION_H
 
-#include "merge-tree.h"
+#include <boost/range/adaptor/map.hpp>
 #include <diy/serialization.hpp>
+#include "merge-tree.h"
 
 namespace reeber
 {
@@ -87,7 +88,7 @@ struct Serialization< ::reeber::MergeTree<Vertex, Value> >
     typedef     ::reeber::MergeTree<Vertex, Value>              MergeTree;
 
     static void save(BinaryBuffer& bb, const MergeTree& mt)     { ::reeber::Serialization<MergeTree>::save(bb, mt, true); }
-    static void load(BinaryBuffer& bb, MergeTree& mt)           { ::reeber::Serialization<MergeTree>::load(bb, mt, true); }
+    static void load(BinaryBuffer& bb, MergeTree& mt)           { ::reeber::Serialization<MergeTree>::load(bb, mt); }
 };
 
 }

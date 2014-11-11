@@ -1,3 +1,7 @@
+#include <stack>
+
+#include <boost/range/adaptor/map.hpp>
+
 #include <dlog/stats.h>
 #include <dlog/log.h>
 #include <dlog/counters.h>
@@ -13,7 +17,7 @@ add(const Vertex& x, Value v)
     n->vertex = x;
     n->value  = v;
     n->parent = 0;
-    compressed_parent(n) = 0;
+    aux_neighbor(n) = 0;
 
     return n;
 }
@@ -23,21 +27,23 @@ typename reeber::MergeTree<Vertex, Value>::Neighbor
 reeber::MergeTree<Vertex, Value>::
 find(const Vertex& x) const
 {
+    // aux_neighbor functions as compressed parent
+
     Neighbor xn = (*this)[x];
     Neighbor res = xn;
-    while (compressed_parent(res) != 0)
+    while (aux_neighbor(res) != 0)
     {
         COUNTER(FindStepEvent)++;
-        res = compressed_parent(res);
+        res = aux_neighbor(res);
     }
 
     // compress the path to res
-    Neighbor up = compressed_parent(xn);
+    Neighbor up = aux_neighbor(xn);
     while (up != 0)
     {
-        compressed_parent(xn) = res;
+        aux_neighbor(xn) = res;
         xn = up;
-        up = compressed_parent(xn);
+        up = aux_neighbor(xn);
     }
 
     return res;
@@ -49,7 +55,7 @@ reeber::MergeTree<Vertex, Value>::
 link(Neighbor xn, Neighbor yn)
 {
     yn->parent = xn;
-    compressed_parent(yn) = xn;
+    aux_neighbor(yn) = xn;
     xn->children.push_back(yn);
 }
 
@@ -117,9 +123,70 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
         }
         else
         {
-            MergeTree::compressed_parent(it->second) = 0;      // reset aux
+            MergeTree::aux_neighbor(it->second) = 0;      // reset aux
             ++it;
         }
     }
     dlog::prof >> "compute-merge-tree";
 }
+
+template<class MergeTree, class Functor>
+void
+reeber::traverse_persistence(const MergeTree& mt, const Functor& f)
+{
+    typedef     typename MergeTree::Neighbor        Neighbor;
+    std::stack<Neighbor> s;
+    namespace ba = boost::adaptors;
+
+    // find root
+    Neighbor root;
+    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+        if (!n->parent)
+        {
+            root = n;
+            break;
+        }
+
+    s.push(root);
+    while(!s.empty())
+    {
+        Neighbor n = s.top();
+        if (n->children.empty())
+        {
+            MergeTree::aux_neighbor(n) = n;
+            s.pop();
+        } else if (!MergeTree::aux_neighbor(n->children[0]))
+        {
+            BOOST_FOREACH(Neighbor child, n->children)
+                s.push(child);
+        } else
+        {
+            // find the deepest subtree
+            Neighbor deepest = n->children[0];
+            for (unsigned i = 1; i < n->children.size(); ++i)
+            {
+                Neighbor child = n->children[i];
+                if (mt.cmp(*MergeTree::aux_neighbor(child), *MergeTree::aux_neighbor(deepest)))
+                    deepest = child;
+            }
+
+            MergeTree::aux_neighbor(n) = MergeTree::aux_neighbor(deepest);
+
+            // report the rest of the pairs
+            BOOST_FOREACH(Neighbor child, n->children)
+            {
+                if (child == deepest)
+                    continue;
+                f(MergeTree::aux_neighbor(child), n, MergeTree::aux_neighbor(deepest));
+            }
+            s.pop();
+        }
+    }
+
+    f(MergeTree::aux_neighbor(root), root, MergeTree::aux_neighbor(root));
+
+    // reset aux
+    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+        MergeTree::aux_neighbor(n) = 0;
+}
+
