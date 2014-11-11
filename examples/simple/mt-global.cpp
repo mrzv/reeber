@@ -55,9 +55,9 @@ int main(int argc, char** argv)
     diy::mpi::communicator  world;
 
     std::ofstream   profile_stream;
-    if (profile_path.empty())
+    if (profile_path == "-")
         dlog::prof.add_stream(std::cerr);
-    else
+    else if (!profile_path.empty())
     {
         std::string profile_fn = fmt::format("{}-r{}.prf", profile_path, world.rank());
         profile_stream.open(profile_fn.c_str());

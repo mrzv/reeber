@@ -1,8 +1,8 @@
 foreach                     (real   float double)
 
-add_executable              (simple-${real}   simple.cpp format.cc ${DEBUG_SOURCES})
-target_link_libraries       (simple-${real}   ${libraries})
-set_target_properties       (simple-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
+add_executable              (mt-global-${real}   mt-global.cpp format.cc ${DEBUG_SOURCES})
+target_link_libraries       (mt-global-${real}   ${libraries})
+set_target_properties       (mt-global-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
 
 add_executable              (persistence-${real}   persistence.cpp format.cc ${DEBUG_SOURCES})
 target_link_libraries       (persistence-${real}   ${libraries})
