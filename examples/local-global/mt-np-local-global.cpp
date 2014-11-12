@@ -138,6 +138,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
     if (out_size == 0)        // final round: create the final local-global tree, nothing needs to be sent
     {
         sparsify(b->mt, b->local.bounds_test());
+        //TODO: remove_degree2(b->mt, b->local.bounds_test());
         LOG_SEV(info) << "Final tree size: " << b->mt.size();
         return;
     }
