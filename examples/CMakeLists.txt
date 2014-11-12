@@ -1,1 +1,2 @@
-add_subdirectory    (simple)
+add_subdirectory    (global)
+add_subdirectory    (local-global)

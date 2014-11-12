@@ -57,6 +57,11 @@ include_directories         (${CMAKE_CURRENT_SOURCE_DIR}/include
 set                         (libraries
                              ${MPI_C_LIBRARIES}
                              ${MPI_CXX_LIBRARIES})
+
+# Sources
+set                         (SOURCES ${CMAKE_SOURCE_DIR}/src/format.cc)
+
+
 # backwards.hpp
 if                          (debug)
     find_library            (LIBDW_LIBRARY NAMES dw)
