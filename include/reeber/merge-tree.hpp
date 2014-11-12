@@ -157,7 +157,7 @@ reeber::traverse_persistence(const MergeTree& mt, const Functor& f)
         } else
         {
             // find the deepest subtree
-            Neighbor deepest = MergeTree::aux_neighbor(n->children[0]);
+            Neighbor deepest = n->children[0];
             for (unsigned i = 1; i < n->children.size(); ++i)
             {
                 Neighbor child = n->children[i];
