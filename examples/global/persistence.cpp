@@ -25,9 +25,9 @@ struct OutputPairs
     void    operator()(Neighbor from, Neighbor through, Neighbor to) const
     {
         if (from != to)
-            fmt::print(out, "{} {} {}\n",  from->value, through->value, to->value);
+            fmt::print(out, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
         else
-            fmt::print(out, "{} {} --\n", from->value, (negate ? "-inf" : "inf"));
+            fmt::print(out, "{} {} {} --\n",    from->vertex,  from->value, (negate ? "-inf" : "inf"));
     }
 
     std::ostream&       out;

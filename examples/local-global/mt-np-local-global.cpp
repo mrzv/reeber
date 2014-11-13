@@ -95,6 +95,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
 
     // receive trees, merge, and sparsify
     int in_size = srp.in_link().count();
+    LOG_SEV(debug) << "  incoming link size: " << in_size;
     if (in_size)
     {
         std::vector<Box>        bounds(in_size, b->global.grid_shape());
@@ -108,10 +109,12 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
               in_pos = i;
               bounds[i].swap(b->global);
               trees[i].swap(b->mt);
+              LOG_SEV(debug) << "  swapped in tree of size: " << trees[i].size();
           } else
           {
               srp.dequeue(nbr_gid, bounds[i]);
               srp.dequeue(nbr_gid, trees[i]);
+              LOG_SEV(debug) << "  received tree of size: " << trees[i].size();
           }
         }
         LOG_SEV(debug) << "  trees and bounds received";
@@ -137,6 +140,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
     int out_size = srp.out_link().count();
     if (out_size == 0)        // final round: create the final local-global tree, nothing needs to be sent
     {
+        //LOG_SEV(info) << "Sparsifying final tree of size: " << b->mt.size();
         sparsify(b->mt, b->local.bounds_test());
         //TODO: remove_degree2(b->mt, b->local.bounds_test());
         LOG_SEV(info) << "Final tree size: " << b->mt.size();
@@ -190,6 +194,16 @@ int main(int argc, char** argv)
         if (world.rank() == 0)
             fmt::print("Usage: {} IN.npy OUT.mt\n{}", argv[0], ops);
         return 1;
+    }
+
+    // check if the output file exists (we cannot overwrite it)
+    {
+        std::ifstream out(outfn.c_str());
+        if (out.good())
+        {
+            fmt::print("Output file {} already exists. MPI-IO won't overwrite it. Aborting\n", outfn);
+            return 1;
+        }
     }
 
     dlog::add_stream(std::cerr, dlog::severity(log_level))

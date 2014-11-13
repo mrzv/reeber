@@ -82,6 +82,8 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
     else
         std::sort(vertices.begin(), vertices.end(), std::less<ValueVertexPair>());
 
+    LOG_SEV(debug) << "Computing merge tree out of " << vertices.size() << " vertices";
+
 
     BOOST_FOREACH(const ValueVertexPair& fu, vertices)
     {
@@ -205,7 +207,7 @@ reeber::sparsify(MergeTree& mt, const Special& special)
     while(!s.empty())
     {
         Neighbor n = s.top();
-        if (n->children.empty())
+        if (n->children.empty())                // leaf
         {
             MergeTree::aux_neighbor(n) = 0;
             if (special(n->vertex))
@@ -214,32 +216,46 @@ reeber::sparsify(MergeTree& mt, const Special& special)
             if (mt.cmp(*n, *MergeTree::aux_neighbor(n->parent)))
                 MergeTree::aux_neighbor(n->parent) = n;
             s.pop();
-        } else if (!MergeTree::aux_neighbor(n))
+        } else if (!MergeTree::aux_neighbor(n)) // on the way down
         {
             BOOST_FOREACH(Neighbor child, n->children)
                 s.push(child);
             MergeTree::aux_neighbor(n) = n;
-        } else
+        } else                                  // on the way up
         {
             Neighbor deepest = MergeTree::aux_neighbor(n);
+            AssertMsg(mt.contains(deepest->vertex), "deepest must be in the tree");
+            AssertMsg(deepest->children.empty(),    "deepest must be a leaf");
 
+            // propagate deepest up
+            if (n->parent && mt.cmp(*deepest, *MergeTree::aux_neighbor(n->parent)))
+                MergeTree::aux_neighbor(n->parent) = deepest;
+
+            bool preserve = special(n->vertex);
             unsigned end = n->children.size();
             for (unsigned i = 0; i < end; )
             {
-                Neighbor child = n->children[i];
-                if (child == deepest)
+                Neighbor child         = n->children[i];
+                Neighbor child_deepest = MergeTree::aux_neighbor(child);
+                if (!child_deepest) child_deepest = child;
+                if (child_deepest && MergeTree::aux_neighbor(child_deepest))     // needs to be preserved
                 {
+                    preserve = true;
                     ++i; continue;
                 }
-                if (MergeTree::aux_neighbor(child))     // needs to be preserved
+                if (child_deepest == deepest)
                 {
-                    MergeTree::aux_neighbor(deepest) = deepest;     // mark this subtree as in need of preserving
                     ++i; continue;
                 }
 
-                std::swap(n->children[i], n->children[end-1]);
                 --end;
+                std::swap(n->children[i], n->children[end]);
             }
+
+            if (!preserve)
+                MergeTree::aux_neighbor(deepest) = 0;         // this subtree can be removed
+            else
+                MergeTree::aux_neighbor(deepest) = deepest;
 
             // remove subtrees at n->children[end..]
             std::stack<Neighbor> rms;

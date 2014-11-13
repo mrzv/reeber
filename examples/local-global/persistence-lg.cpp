@@ -25,9 +25,9 @@ struct OutputPairs
             return;
 
         if (from != to)
-            fmt::print(out, "{} {} {}\n", from->value, through->value, to->value);
+            fmt::print(out, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
         else
-            fmt::print(out, "{} {} --\n", from->value, (negate ? "-inf" : "inf"));
+            fmt::print(out, "{} {} {} --\n",    from->vertex,  from->value, (negate ? "-inf" : "inf"));
     }
 
     std::ostream&       out;
@@ -35,17 +35,16 @@ struct OutputPairs
     bool                negate;
 };
 
-void output_persistence(void* b_, const diy::Master::ProxyWithLink& cp, void* outfn_)
+void output_persistence(void* b_, const diy::Master::ProxyWithLink& cp, void* ofs_)
 {
     MergeTreeBlock*     b       = static_cast<MergeTreeBlock*>(b_);
-    const std::string&  outfn   = *static_cast<const std::string*>(outfn_);
+    std::ofstream&      ofs     = *static_cast<std::ofstream*>(ofs_);
 
     LOG_SEV(debug) << "Block:   " << cp.gid();
     LOG_SEV(debug) << " Tree:   " << b->mt.size() << " with " << b->mt.count_roots() << " roots";
     LOG_SEV(debug) << " Local:  " << b->local.from()  << " - " << b->local.to();
     LOG_SEV(debug) << " Global: " << b->global.from() << " - " << b->global.to();
 
-    std::ofstream ofs(outfn.c_str());
     r::traverse_persistence(b->mt, OutputPairs(ofs, b->local, b->mt.negate()));
 }
 
@@ -112,7 +111,8 @@ int main(int argc, char** argv)
     LOG_SEV(info) << "Blocks read: " << master.size();
 
     // output persistence
-    master.foreach(&output_persistence, &outfn);
+    std::ofstream ofs(outfn.c_str());
+    master.foreach(&output_persistence, &ofs);
 
     dlog::prof.flush();
 }
