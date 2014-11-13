@@ -27,6 +27,7 @@ struct MergeTreeBlock
     static void             save(const void* b, diy::BinaryBuffer& bb)      { diy::save(bb, *static_cast<const MergeTreeBlock*>(b)); }
     static void             load(      void* b, diy::BinaryBuffer& bb)      { diy::load(bb, *static_cast<MergeTreeBlock*>(b)); }
 
+    int                     gid;
     Box                     local;
     Box                     global;
     MergeTree               mt;
@@ -39,12 +40,14 @@ namespace diy
     {
         static void             save(diy::BinaryBuffer& bb, const MergeTreeBlock& b)
         {
+            diy::save(bb, b.gid);
             diy::save(bb, b.local);
             diy::save(bb, b.global);
             diy::save(bb, b.mt);
         }
         static void             load(diy::BinaryBuffer& bb, MergeTreeBlock& b)
         {
+            diy::load(bb, b.gid);
             diy::load(bb, b.local);
             diy::load(bb, b.global);
             diy::load(bb, b.mt);

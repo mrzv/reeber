@@ -43,6 +43,7 @@ struct LoadComputeAdd
         OffsetGrid g(full_shape, bounds.min, bounds.max);
         reader.read(bounds, g.data(), true);      // collective; implicitly assumes same number of blocks on every processor
 
+        b->gid = gid;
         b->mt.set_negate(negate);
         b->local = b->global = Box(full_shape, bounds.min, bounds.max);
         LOG_SEV(debug) << "Local box:  " << b->local.from()  << " - " << b->local.to();
@@ -201,13 +202,22 @@ int main(int argc, char** argv)
         std::ifstream out(outfn.c_str());
         if (out.good())
         {
-            fmt::print("Output file {} already exists. MPI-IO won't overwrite it. Aborting\n", outfn);
+            if (world.rank() == 0)
+                fmt::print("Output file {} already exists. MPI-IO won't overwrite it. Aborting\n", outfn);
             return 1;
         }
     }
 
     dlog::add_stream(std::cerr, dlog::severity(log_level))
         << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
+
+#ifdef PROFILE
+    if (threads != 1)
+    {
+        LOG_SEV_IF(world.rank() == 0, fatal) << "Cannot use profiling with more than one thread";
+        return 1;
+    }
+#endif
 
     std::ofstream   profile_stream;
     if (profile_path == "-")

@@ -4,48 +4,61 @@
 #include <dlog/log.h>
 #include <dlog/stats.h>
 
+#include <diy/decomposition.hpp>
 #include <diy/io/block.hpp>
 
 #include "format.h"
 
 #include "merge-tree-block.h"
 
+typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
+
 struct OutputPairs
 {
+    struct ExtraInfo
+    {
+                            ExtraInfo(std::ostream& ofs_, const Decomposer& decomposer_):
+                                ofs(ofs_), decomposer(decomposer_)      {}
+        std::ostream&       ofs;
+        const Decomposer&   decomposer;
+    };
+
     typedef MergeTreeBlock::MergeTree::Neighbor                         Neighbor;
     typedef MergeTreeBlock::Box                                         Box;
 
-            OutputPairs(std::ostream& out_, const Box& local_, bool negate_):
-                out(out_), local(local_), negate(negate_)               {}
+            OutputPairs(const MergeTreeBlock& block_, const ExtraInfo& extra_):
+                block(block_),
+                extra(extra_)                                           {}
 
     void    operator()(Neighbor from, Neighbor through, Neighbor to) const
     {
-        // FIXME: need to check for the overlap; in principle should use the decomposer, although that seems heavy
-        if (!local.bounds_test()(from->vertex))
+        Box::Position from_position = block.global.position(from->vertex);
+        if (extra.decomposer.lowest_gid(from_position) != block.gid)
             return;
 
         if (from != to)
-            fmt::print(out, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
+            fmt::print(extra.ofs, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
         else
-            fmt::print(out, "{} {} {} --\n",    from->vertex,  from->value, (negate ? "-inf" : "inf"));
+            fmt::print(extra.ofs, "{} {} {} --\n",       from->vertex,  from->value, (block.mt.negate() ? "-inf" : "inf"));
     }
 
-    std::ostream&       out;
-    const Box&          local;
-    bool                negate;
+    const MergeTreeBlock&       block;
+    const ExtraInfo&            extra;
 };
 
-void output_persistence(void* b_, const diy::Master::ProxyWithLink& cp, void* ofs_)
+void output_persistence(void* b_, const diy::Master::ProxyWithLink& cp, void* aux)
 {
+    typedef             OutputPairs::ExtraInfo              ExtraInfo;
+
     MergeTreeBlock*     b       = static_cast<MergeTreeBlock*>(b_);
-    std::ofstream&      ofs     = *static_cast<std::ofstream*>(ofs_);
+    ExtraInfo&          extra   = *static_cast<ExtraInfo*>(aux);
 
     LOG_SEV(debug) << "Block:   " << cp.gid();
     LOG_SEV(debug) << " Tree:   " << b->mt.size() << " with " << b->mt.count_roots() << " roots";
     LOG_SEV(debug) << " Local:  " << b->local.from()  << " - " << b->local.to();
     LOG_SEV(debug) << " Global: " << b->global.from() << " - " << b->global.to();
 
-    r::traverse_persistence(b->mt, OutputPairs(ofs, b->local, b->mt.negate()));
+    r::traverse_persistence(b->mt, OutputPairs(*b, extra));
 }
 
 int main(int argc, char** argv)
@@ -81,6 +94,14 @@ int main(int argc, char** argv)
     dlog::add_stream(std::cerr, dlog::severity(log_level))
         << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
 
+#ifdef PROFILE
+    if (threads != 1)
+    {
+        LOG_SEV_IF(world.rank() == 0, fatal) << "Cannot use profiling with more than one thread";
+        return 1;
+    }
+#endif
+
     std::ofstream   profile_stream;
     if (profile_path == "-")
         dlog::prof.add_stream(std::cerr);
@@ -110,9 +131,21 @@ int main(int argc, char** argv)
     diy::io::read_blocks(infn, world, assigner, master);
     LOG_SEV(info) << "Blocks read: " << master.size();
 
+    // get the domain bounds from any block that's in memory (they are all the same) and set up a decomposer
+    MergeTreeBlock::Box global = static_cast<MergeTreeBlock*>(((const diy::Master&) master).block(master.loaded_block()))->global;
+    diy::DiscreteBounds domain;
+    for (unsigned i = 0; i < 3; ++i)
+    {
+        domain.min[i] = global.from()[i];
+        domain.max[i] = global.to()[i];
+    }
+    diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner, Decomposer::BoolVector(3, true));
+
     // output persistence
-    std::ofstream ofs(outfn.c_str());
-    master.foreach(&output_persistence, &ofs);
+    std::string dgm_fn = fmt::format("{}-r{}.dgm", outfn, world.rank());
+    std::ofstream ofs(dgm_fn.c_str());
+    OutputPairs::ExtraInfo extra(ofs, decomposer);
+    master.foreach(&output_persistence, &extra);
 
     dlog::prof.flush();
 }
