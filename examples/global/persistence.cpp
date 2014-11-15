@@ -69,11 +69,7 @@ int main(int argc, char** argv)
 
     MergeTree mt;
 
-    std::ifstream in(infn.c_str(), std::ios::binary | std::ios::ate);
-    diy::BinaryBuffer bb;
-    bb.buffer.resize(in.tellg());
-    in.seekg(0);
-    in.read(&bb.buffer[0], bb.size());
+    diy::BinaryBuffer bb; bb.read(infn);
     diy::load(bb, mt);
     fmt::print("Tree loaded: {}\n", mt.size());
 

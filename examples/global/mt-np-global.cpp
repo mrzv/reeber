@@ -109,9 +109,7 @@ int main(int argc, char** argv)
     {
         diy::BinaryBuffer bb;
         diy::save(bb, mt);
-        //reeber::Serialization<MergeTree>::save(bb, mt, false);
-        std::ofstream out(outfn.c_str());
-        out.write(&bb.buffer[0], bb.size());
+        bb.write(outfn);
     }
 
     dlog::prof.flush();     // TODO: this is necessary because the profile file will close before
