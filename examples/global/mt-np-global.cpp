@@ -108,6 +108,7 @@ int main(int argc, char** argv)
     if (outfn != "-")
     {
         diy::BinaryBuffer bb;
+        diy::save(bb, g.shape());
         diy::save(bb, mt);
         bb.write(outfn);
     }

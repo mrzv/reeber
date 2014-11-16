@@ -14,6 +14,7 @@ namespace r = reeber;
 typedef     REEBER_REAL                     Real;
 typedef     r::GridRef<void*, 3>            GridRef;
 typedef     GridRef::Index                  Index;
+typedef     GridRef::Vertex                 Vertex;
 typedef     r::MergeTree<Index, Real>       MergeTree;
 typedef     MergeTree::Neighbor             Neighbor;
 
@@ -67,9 +68,10 @@ int main(int argc, char** argv)
         dlog::prof.add_stream(profile_stream);
     }
 
-    MergeTree mt;
+    MergeTree mt; Vertex shape;
 
     diy::BinaryBuffer bb; bb.read(infn);
+    diy::load(bb, shape);
     diy::load(bb, mt);
     fmt::print("Tree loaded: {}\n", mt.size());
 
