@@ -116,7 +116,8 @@ class MergeTree
         merge(MT& mt, const std::vector<MT>& trees);
 
         template<class MT, class P>
-        void remove_degree2(MT& mt, const P& p);
+        friend void
+        remove_degree2(MT& mt, const P& p);
 
     private:
         bool                        negate_;

@@ -143,7 +143,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
     {
         //LOG_SEV(info) << "Sparsifying final tree of size: " << b->mt.size();
         sparsify(b->mt, b->local.bounds_test());
-        //TODO: remove_degree2(b->mt, b->local.bounds_test());
+        remove_degree2(b->mt, b->local.bounds_test());
         LOG_SEV(info) << "Final tree size: " << b->mt.size();
         return;
     }
