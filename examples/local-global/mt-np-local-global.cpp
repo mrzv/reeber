@@ -95,7 +95,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
     LOG_SEV(debug) << "Round: " << round;
 
     // receive trees, merge, and sparsify
-    int in_size = srp.in_link().count();
+    int in_size = srp.in_link().size();
     LOG_SEV(debug) << "  incoming link size: " << in_size;
     if (in_size)
     {
@@ -138,7 +138,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
     }
 
     // send (without the vertices) to the neighbors
-    int out_size = srp.out_link().count();
+    int out_size = srp.out_link().size();
     if (out_size == 0)        // final round: create the final local-global tree, nothing needs to be sent
     {
         //LOG_SEV(info) << "Sparsifying final tree of size: " << b->mt.size();
