@@ -232,12 +232,11 @@ int main(int argc, char** argv)
     LOG_SEV(info) << "Starting computation";
     diy::FileStorage            storage(prefix);
 
-    diy::Communicator           comm(world);
-    diy::Master                 master(comm,
+    diy::Master                 master(world,
+                                       threads,
+                                       in_memory,
                                        &MergeTreeBlock::create,
                                        &MergeTreeBlock::destroy,
-                                       in_memory,
-                                       threads,
                                        &storage,
                                        &MergeTreeBlock::save,
                                        &MergeTreeBlock::load);
