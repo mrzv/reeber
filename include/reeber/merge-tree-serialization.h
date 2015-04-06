@@ -11,7 +11,7 @@ namespace reeber
 template<class Vertex, class Value>
 struct Serialization< MergeTree<Vertex, Value> >
 {
-    typedef     MergeTree<Vertex, Value>                    MergeTree;
+    typedef     ::reeber::MergeTree<Vertex, Value>          MergeTree;
     typedef     typename MergeTree::Neighbor                Neighbor;
 
     static void save(::diy::BinaryBuffer& bb, const MergeTree& mt, bool save_vertices = true)
