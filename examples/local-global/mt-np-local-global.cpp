@@ -197,17 +197,6 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    // check if the output file exists (we cannot overwrite it)
-    {
-        std::ifstream out(outfn.c_str());
-        if (out.good())
-        {
-            if (world.rank() == 0)
-                fmt::print("Output file {} already exists. MPI-IO won't overwrite it. Aborting\n", outfn);
-            return 1;
-        }
-    }
-
     dlog::add_stream(std::cerr, dlog::severity(log_level))
         << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
 
