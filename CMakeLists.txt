@@ -12,6 +12,7 @@ add_definitions             (-Wall -fPIC)
 # Find everything that's always required
 find_package                (Boost)
 find_package                (MPI REQUIRED)
+find_package                (Threads)
 
 # Debugging
 if                          (debug)
@@ -55,6 +56,7 @@ include_directories         (${CMAKE_CURRENT_SOURCE_DIR}/include
 
 # Set libraries
 set                         (libraries
+                             ${CMAKE_THREAD_LIBS_INIT}
                              ${MPI_C_LIBRARIES}
                              ${MPI_CXX_LIBRARIES})
 
