@@ -67,7 +67,6 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
 {
     dlog::prof << "compute-merge-tree";
     typedef     typename Topology::Vertex       Vertex;
-    typedef     typename Topology::Link         Link;
     typedef     typename Function::Value        Value;
     typedef     std::pair<Value, Vertex>        ValueVertexPair;
     typedef     typename MergeTree::Neighbor    Neighbor;
@@ -343,6 +342,7 @@ reeber::remove_degree2(MergeTree& mt, const Preserve& preserve)
                         BOOST_FOREACH(const ValueVertex& vv, cur->vertices)
                             descendant->vertices.push_back(vv);
                     }
+                    cur = cur->parent;
                 }
 
                 // remove the path
