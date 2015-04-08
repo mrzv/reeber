@@ -10,19 +10,20 @@ namespace reeber
 
 namespace ba = boost::adaptors;
 
-template<class MergeTree_>
+template<class MergeTree_, class Edges_>
 class TreeUnionTopology
 {
     public:
         typedef             MergeTree_                      MergeTree;
+        typedef             Edges_                          Edges;
         typedef             typename MergeTree::Vertex      Vertex;
         typedef             typename MergeTree::Neighbor    Neighbor;
         typedef             std::set<Vertex>                Link;
         typedef             std::set<Vertex>                Vertices;
 
     public:
-                            TreeUnionTopology(const std::vector<MergeTree>& trees):
-                                trees_(trees)               {}
+                            TreeUnionTopology(const std::vector<MergeTree>& trees, const Edges& edges):
+                                trees_(trees), edges_(edges)    {}
 
         Vertices            vertices() const;
         Link                link(const Vertex& v) const;
@@ -32,6 +33,7 @@ class TreeUnionTopology
 
     private:
         const std::vector<MergeTree>&       trees_;
+        const Edges&                        edges_;
 };
 
 template<class MergeTree_>
@@ -61,9 +63,9 @@ class TreeUnionFunction
 }
 
 // TODO: the current implementation of vertices() is rather inefficient without return value optimization
-template<class MT>
-typename reeber::TreeUnionTopology<MT>::Vertices
-reeber::TreeUnionTopology<MT>::
+template<class MT, class E>
+typename reeber::TreeUnionTopology<MT,E>::Vertices
+reeber::TreeUnionTopology<MT,E>::
 vertices() const
 {
     Vertices vertices;
@@ -74,9 +76,9 @@ vertices() const
     return vertices;
 }
 
-template<class MT>
-typename reeber::TreeUnionTopology<MT>::Link
-reeber::TreeUnionTopology<MT>::
+template<class MT, class E>
+typename reeber::TreeUnionTopology<MT,E>::Link
+reeber::TreeUnionTopology<MT,E>::
 link(const Vertex& v) const
 {
     Link link;
@@ -91,6 +93,8 @@ link(const Vertex& v) const
                 link.insert(c->vertex);
         }
     }
+    BOOST_FOREACH(const Vertex& u, edges_(v))
+        link.insert(u);
     return link;
 }
 

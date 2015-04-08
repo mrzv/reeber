@@ -300,12 +300,29 @@ template<class MergeTree>
 void
 reeber::merge(MergeTree& mt, const std::vector<MergeTree>& trees)
 {
+    merge(mt, trees, detail::EmptyEdges<typename MergeTree::Vertex>());
+}
+
+template<class MergeTree, class Edges>
+void
+reeber::merge(MergeTree& mt, const std::vector<MergeTree>& trees, const Edges& edges)
+{
     dlog::prof << "merge";
-    TreeUnionTopology<MergeTree> union_topology(trees);
-    TreeUnionFunction<MergeTree> union_function(trees);
+    TreeUnionTopology<MergeTree, Edges> union_topology(trees, edges);
+    TreeUnionFunction<MergeTree>        union_function(trees);
     compute_merge_tree(mt, union_topology, union_function, boost::lambda::constant(false));
     dlog::prof >> "merge";
 }
+
+template<class Vertex_>
+struct reeber::detail::
+EmptyEdges
+{
+    typedef         Vertex_                                 Vertex;
+    typedef         std::pair<Vertex*, Vertex*>             VertexRange;
+    VertexRange     operator()(const Vertex& u) const       { return VertexRange(0,0); }
+};
+
 
 template<class MergeTree, class Preserve>
 void

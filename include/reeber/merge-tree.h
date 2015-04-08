@@ -151,9 +151,18 @@ void sparsify(MergeTree& out, const MergeTree& in, const Special& special);
 template<class MergeTree>
 void merge(MergeTree& mt, const std::vector<MergeTree>& trees);
 
+template<class MergeTree, class Edges>
+void merge(MergeTree& mt, const std::vector<MergeTree>& trees, const Edges& edges);
+
 // preserve indicates whether the a degree-2 node should be collapsed or removed
 template<class MergeTree, class Preserve>
 void remove_degree2(MergeTree& mt, const Preserve& preserve);
+
+namespace detail
+{
+    template<class Vertex>
+    struct EmptyEdges;
+}
 
 }
 
