@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 
 #include <opts/opts.h>
 #include <dlog/log.h>
@@ -17,9 +18,9 @@ struct OutputPairs
 {
     struct ExtraInfo
     {
-                            ExtraInfo(std::ostream& ofs_, const Decomposer& decomposer_):
-                                ofs(ofs_), decomposer(decomposer_)      {}
-        std::ostream&       ofs;
+                            ExtraInfo(const std::string& outfn_, const Decomposer& decomposer_):
+                                outfn(outfn_), decomposer(decomposer_)      {}
+        std::string         outfn;
         const Decomposer&   decomposer;
     };
 
@@ -28,7 +29,11 @@ struct OutputPairs
 
             OutputPairs(const MergeTreeBlock& block_, const ExtraInfo& extra_):
                 block(block_),
-                extra(extra_)                                           {}
+                extra(extra_)
+    {
+        std::string   dgm_fn = fmt::format("{}-b{}.dgm", extra.outfn, block.gid);
+        ofs.open(dgm_fn.c_str());
+    }
 
     void    operator()(Neighbor from, Neighbor through, Neighbor to) const
     {
@@ -37,13 +42,14 @@ struct OutputPairs
             return;
 
         if (from != to)
-            fmt::print(extra.ofs, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
+            fmt::print(ofs, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
         else
-            fmt::print(extra.ofs, "{} {} {} --\n",       from->vertex,  from->value, (block.mt.negate() ? "-inf" : "inf"));
+            fmt::print(ofs, "{} {} {} --\n",       from->vertex,  from->value, (block.mt.negate() ? "-inf" : "inf"));
     }
 
     const MergeTreeBlock&       block;
     const ExtraInfo&            extra;
+    mutable std::ofstream       ofs;
 };
 
 void output_persistence(void* b_, const diy::Master::ProxyWithLink& cp, void* aux)
@@ -141,9 +147,7 @@ int main(int argc, char** argv)
     diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner, Decomposer::BoolVector(3, true));
 
     // output persistence
-    std::string dgm_fn = fmt::format("{}-r{}.dgm", outfn, world.rank());
-    std::ofstream ofs(dgm_fn.c_str());
-    OutputPairs::ExtraInfo extra(ofs, decomposer);
+    OutputPairs::ExtraInfo extra(outfn, decomposer);
     master.foreach(&output_persistence, &extra);
 
     dlog::prof.flush();
