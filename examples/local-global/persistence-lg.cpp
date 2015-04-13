@@ -18,10 +18,11 @@ struct OutputPairs
 {
     struct ExtraInfo
     {
-                            ExtraInfo(const std::string& outfn_, const Decomposer& decomposer_):
-                                outfn(outfn_), decomposer(decomposer_)      {}
+                            ExtraInfo(const std::string& outfn_, const Decomposer& decomposer_, bool verbose_):
+                                outfn(outfn_), decomposer(decomposer_), verbose(verbose_)   {}
         std::string         outfn;
         const Decomposer&   decomposer;
+        bool                verbose;
     };
 
     typedef MergeTreeBlock::MergeTree::Neighbor                         Neighbor;
@@ -41,10 +42,14 @@ struct OutputPairs
         if (extra.decomposer.lowest_gid(from_position) != block.gid)
             return;
 
-        if (from != to)
-            fmt::print(ofs, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
-        else
-            fmt::print(ofs, "{} {} {} --\n",       from->vertex,  from->value, (block.mt.negate() ? "-inf" : "inf"));
+        if (extra.verbose)
+        {
+            if (from != to)
+                fmt::print(ofs, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
+            else
+                fmt::print(ofs, "{} {} {} --\n",       from->vertex,  from->value, (block.mt.negate() ? "-inf" : "inf"));
+        } else
+            fmt::print(ofs, "{} {}\n", from->value, through->value);
     }
 
     const MergeTreeBlock&       block;
@@ -88,6 +93,7 @@ int main(int argc, char** argv)
         >> Option('p', "profile",   profile_path, "path to keep the execution profile")
         >> Option('l', "log",       log_level,    "log level")
     ;
+    bool verbose = ops >> Present('v', "verbose", "verbose output");
 
     std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
@@ -147,7 +153,7 @@ int main(int argc, char** argv)
     diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner, Decomposer::BoolVector(3, true));
 
     // output persistence
-    OutputPairs::ExtraInfo extra(outfn, decomposer);
+    OutputPairs::ExtraInfo extra(outfn, decomposer, verbose);
     master.foreach(&output_persistence, &extra);
 
     dlog::prof.flush();
