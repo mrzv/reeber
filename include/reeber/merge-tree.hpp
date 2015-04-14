@@ -287,7 +287,7 @@ void
 reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
 {
     // TODO: a hideous hack for now; implement properly later
-    diy::BinaryBufferVector bb;
+    diy::MemoryBuffer bb;
     LOG_SEV(debug) << "Saving the tree: " << in.size();
     diy::save(bb, in);
     bb.reset();

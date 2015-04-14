@@ -70,7 +70,7 @@ int main(int argc, char** argv)
 
     MergeTree mt; Vertex shape;
 
-    diy::BinaryBufferVector bb; bb.read(infn);
+    diy::MemoryBuffer bb; bb.read(infn);
     diy::load(bb, shape);
     diy::load(bb, mt);
     fmt::print("Tree loaded: {}\n", mt.size());
