@@ -9,3 +9,9 @@ target_link_libraries       (persistence-lg-${real}   ${libraries})
 set_target_properties       (persistence-lg-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
 
 endforeach                  (real)
+
+if                          (boxlib)
+string                      (TOLOWER ${CCSE_PRECISION} CCSE_PRECISION_LC)
+add_executable              (mt-bl-local-global-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d   mt-bl-local-global.cpp ${DEBUG_SOURCES} ${SOURCES})
+target_link_libraries       (mt-bl-local-global-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d   ${libraries} ${CCSE_LIBRARIES})
+endif                       (boxlib)

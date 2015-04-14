@@ -1,6 +1,7 @@
 project                     (Reeber)
 cmake_minimum_required      (VERSION 2.8)
 
+option                      (boxlib             "Build Reeber with BoxLib support"              OFF)
 option                      (trace              "Enable trace log"                              OFF)
 option                      (debug              "Build Reeber with debugging on"                OFF)
 option                      (optimize           "Build Reeber with optimization"                ON)
@@ -47,6 +48,22 @@ endif                       (counters)
 
 # DIY
 find_path                   (DIY_INCLUDE_DIR        diy/master.hpp)
+
+# BOXLIB
+if                          (boxlib)
+    find_package            (CCSE REQUIRED)
+    if                      (debug)
+        set                 (BL_DEBUG               1)
+    endif                   (debug)
+    #include                 (${CCSE_DIR}/lib/CCSEConfig.cmake)
+    find_library            (FORTRAN_LIBRARIES NAMES gfortran)
+    set                     (CCSE_LIBRARIES cboxlib;fboxlib;cfboxlib;box_camrdata;gslib;${FORTRAN_LIBRARIES})
+    foreach                 (def ${CCSE_DEFINES})
+        add_definitions     (-D${def})
+    endforeach              (def)
+    include_directories     (SYSTEM ${CCSE_INCLUDE_DIR})
+    link_directories        (${CCSE_LIB_DIR})
+endif                       (boxlib)
 
 # Set includes
 include_directories         (${CMAKE_CURRENT_SOURCE_DIR}/include
