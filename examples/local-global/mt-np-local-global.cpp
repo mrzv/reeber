@@ -69,6 +69,18 @@ void save_no_vertices(diy::BinaryBuffer& bb, const MergeTreeBlock::MergeTree& mt
     reeber::Serialization<MergeTreeBlock::MergeTree>::save(bb, mt, false);
 }
 
+struct GlobalBoundary
+{
+    typedef     MergeTreeBlock::Box             Box;
+
+                GlobalBoundary(const Box& global_):
+                    global_test(global_)                        {}
+
+    bool        operator()(MergeTreeBlock::Index v) const                           { return global_test(v); }
+
+    Box::BoundaryTest       global_test;
+};
+
 struct LocalOrGlobalBoundary
 {
     typedef     MergeTreeBlock::Box             Box;
@@ -135,6 +147,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
 
         // sparsify
         sparsify(b->mt, LocalOrGlobalBoundary(b->local, b->global));
+        remove_degree2(b->mt, b->local.bounds_test(), GlobalBoundary(b->global));
     }
 
     // send (without the vertices) to the neighbors

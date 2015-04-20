@@ -115,9 +115,9 @@ class MergeTree
         friend void
         merge(MT& mt, const std::vector<MT>& trees);
 
-        template<class MT, class P>
+        template<class MT, class P, class S>
         friend void
-        remove_degree2(MT& mt, const P& p);
+        remove_degree2(MT& mt, const P& p, const S& s);
 
     private:
         bool                        negate_;
@@ -155,8 +155,16 @@ template<class MergeTree, class Edges>
 void merge(MergeTree& mt, const std::vector<MergeTree>& trees, const Edges& edges);
 
 // preserve indicates whether the a degree-2 node should be collapsed or removed
+// special indicates whether the node should be kept in place even if it's degree2
+template<class MergeTree, class Preserve, class Special>
+void remove_degree2(MergeTree& mt, const Preserve& preserve, const Special& special);
+
 template<class MergeTree, class Preserve>
-void remove_degree2(MergeTree& mt, const Preserve& preserve);
+void remove_degree2(MergeTree& mt, const Preserve& preserve)
+{
+    remove_degree2(mt, preserve, boost::lambda::constant(false));
+}
+
 
 namespace detail
 {

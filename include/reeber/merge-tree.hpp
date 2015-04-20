@@ -324,9 +324,9 @@ EmptyEdges
 };
 
 
-template<class MergeTree, class Preserve>
+template<class MergeTree, class Preserve, class Special>
 void
-reeber::remove_degree2(MergeTree& mt, const Preserve& preserve)
+reeber::remove_degree2(MergeTree& mt, const Preserve& preserve, const Special& special)
 {
     dlog::prof << "remove-degree2";
     typedef     typename MergeTree::Neighbor        Neighbor;
@@ -342,23 +342,23 @@ reeber::remove_degree2(MergeTree& mt, const Preserve& preserve)
         for (unsigned i = 0; i < n->children.size(); ++i)
         {
             Neighbor child = n->children[i];
-            if (child->children.size() == 1)
+            if (child->children.size() == 1 && !special(child->vertex))
             {
                 Neighbor descendant = child->children[0];
-                while (descendant->children.size() == 1)
+                while (descendant->children.size() == 1 && !special(descendant->vertex))
                     descendant = descendant->children[0];
 
                 // save the nodes that need to be preserved
                 Neighbor cur = descendant->parent;
                 while (cur != n)
                 {
+                    typedef     typename MergeTree::Node::ValueVertex       ValueVertex;
                     if (preserve(cur->vertex))
-                    {
-                        typedef     typename MergeTree::Node::ValueVertex       ValueVertex;
                         descendant->vertices.push_back(ValueVertex(cur->value, cur->vertex));
-                        BOOST_FOREACH(const ValueVertex& vv, cur->vertices)
+
+                    BOOST_FOREACH(const ValueVertex& vv, cur->vertices)
+                        if (preserve(vv.second))
                             descendant->vertices.push_back(vv);
-                    }
                     cur = cur->parent;
                 }
 
