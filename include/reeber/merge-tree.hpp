@@ -281,19 +281,111 @@ reeber::sparsify(MergeTree& mt, const Special& special)
     dlog::prof >> "sparsify";
 }
 
-#include "merge-tree-serialization.h"       // TODO: remove once the code below is fixed
 template<class MergeTree, class Special>
 void
 reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
 {
-    // TODO: a hideous hack for now; implement properly later
-    diy::MemoryBuffer bb;
-    LOG_SEV(debug) << "Saving the tree: " << in.size();
-    diy::save(bb, in);
-    bb.reset();
-    diy::load(bb, out);
-    LOG_SEV(debug) << "Loaded the tree: " << out.size();
-    sparsify(out, special);
+    // Puts the sparsified tree into out
+    // Traverses the tree in a post-order fashion;
+    // aux_neighbor for internal nodes keeps track of the deepest leaf
+    // aux_neighbor for the leaves marks whether the subtree needs to be preserved
+    // (this information may change in the course of the traversal)
+
+    dlog::prof << "sparsify";
+
+    typedef     typename MergeTree::Neighbor        Neighbor;
+    typedef     typename MergeTree::Vertex          Vertex;
+    typedef     std::map<Vertex, Neighbor>          VertexNeighborMap;
+
+    VertexNeighborMap   deepest_root;       // map from deepest node to its current root in the new tree
+
+    Neighbor root = in.find_root();
+    std::stack<Neighbor> s;
+    s.push(root);
+    while(!s.empty())
+    {
+        Neighbor n = s.top();
+        if (n->children.empty())                // leaf
+        {
+            MergeTree::aux_neighbor(n) = 0;
+            if (special(n->vertex))
+            {
+                MergeTree::aux_neighbor(n) = n;
+                Neighbor new_n = out.add(n->vertex, n->value);
+                deepest_root[new_n->vertex] = new_n;
+            }
+            AssertMsg(n->parent, "Parent of " << n->vertex << " must be present");
+            if (in.cmp(*n, *MergeTree::aux_neighbor(n->parent)))
+                MergeTree::aux_neighbor(n->parent) = n;
+            s.pop();
+        } else if (!MergeTree::aux_neighbor(n)) // on the way down
+        {
+            BOOST_FOREACH(Neighbor child, n->children)
+                s.push(child);
+            MergeTree::aux_neighbor(n) = n;
+        } else                                  // on the way up
+        {
+            Neighbor deepest = MergeTree::aux_neighbor(n);
+            AssertMsg(in.contains(deepest->vertex), "deepest must be in the tree");
+            AssertMsg(deepest->children.empty(),    "deepest must be a leaf");
+
+            // propagate deepest up
+            if (n->parent && in.cmp(*deepest, *MergeTree::aux_neighbor(n->parent)))
+                MergeTree::aux_neighbor(n->parent) = deepest;
+
+
+
+            bool preserve = special(n->vertex);
+            unsigned end = n->children.size();
+            for (unsigned i = 0; i < end; )
+            {
+                Neighbor child         = n->children[i];
+                Neighbor child_deepest = MergeTree::aux_neighbor(child);
+                if (!child_deepest) child_deepest = child;
+                if (child_deepest && MergeTree::aux_neighbor(child_deepest))     // needs to be preserved
+                    ++i;
+                else if (child_deepest == deepest)
+                    ++i;
+                else
+                {
+                    --end;
+                    std::swap(n->children[i], n->children[end]);
+                }
+            }
+
+            if (preserve || end > 1)
+            {
+                Neighbor new_n = out.add(n->vertex, n->value);
+                for (unsigned i = 0; i < end; ++i)
+                {
+                    Neighbor        child_deepest = MergeTree::aux_neighbor(n->children[i]);
+                    if (!child_deepest)
+                        child_deepest = n->children[i];
+                    const Vertex&   v             = child_deepest->vertex;
+                    typename VertexNeighborMap::iterator it = deepest_root.find(v);
+                    if (it != deepest_root.end())
+                    {
+                        Neighbor y = it->second;
+                        MergeTree::link(new_n, y);
+                        it->second = new_n;
+                    } else
+                    {
+                        Neighbor x = out.add(child_deepest->vertex, child_deepest->value);
+                        MergeTree::link(new_n, x);
+                        deepest_root[v] = new_n;
+                    }
+                }
+                MergeTree::aux_neighbor(deepest) = deepest;
+            }
+
+            s.pop();
+        }
+    }
+
+    in.reset_aux();
+    out.reset_aux();
+
+    dlog::prof >> "sparsify";
 }
 
 template<class MergeTree>
