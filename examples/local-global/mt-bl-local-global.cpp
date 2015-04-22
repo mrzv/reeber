@@ -191,7 +191,7 @@ int main(int argc, char** argv)
     int         nblocks      = world.size();
     std::string prefix       = "./DIY.XXXXXX";
     int         in_memory    = -1;
-    int         threads      = -1;
+    int         threads      = 1;
     std::string varname      = "";
     int         finest_level = 0;
 

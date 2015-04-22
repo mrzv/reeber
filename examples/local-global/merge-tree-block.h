@@ -5,6 +5,7 @@
 
 #include <reeber/merge-tree.h>
 #include <reeber/grid.h>
+#include <reeber/grid-serialization.h>
 #include <reeber/box.h>
 #include <reeber/merge-tree-serialization.h>
 namespace r = reeber;
@@ -18,6 +19,7 @@ struct MergeTreeBlock
 {
     typedef     r::Grid<Real, 3>                Grid;
     typedef     r::OffsetGrid<Real, 3>          OffsetGrid;
+    typedef     r::GridRestriction<Real, 3>     GridRestriction;
     typedef     Grid::Index                     Index;
     typedef     Grid::Vertex                    Vertex;
     typedef     Grid::Value                     Value;
@@ -33,6 +35,7 @@ struct MergeTreeBlock
     Box                     local;
     Box                     global;
     MergeTree               mt;
+    OffsetGrid              grid;
 };
 
 namespace diy
@@ -46,6 +49,7 @@ namespace diy
             diy::save(bb, b.local);
             diy::save(bb, b.global);
             diy::save(bb, b.mt);
+            diy::save(bb, b.grid);
         }
         static void             load(diy::BinaryBuffer& bb, MergeTreeBlock& b)
         {
@@ -53,6 +57,7 @@ namespace diy
             diy::load(bb, b.local);
             diy::load(bb, b.global);
             diy::load(bb, b.mt);
+            diy::load(bb, b.grid);
         }
     };
 }

@@ -77,12 +77,15 @@ struct Grid: public GridRef<C,D>
         typedef     GridRef<C,D>                                Parent;
         typedef     typename Parent::Value                      Value;
         typedef     typename Parent::Index                      Index;
+        typedef     typename Parent::Vertex                     Vertex;
         typedef     Parent                                      Reference;
 
         template<class U>
         struct rebind { typedef Grid<U,D>                       type; };
 
     public:
+                Grid():
+                    Parent(new C[0], Vertex::zero())            {}
         template<class Int>
                 Grid(const Point<Int, D>& shape):
                     Parent(new C[size(shape)], shape)
@@ -127,6 +130,9 @@ struct OffsetGrid: public Grid<C, D>
     typedef         typename Grid::Index                    Index;
     typedef         GridRef<void*, 3>                       GridProxy;      // used for translation operations on the full grid
 
+                    OffsetGrid():
+                        Grid(Vertex::zero()), g_(0, Vertex::zero()), offset(Vertex::zero()) {}
+
                     OffsetGrid(const Vertex& full_shape, const Vertex& from, const Vertex& to):
                         Grid(to - from + Vertex::one()),
                         g_(0, full_shape),
@@ -142,8 +148,52 @@ struct OffsetGrid: public Grid<C, D>
     Value           operator()(Index i) const                           { return Grid::operator()(g_.vertex(i) - offset); }
     Value&          operator()(Index i)                                 { return Grid::operator()(g_.vertex(i) - offset); }
 
+    void            swap(OffsetGrid& other)                             { Grid::swap(other); std::swap(g_, other.g_); std::swap(offset, other.offset); }
+
     GridProxy       g_;
     Vertex          offset;
+};
+
+template<class C, unsigned D>
+struct GridRestriction
+{
+    typedef         GridRef<C,D>                            Grid;
+    typedef         typename Grid::Vertex                   Vertex;
+
+                    GridRestriction(Grid& grid, const Vertex& from, const Vertex& to):
+                        grid_(&grid), from_(from), to_(to)   {}
+
+    static
+    GridRestriction side(Grid& g, unsigned s)
+    {
+        Vertex from = Vertex::zero();
+        Vertex to   = g.shape() - Vertex::one();
+
+        unsigned dim = 0;
+        while (s != 0)
+        {
+            if (s & 1)                      // lower side
+                to[dim] = from[dim];
+            else if (s & 2)                 // upper side
+                from[dim] = to[dim];
+
+            s >>= 2;
+            ++dim;
+        }
+
+        return GridRestriction(g, from, to);
+    }
+
+    const Vertex&   from() const                            { return from_; }
+    Vertex&         from()                                  { return from_; }
+    const Vertex&   to() const                              { return to_; }
+    Vertex&         to()                                    { return to_; }
+
+    const Grid&     grid() const                            { return *grid_; }
+    Grid&           grid()                                  { return *grid_; }
+
+    Grid*           grid_;
+    Vertex          from_, to_;
 };
 
 }

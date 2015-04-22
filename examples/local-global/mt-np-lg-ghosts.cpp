@@ -40,20 +40,29 @@ struct LoadComputeAdd
 
         Vertex                  full_shape = Vertex(domain.max) - Vertex(domain.min) + Vertex::one();
 
-        OffsetGrid g(full_shape, bounds.min, bounds.max);
-        reader.read(bounds, g.data(), true);      // collective; implicitly assumes same number of blocks on every processor
+        OffsetGrid(full_shape, bounds.min, bounds.max).swap(b->grid);
+        diy::DiscreteBounds read_bounds = bounds;
+        for (unsigned i = 0; i < 3; ++i)
+            if (read_bounds.max[i] != domain.max[i])
+                read_bounds.max[i]--;
+
+        OffsetGrid tmp(full_shape, read_bounds.min, read_bounds.max);
+        reader.read(read_bounds, tmp.data(), true);      // collective; implicitly assumes same number of blocks on every processor
+        r::VerticesIterator<Vertex> vi  = r::VerticesIterator<Vertex>::begin(read_bounds.min, read_bounds.max),
+                                    end = r::VerticesIterator<Vertex>::end(read_bounds.min,   read_bounds.max);
+        while (vi != end)
+        {
+            const Vertex& v = *vi;
+            b->grid(v) = tmp(v);
+            ++vi;
+        }
 
         b->gid = gid;
         b->mt.set_negate(negate);
         b->local = b->global = Box(full_shape, bounds.min, bounds.max);
-        LOG_SEV(debug) << "Local box:  " << b->local.from()  << " - " << b->local.to();
-        LOG_SEV(debug) << "Global box: " << b->global.from() << " - " << b->global.to();
-
-        // TODO: add the pruning on the boundary (excluding the local minima)
-        r::compute_merge_tree(b->mt, b->local, g, b->local.internal_test());
-        AssertMsg(b->mt.count_roots() == 1, "The tree can have only one root, not " << b->mt.count_roots());
-
-        LOG_SEV(info) << "Initial tree size (" << b->gid << "): " << b->mt.size();
+        LOG_SEV(debug) << "[" << b->gid << "] Local box:  " << b->local.from()  << " - " << b->local.to();
+        LOG_SEV(debug) << "[" << b->gid << "] Global box: " << b->global.from() << " - " << b->global.to();
+        LOG_SEV(debug) << "[" << b->gid << "] Grid shape: " << b->grid.shape();
 
         int lid   = master->add(gid, b, l);
         static_cast<void>(lid);     // shut up the compiler about lid
@@ -63,6 +72,79 @@ struct LoadComputeAdd
     const diy::io::NumPy&   reader;
     bool                    negate;
 };
+
+void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void*)
+{
+    MergeTreeBlock* b = static_cast<MergeTreeBlock*>(b_);
+
+    // TODO: add the pruning on the boundary (excluding the local minima)
+    r::compute_merge_tree(b->mt, b->local, b->grid, b->local.internal_test());
+    AssertMsg(b->mt.count_roots() == 1, "The tree can have only one root, not " << b->mt.count_roots());
+    LOG_SEV(info) << "[" << b->gid << "] " << "Initial tree size: " << b->mt.size();
+
+    MergeTreeBlock::OffsetGrid().swap(b->grid);     // clear out the grid, we don't need it anymore
+}
+
+// send ghosts to the lower neighbors
+void enqueue_ghosts(void* b_, const diy::Master::ProxyWithLink& cp, void*)
+{
+    typedef     diy::RegularGridLink                RGLink;
+    typedef     MergeTreeBlock::GridRestriction     GridRestriction;
+
+    MergeTreeBlock* b = static_cast<MergeTreeBlock*>(b_);
+    RGLink*         l = static_cast<RGLink*>(cp.link());
+
+    for (unsigned i = 0; i < 8; ++i)
+    {
+        // fill lower sides
+        unsigned side = 0;
+        for (unsigned j = 0; j < 3; ++j)
+            if (i & (1 << j))
+                side |= (1 << 2*j);     // spread the bits into even positions
+
+        int nbr = l->direction(diy::Direction(side));
+        if (nbr == -1)
+            continue;
+
+        GridRestriction grid_side = GridRestriction::side(b->grid, side);
+        for (unsigned i = 0; i < 3; ++i)
+            if (grid_side.to()[i] != grid_side.from()[i] &&
+                b->local.to()[i]  != b->local.grid_shape()[i]-1)       // reduce the grid sides by one
+                grid_side.to()[i]--;
+        cp.enqueue(l->target(nbr), grid_side);
+    }
+}
+
+// receive ghosts from the upper neighbors
+void dequeue_ghosts(void* b_, const diy::Master::ProxyWithLink& cp, void*)
+{
+    typedef     diy::RegularGridLink                RGLink;
+    typedef     MergeTreeBlock::GridRestriction     GridRestriction;
+
+    MergeTreeBlock* b = static_cast<MergeTreeBlock*>(b_);
+    RGLink*         l = static_cast<RGLink*>(cp.link());
+
+    for (unsigned i = 0; i < 8; ++i)
+    {
+        // fill lower sides
+        unsigned side = 0;
+        for (unsigned j = 0; j < 3; ++j)
+            if (i & (1 << j))
+                side |= (1 << (2*j + 1));     // spread the bits into odd positions
+
+
+        int nbr = l->direction(diy::Direction(side));
+        if (nbr == -1)
+            continue;
+
+        GridRestriction grid_side = GridRestriction::side(b->grid, side);
+        for (unsigned i = 0; i < 3; ++i)
+            if (grid_side.to()[i] != grid_side.from()[i] &&
+                b->local.to()[i]  != b->local.grid_shape()[i]-1)       // reduce the grid sides by one
+                grid_side.to()[i]--;
+        cp.dequeue(l->target(nbr).gid, grid_side);
+    }
+}
 
 void save_no_vertices(diy::BinaryBuffer& bb, const MergeTreeBlock::MergeTree& mt)
 {
@@ -157,7 +239,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
         //LOG_SEV(info) << "Sparsifying final tree of size: " << b->mt.size();
         sparsify(b->mt, b->local.bounds_test());
         remove_degree2(b->mt, b->local.bounds_test());
-        LOG_SEV(info) << "Final tree size: " << b->mt.size();
+        LOG_SEV(info) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
         return;
     }
 
@@ -259,7 +341,12 @@ int main(int argc, char** argv)
     LoadComputeAdd create(master, reader, negate);
     diy::decompose(3, world.rank(), domain, assigner, create, share_face);
     LOG_SEV(info) << "Domain decomposed: " << master.size();
-    LOG_SEV(info) << "  (data read + local trees computed)";
+    LOG_SEV(info) << "  (data read)";
+
+    master.foreach(enqueue_ghosts);
+    master.exchange();
+    master.foreach(dequeue_ghosts);
+    master.foreach(compute_tree);
 
     // perform the global swap-reduce
     int k = 2;
