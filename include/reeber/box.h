@@ -64,7 +64,7 @@ class Box
         Link                link(const Position& p) const                           { return FreudenthalLinkRange(FreudenthalLinkIterator::begin(p), FreudenthalLinkIterator::end(p))
                                                                                                 | ba::filtered(bounds_test())
                                                                                                 | ba::transformed(position_to_vertex()); }
-        Link                link(const Vertex& v) const                             { return link(g_.vertex(v)); }
+        Link                link(const Vertex& v) const                             { Position p = g_.vertex(v); for (unsigned i = 0; i < D; ++i) if (p[i] < from_[i]) p[i] += grid_shape()[i]; return link(p); }
 
         Box                 intersect(const Box& other) const;
         bool                intersects(const Box& other) const;
@@ -117,12 +117,12 @@ class Box
         {
             typedef         Vertex                                                  result_type;
                             PositionToVertex(const Box& box): box_(box)             {}
-            Vertex          operator()(const Position& p) const                     { return box_.g_.index(p); }
+            Vertex          operator()(Position p) const                            { for (unsigned i = 0; i < D; ++i) p[i] %= box_.grid_shape()[i]; return box_.g_.index(p); }
             const Box&      box_;
         };
 
         // debug
-        Position            position(const Vertex& v) const                         { return g_.vertex(v); }
+        Position            position(const Vertex& v) const                         { Position p = g_.vertex(v); for (unsigned i = 0; i < D; ++i) if (p[i] < from()[i]) p[i] += grid_shape()[i]; return p; }
 
     private:
         GridProxy           g_;

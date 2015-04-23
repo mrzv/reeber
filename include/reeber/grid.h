@@ -140,13 +140,15 @@ struct OffsetGrid: public Grid<C, D>
 
     // These operations take global indices as input and translate them into the local values
     template<class Int>
-    Value           operator()(const Point<Int, D>& v) const            { return Grid::operator()(v - offset); }
+    Value           operator()(const Point<Int, D>& v) const            { return Grid::operator()(local(v)); }
 
     template<class Int>
-    Value&          operator()(const Point<Int, D>& v)                  { return Grid::operator()(v - offset); }
+    Value&          operator()(const Point<Int, D>& v)                  { return Grid::operator()(local(v)); }
 
-    Value           operator()(Index i) const                           { return Grid::operator()(g_.vertex(i) - offset); }
-    Value&          operator()(Index i)                                 { return Grid::operator()(g_.vertex(i) - offset); }
+    Value           operator()(Index i) const                           { return Grid::operator()(local(g_.vertex(i))); }
+    Value&          operator()(Index i)                                 { return Grid::operator()(local(g_.vertex(i))); }
+
+    Vertex          local(Vertex v) const                               { v -= offset; for (unsigned i = 0; i < D; ++i) if (v[i] < 0) v[i] += g_.shape()[i]; return v; }
 
     void            swap(OffsetGrid& other)                             { Grid::swap(other); std::swap(g_, other.g_); std::swap(offset, other.offset); }
 
