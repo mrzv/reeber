@@ -22,6 +22,7 @@ struct MergeTreeNode
     typedef                     Value_                          Value;
 
     typedef                     std::pair<Value, Vertex>        ValueVertex;
+    typedef                     std::vector<ValueVertex>        VerticesVector;
 
     typedef                     MergeTreeNode*                  Neighbor;
     typedef                     std::vector<Neighbor>           Neighbors;
@@ -34,7 +35,7 @@ struct MergeTreeNode
 
     Vertex                      vertex;
     Value                       value;
-    std::vector<ValueVertex>    vertices;       // degree-2 vertices on the path from this node to its parent
+    VerticesVector              vertices;       // degree-2 vertices on the path from this node to its parent
 
     void*                       aux;
 };

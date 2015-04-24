@@ -4,6 +4,8 @@
 #include <dlog/log.h>
 #include <dlog/counters.h>
 
+#include <boost/bind.hpp>
+
 #include "tree-union.h"
 
 template<class Vertex, class Value>
@@ -115,6 +117,7 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
 
     // clean up
     typename MergeTree::VertexNeighborMap::iterator it = mt.nodes().begin();
+    Neighbor root = 0;
     while(it != mt.nodes().end())
     {
         if (it->first != it->second->vertex)
@@ -125,8 +128,24 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
         else
         {
             MergeTree::aux_neighbor(it->second) = 0;      // reset aux
+            if (!it->second->parent) root = it->second;
             ++it;
         }
+    }
+
+    // pull out the correct root
+    if (!root->vertices.empty())
+    {
+        typedef     typename MergeTree::Node::VerticesVector        VerticesVector;
+        typename VerticesVector::iterator max_elem = std::max_element(root->vertices.begin(), root->vertices.end(),
+                                                                      boost::bind(&MergeTree::template cmp<typename VerticesVector::value_type>,
+                                                                                  &mt, _1, _2));
+        Neighbor new_root = mt.add(max_elem->second, max_elem->first);
+        std::swap(*max_elem, root->vertices.back());
+        root->vertices.pop_back();
+        root->parent = new_root;
+        new_root->children.push_back(root);
+        LOG_SEV(info) << "Pulled out new root: " << new_root->vertex << " " << new_root->value;
     }
     dlog::prof >> "compute-merge-tree";
 }
@@ -230,7 +249,7 @@ reeber::sparsify(MergeTree& mt, const Special& special)
             if (n->parent && mt.cmp(*deepest, *MergeTree::aux_neighbor(n->parent)))
                 MergeTree::aux_neighbor(n->parent) = deepest;
 
-            bool preserve = special(n->vertex);
+            bool preserve = special(n->vertex) || !n->parent;
             unsigned end = n->children.size();
             for (unsigned i = 0; i < end; )
             {
@@ -333,9 +352,7 @@ reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
             if (n->parent && in.cmp(*deepest, *MergeTree::aux_neighbor(n->parent)))
                 MergeTree::aux_neighbor(n->parent) = deepest;
 
-
-
-            bool preserve = special(n->vertex);
+            bool preserve = special(n->vertex) || !n->parent;
             unsigned end = n->children.size();
             for (unsigned i = 0; i < end; )
             {
