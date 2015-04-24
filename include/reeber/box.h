@@ -64,17 +64,17 @@ class Box
         Link                link(const Position& p) const                           { return FreudenthalLinkRange(FreudenthalLinkIterator::begin(p), FreudenthalLinkIterator::end(p))
                                                                                                 | ba::filtered(bounds_test())
                                                                                                 | ba::transformed(position_to_vertex()); }
-        Link                link(const Vertex& v) const                             { Position p = g_.vertex(v); for (unsigned i = 0; i < D; ++i) if (p[i] < from_[i]) p[i] += grid_shape()[i]; return link(p); }
+        Link                link(const Vertex& v) const                             { return link(position(v)); }
 
         Box                 intersect(const Box& other) const;
         bool                intersects(const Box& other) const;
         void                merge(const Box& other);
 
         bool                contains(const Position& p) const;
-        bool                contains(const Vertex& v) const                         { return contains(g_.vertex(v)); }
+        bool                contains(const Vertex& v) const                         { return contains(position(v)); }
 
         bool                boundary(const Position& p, bool degenerate = false) const;
-        bool                boundary(const Vertex& v, bool deg = false) const       { return boundary(g_.vertex(v), deg); }
+        bool                boundary(const Vertex& v, bool deg = false) const       { return boundary(position(v), deg); }
         Box                 side(unsigned axis, bool upper) const;
 
         InternalTest        internal_test() const                                   { return InternalTest(*this); }
@@ -121,7 +121,7 @@ class Box
             const Box&      box_;
         };
 
-        // debug
+        // computes position inside the box (adjusted for the wrap-around, if need be)
         Position            position(const Vertex& v) const                         { Position p = g_.vertex(v); for (unsigned i = 0; i < D; ++i) if (p[i] < from()[i]) p[i] += grid_shape()[i]; return p; }
 
     private:
