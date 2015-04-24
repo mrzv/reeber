@@ -18,9 +18,6 @@
 
 #include "merge-tree-block.h"
 
-// FIXME: use of global boundary in sparsification (with wrap on) is unclear
-// TODO:  time the overhead from the wrap (when don't need wrapping)
-
 // Load the specified chunk of data, compute local merge tree, add block to diy::Master
 struct LoadAdd
 {
@@ -97,7 +94,7 @@ void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void*)
 unsigned spread_bits(unsigned x, unsigned factor)
 {
     unsigned res = 0;
-    for (unsigned j = 0; (1 << j) < x; ++j)
+    for (unsigned j = 0; (1 << j) <= x; ++j)
         if (x & (1 << j))
             res |= (1 << factor*j);     // spread the bits into even positions
     return res;
