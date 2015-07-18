@@ -124,7 +124,7 @@ namespace BoxLib
                       MultiFab mf;
                       BoxArray mf_boxes(partition_boxes);
                       mf.define(mf_boxes, 1, 0, dm, Fab_allocate);
-                      dataServices_.AmrDataRef().FillVar(mf, finestFillLevel_, varname);
+                      dataServices_.AmrDataRef().FillVar(mf, finestFillLevel, varname);
 
                       // Copy the data from BoxLib to Reeber2
                       const FArrayBox& my_fab = mf[ParallelDescriptor::MyProc()];
@@ -141,7 +141,6 @@ namespace BoxLib
 
         private:
                   diy::mpi::communicator     communicator_;
-                  int                        finestFillLevel_;
                   mutable DataServices       dataServices_; // Hack, declare "mutable" since BoxLib does not declare const funrctions for reading
                   std::vector < Shape >      shape_;
                   std::vector < Vertex >     from_;
