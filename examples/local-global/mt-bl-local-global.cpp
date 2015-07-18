@@ -264,11 +264,11 @@ int main(int argc, char** argv)
     }
     else if (finest_level > reader.finestLevel())
     {
-        LOG_SEV_IF(world.rank() == 0, warning) << "Level " << finest_level << " doesn not exist, using finest level in file (" << reader.finestLevel() << ") instead";
+        LOG_SEV_IF(world.rank() == 0, warning) << "Level " << finest_level << " does not exist, using finest level in file (" << reader.finestLevel() << ") instead";
         finest_level = reader.finestLevel();
     }
 
-    if (std::find(reader.varnames().begin(), reader.varnames().end(), varname) == reader.varnames().end())
+    if (!varname.empty() && std::find(reader.varnames().begin(), reader.varnames().end(), varname) == reader.varnames().end())
     {
         LOG_SEV_IF(world.rank() == 0, fatal) << "Variable " << varname << " does not exist in file";
         return 1;
