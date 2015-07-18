@@ -12,6 +12,10 @@ add_executable              (persistence-lg-${real}   persistence-lg.cpp ${DEBUG
 target_link_libraries       (persistence-lg-${real}   ${libraries})
 set_target_properties       (persistence-lg-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
 
+add_executable              (persistent-integral-lg-${real}   persistent-integral-lg.cpp ${DEBUG_SOURCES} ${SOURCES})
+target_link_libraries       (persistent-integral-lg-${real}   ${libraries})
+set_target_properties       (persistent-integral-lg-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
+
 endforeach                  (real)
 
 if                          (boxlib)
