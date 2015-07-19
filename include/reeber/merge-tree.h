@@ -30,6 +30,9 @@ struct MergeTreeNode
     bool                        operator<(const MergeTreeNode& other) const     { return value < other.value || (value == other.value && vertex < other.vertex); }
     bool                        operator>(const MergeTreeNode& other) const     { return value > other.value || (value == other.value && vertex > other.vertex); }
 
+    template<class F>
+    bool                        any_vertex(const F& f) const                    { if (f(vertex)) return true; BOOST_FOREACH(const ValueVertex& vv, vertices) if (f(vv.second)) return true; return false; }
+
     Neighbor                    parent;
     Neighbors                   children;
 

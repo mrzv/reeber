@@ -16,6 +16,10 @@ add_executable              (persistent-integral-lg-${real}   persistent-integra
 target_link_libraries       (persistent-integral-lg-${real}   ${libraries})
 set_target_properties       (persistent-integral-lg-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
 
+add_executable              (print-trees-${real}   print-trees.cpp ${DEBUG_SOURCES} ${SOURCES})
+target_link_libraries       (print-trees-${real}   ${libraries})
+set_target_properties       (print-trees-${real}   PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real} -std=c++11")
+
 endforeach                  (real)
 
 if                          (boxlib)

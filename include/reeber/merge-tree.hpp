@@ -228,7 +228,7 @@ reeber::sparsify(MergeTree& mt, const Special& special)
         if (n->children.empty())                // leaf
         {
             MergeTree::aux_neighbor(n) = 0;
-            if (special(n->vertex))
+            if (n->any_vertex(special))
                 MergeTree::aux_neighbor(n) = n;
             AssertMsg(n->parent, "Parent of " << n->vertex << " must be present");
             if (mt.cmp(*n, *MergeTree::aux_neighbor(n->parent)))
@@ -249,7 +249,7 @@ reeber::sparsify(MergeTree& mt, const Special& special)
             if (n->parent && mt.cmp(*deepest, *MergeTree::aux_neighbor(n->parent)))
                 MergeTree::aux_neighbor(n->parent) = deepest;
 
-            bool preserve = special(n->vertex) || !n->parent;
+            bool preserve = n->any_vertex(special) || !n->parent;
             unsigned end = n->children.size();
             for (unsigned i = 0; i < end; )
             {
@@ -327,7 +327,7 @@ reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
         if (n->children.empty())                // leaf
         {
             MergeTree::aux_neighbor(n) = 0;
-            if (special(n->vertex))
+            if (n->any_vertex(special))
             {
                 MergeTree::aux_neighbor(n) = n;
                 Neighbor new_n = out.add(n->vertex, n->value);
@@ -352,7 +352,7 @@ reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
             if (n->parent && in.cmp(*deepest, *MergeTree::aux_neighbor(n->parent)))
                 MergeTree::aux_neighbor(n->parent) = deepest;
 
-            bool preserve = special(n->vertex) || !n->parent;
+            bool preserve = n->any_vertex(special) || !n->parent;
             unsigned end = n->children.size();
             for (unsigned i = 0; i < end; )
             {
