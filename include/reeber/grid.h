@@ -124,7 +124,7 @@ struct Grid: public GridRef<C,D>
 template<class C, unsigned D>
 struct OffsetGrid: public Grid<C, D>
 {
-    typedef         Grid<C,D>                               Grid;
+    typedef         ::reeber::Grid<C,D>                     Grid;
     typedef         typename Grid::Value                    Value;
     typedef         typename Grid::Vertex                   Vertex;
     typedef         typename Grid::Index                    Index;
