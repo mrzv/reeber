@@ -247,7 +247,7 @@ int main(int argc, char** argv)
 
     std::string prefix      = "./DIY.XXXXXX";
     int         in_memory   = -1;
-    int         threads     = -1;
+    int         threads     = 1;
     int         k           = 2;
     Real        m           = 200;
     Real        t           = 80;
@@ -273,7 +273,7 @@ int main(int argc, char** argv)
     if (  ops >> Present('h', "help", "show help message") ||
         !(ops >> PosOption(infn) >> PosOption(outfn)))
     {
-        fmt::print("Usage: {} IN.lgt OUT.dgm\n{}", argv[0], ops);
+        fmt::print("Usage: {} IN.lgt OUT.pi\n{}", argv[0], ops);
         return 1;
     }
 
