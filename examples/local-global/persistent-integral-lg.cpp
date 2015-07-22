@@ -13,7 +13,7 @@
 
 #include "merge-tree-block.h"
 
-#define TRACE_VTCS
+//#define REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
 
 typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
 typedef MergeTreeBlock::MergeTree                                   MergeTree;
@@ -29,7 +29,7 @@ struct MinIntegral
                          min_vtx(min_node_->vertex), min_val(min_node_->value), integral(integral_), n_cells(n_cells_)  {}
 
     void             combine(const MinIntegral& other)              { integral += other.integral; n_cells += other.n_cells; append(other); }
-#ifdef TRACE_VTCS
+#ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
     void             append(const MinIntegral& other)               { vertices.insert(vertices.end(), other.vertices.begin(), other.vertices.end()); }
     void             push_back(const MergeTreeNode::ValueVertex& v) { vertices.push_back(v); }
 #else
@@ -40,12 +40,12 @@ struct MinIntegral
     MergeTreeNode::Value    min_val;
     Real                    integral;
     size_t                  n_cells;
-#ifdef TRACE_VTCS
+#ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
     std::vector<MergeTreeNode::ValueVertex> vertices;
 #endif
 };
 
-#ifdef TRACE_VTCS
+#ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
 namespace diy {
     template<>
     struct Serialization<MinIntegral>
@@ -223,7 +223,7 @@ class OutputIntegrals {
            BOOST_FOREACH(MinIntegral &mi, block.persistent_integrals)
            {
                ofs << gp.vertex(mi.min_vtx) << " (" << mi.min_vtx << " " << mi.min_val << ") " << mi.integral << " " << mi.n_cells;
-#ifdef TRACE_VTCS
+#ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
                ofs << " [ ";
                std::sort(mi.vertices.begin(), mi.vertices.end(), vv_cmp);
                for (std::vector<MergeTreeNode::ValueVertex>::const_iterator it = mi.vertices.begin(); it != mi.vertices.end(); ++it)
