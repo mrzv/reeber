@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <array>
 
 #include <dlog/stats.h>
 #include <dlog/log.h>
@@ -83,8 +84,45 @@ void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void*)
 {
     MergeTreeBlock* b = static_cast<MergeTreeBlock*>(b_);
 
-    // TODO: add the pruning on the boundary (excluding the local minima)
-    r::compute_merge_tree(b->mt, b->local, b->grid, b->local.internal_test());
+    r::compute_merge_tree(b->mt, b->local, b->grid,
+                          [b](MergeTreeBlock::Index v)
+                          {
+                            if (b->local.internal_test()(v))
+                                return true;
+
+                            MergeTreeBlock::Vertex  p    = b->local.position(v);
+                            std::array<int, 3>      side = {{ 0, 0, 0 }};
+                            for (int i = 0; i < 3; ++i)
+                                if (p[i] == b->local.from()[i])
+                                    side[i] = -1;
+                                else if (p[i] == b->local.to()[i])
+                                    side[i] = 1;
+
+                            int zeroes = 0;
+                            for (int i = 0; i < 3; ++i)
+                                if (side[i] == 0)
+                                    ++zeroes;
+                            if (zeroes > 1)
+                                return false;
+
+                            MergeTreeBlock::Box     side_box = b->local;
+                            for (int i = 0; i < 3; ++i)
+                                if (side[i] == -1)
+                                    side_box.to()[i] = side_box.from()[i];
+                                else if (side[i] == 1)
+                                    side_box.from()[i] = side_box.to()[i];
+
+                            typedef     MergeTreeBlock::MergeTree::Node::ValueVertex    ValueVertex;
+                            ValueVertex vval = { b->grid(v), v };
+                            BOOST_FOREACH(MergeTreeBlock::Index u, side_box.link(v))
+                            {
+                                ValueVertex uval = { b->grid(u), u };
+                                if (b->mt.cmp(uval, vval))
+                                    return true;
+                            }
+
+                            return false;
+                          });
     AssertMsg(b->mt.count_roots() == 1, "The tree can have only one root, not " << b->mt.count_roots());
     LOG_SEV(info) << "[" << b->gid << "] " << "Initial tree size: " << b->mt.size();
 
