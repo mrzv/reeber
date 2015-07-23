@@ -391,20 +391,20 @@ int main(int argc, char** argv)
     LOG_SEV(info) << "Domain decomposed: " << master.size();
     LOG_SEV(info) << "  (data read)";
 
-    master.foreach(enqueue_ghosts);
+    master.foreach(&enqueue_ghosts);
     master.exchange();
-    master.foreach(dequeue_ghosts);
+    master.foreach(&dequeue_ghosts);
 
     // debug only
-    //master.foreach(save_grids);
-    //master.foreach(test_link);
+    //master.foreach(&save_grids);
+    //master.foreach(&test_link);
 
-    master.foreach(compute_tree);
+    master.foreach(&compute_tree);
 
     // perform the global swap-reduce
     int k = 2;
     diy::RegularSwapPartners  partners(3, nblocks, k, true);
-    diy::reduce(master, assigner, partners, merge_sparsify);
+    diy::reduce(master, assigner, partners, &merge_sparsify);
 
     // save the result
     diy::io::write_blocks(outfn, world, master);

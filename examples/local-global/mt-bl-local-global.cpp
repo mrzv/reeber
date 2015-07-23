@@ -289,7 +289,7 @@ int main(int argc, char** argv)
     // perform the global swap-reduce
     int k = 2;
     diy::RegularSwapPartners  partners(3, nblocks, k, true);
-    diy::reduce(master, assigner, partners, merge_sparsify);
+    diy::reduce(master, assigner, partners, &merge_sparsify);
 
     // save the result
     diy::io::write_blocks(outfn, world, master);
