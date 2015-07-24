@@ -24,6 +24,7 @@ endforeach                  (real)
 
 if                          (boxlib)
 string                      (TOLOWER ${CCSE_PRECISION} CCSE_PRECISION_LC)
-add_executable              (mt-bl-local-global-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d   mt-bl-local-global.cpp ${DEBUG_SOURCES} ${SOURCES})
+add_executable              (mt-bl-local-global-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d   mt-np-local-global.cpp ${DEBUG_SOURCES} ${SOURCES})
+set_target_properties       (mt-bl-local-global-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d   PROPERTIES COMPILE_FLAGS -DREEBER_USE_BOXLIB_READER)
 target_link_libraries       (mt-bl-local-global-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d   ${libraries} ${CCSE_LIBRARIES})
 endif                       (boxlib)
