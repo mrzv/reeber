@@ -14,9 +14,20 @@
 #include <diy/io/numpy.hpp>
 #include <diy/io/block.hpp>
 
+#ifdef REEBER_USE_BOXLIB_READER
+#include <algorithm>
+#include <reeber/io/boxlib.h>
+#endif
+
 #include "format.h"
 
 #include "merge-tree-block.h"
+
+#ifdef REEBER_USE_BOXLIB_READER
+typedef reeber::io::BoxLib::reader Reader;
+#else
+typedef diy::io::NumPy Reader;
+#endif
 
 // Load the specified chunk of data, compute local merge tree, add block to diy::Master
 struct LoadAdd
@@ -26,7 +37,7 @@ struct LoadAdd
     typedef         MergeTreeBlock::Box                             Box;
     typedef         MergeTreeBlock::OffsetGrid                      OffsetGrid;
 
-                    LoadAdd(diy::Master& master_, const diy::io::NumPy& reader_, bool negate_, bool wrap_):
+                    LoadAdd(diy::Master& master_, const Reader& reader_, bool negate_, bool wrap_):
                         master(&master_), reader(reader_), negate(negate_), wrap(wrap_)      {}
 
     void            operator()(int                          gid,
@@ -74,7 +85,7 @@ struct LoadAdd
     }
 
     diy::Master*            master;
-    const diy::io::NumPy&   reader;
+    const Reader&           reader;
     bool                    negate;
     bool                    wrap;
 };
@@ -297,6 +308,9 @@ int main(int argc, char** argv)
 {
     diy::mpi::environment   env(argc, argv);
     diy::mpi::communicator  world;
+#ifdef REEBER_USE_BOXLIB_READER
+    reeber::io::BoxLib::environment boxlib_env(argc, argv, world);
+#endif
 
     using namespace opts;
 
@@ -364,9 +378,13 @@ int main(int argc, char** argv)
 
     diy::ContiguousAssigner     assigner(world.size(), nblocks);
 
+#ifdef REEBER_USE_BOXLIB_READER
+    Reader                      reader(infn, world);
+#else
     diy::mpi::io::file          in(world, infn, diy::mpi::io::file::rdonly);
-    diy::io::NumPy              reader(in);
+    Reader                      reader(in);
     reader.read_header();
+#endif
 
     diy::DiscreteBounds domain;
     domain.min[0] = domain.min[1] = domain.min[2] = 0;
