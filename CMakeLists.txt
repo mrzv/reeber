@@ -51,11 +51,11 @@ find_path                   (DIY_INCLUDE_DIR        diy/master.hpp)
 
 # BOXLIB
 if                          (boxlib)
-    find_package            (CCSE REQUIRED)
+    #find_package            (CCSE REQUIRED)
     if                      (debug)
         set                 (BL_DEBUG               1)
     endif                   (debug)
-    #include                 (${CCSE_DIR}/lib/CCSEConfig.cmake)
+    include                 (${CCSE_DIR}/lib/CCSEConfig.cmake)
     find_library            (FORTRAN_LIBRARIES NAMES gfortran)
     set                     (CCSE_LIBRARIES box_camrdata;cboxlib;fboxlib;cfboxlib;gslib;${FORTRAN_LIBRARIES})
     foreach                 (def ${CCSE_DEFINES})
@@ -67,7 +67,7 @@ endif                       (boxlib)
 
 # Set includes
 include_directories         (${CMAKE_CURRENT_SOURCE_DIR}/include
-                             ${DIY_INCLUDE_DIR}
+                             SYSTEM ${DIY_INCLUDE_DIR}
                              SYSTEM ${MPI_INCLUDE_PATH}
                              SYSTEM ${Boost_INCLUDE_DIR})
 
