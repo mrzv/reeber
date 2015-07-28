@@ -99,25 +99,25 @@ void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void*)
                                     side[i] = 1;
 
                             int zeroes = 0;
-                            for (int i = 0; i < 3; ++i)
-                                if (side[i] == 0)
-                                    ++zeroes;
-                            if (zeroes > 1)
-                                return false;
-
                             MergeTreeBlock::Box     side_box = b->local;
                             for (int i = 0; i < 3; ++i)
+                            {
                                 if (side[i] == -1)
                                     side_box.to()[i] = side_box.from()[i];
                                 else if (side[i] == 1)
                                     side_box.from()[i] = side_box.to()[i];
+                                else // (side[i] == 0)
+                                    ++zeroes;
+                            }
+                            if (zeroes < 2)     // corner
+                                return false;
 
                             typedef     MergeTreeBlock::MergeTree::Node::ValueVertex    ValueVertex;
                             ValueVertex vval = { b->grid(v), v };
                             BOOST_FOREACH(MergeTreeBlock::Index u, side_box.link(v))
                             {
                                 ValueVertex uval = { b->grid(u), u };
-                                if (b->mt.cmp(uval, vval))
+                                if (b->mt.cmp(uval, vval))      // v is not a minimum
                                     return true;
                             }
 

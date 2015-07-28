@@ -53,10 +53,49 @@ struct LoadComputeAdd
         LOG_SEV(debug) << "Global box: " << b->global.from() << " - " << b->global.to();
 
         // TODO: add the pruning on the boundary (excluding the local minima)
-        r::compute_merge_tree(b->mt, b->local, g, b->local.internal_test());
+        r::compute_merge_tree(b->mt, b->local, g,
+                          [b,&g](MergeTreeBlock::Index v)
+                          {
+                            if (b->local.internal_test()(v))
+                                return true;
+
+                            MergeTreeBlock::Vertex  p    = b->local.position(v);
+                            std::array<int, 3>      side = {{ 0, 0, 0 }};
+                            for (int i = 0; i < 3; ++i)
+                                if (p[i] == b->local.from()[i])
+                                    side[i] = -1;
+                                else if (p[i] == b->local.to()[i])
+                                    side[i] = 1;
+
+                            int zeroes = 0;
+                            MergeTreeBlock::Box     side_box = b->local;
+                            for (int i = 0; i < 3; ++i)
+                            {
+                                if (side[i] == -1)
+                                    side_box.to()[i] = side_box.from()[i];
+                                else if (side[i] == 1)
+                                    side_box.from()[i] = side_box.to()[i];
+                                else // (side[i] == 0)
+                                    ++zeroes;
+                            }
+                            if (zeroes < 2)     // corner
+                                return false;
+
+                            typedef     MergeTreeBlock::MergeTree::Node::ValueVertex    ValueVertex;
+                            ValueVertex vval = { g(v), v };
+                            BOOST_FOREACH(MergeTreeBlock::Index u, side_box.link(v))
+                            {
+                                ValueVertex uval = { g(u), u };
+                                if (b->mt.cmp(uval, vval))      // v is not a minimum
+                                    return true;
+                            }
+
+                            return false;
+                          });
         AssertMsg(b->mt.count_roots() == 1, "The tree can have only one root, not " << b->mt.count_roots());
 
         LOG_SEV(info) << "Initial tree size: " << b->mt.size();
+        dlog::stats << "Local tree computed with " << b->mt.size() << " nodes\n";
 
         int lid   = master->add(gid, b, l);
         static_cast<void>(lid);     // shut up the compiler about lid
@@ -133,6 +172,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
               srp.dequeue(nbr_gid, bounds[i]);
               srp.dequeue(nbr_gid, trees[i]);
               LOG_SEV(debug) << "  received tree of size: " << trees[i].size();
+              dlog::stats    << "  received tree of size: " << trees[i].size() << '\n';
           }
         }
         LOG_SEV(debug) << "  trees and bounds received";
@@ -149,10 +189,13 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
                 b->mt[n->vertex]->vertices.swap(n->vertices);
         trees.clear();
         LOG_SEV(debug) << "  trees merged: " << b->mt.size();
+        dlog::stats    << "           trees merged: " << b->mt.size() << '\n';
 
         // sparsify
         sparsify(b->mt, LocalOrGlobalBoundary(b->local, b->global));
+        dlog::stats    << "        tree sparsified: " << b->mt.size() << '\n';
         remove_degree2(b->mt, b->local.bounds_test(), GlobalBoundary(b->global));
+        dlog::stats    << "        degree2 removed: " << b->mt.size() << '\n';
     }
 
     // send (without the vertices) to the neighbors
@@ -163,11 +206,13 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
         sparsify(b->mt, b->local.bounds_test());
         remove_degree2(b->mt, b->local.bounds_test());
         LOG_SEV(info) << "Final tree size: " << b->mt.size();
+        dlog::stats   << "Final tree size:         " << b->mt.size() << '\n';
         return;
     }
 
     MergeTree mt_out(b->mt.negate());       // tree sparsified w.r.t. global boundary (dropping internal nodes)
     sparsify(mt_out, b->mt, b->global.boundary_test());
+    dlog::stats   << "Outgoing tree size:      " << mt_out.size() << '\n';
 
     for (int i = 0; i < out_size; ++i)
     {
@@ -239,6 +284,9 @@ int main(int argc, char** argv)
         std::string profile_fn = fmt::format("{}-r{}.prf", profile_path, world.rank());
         profile_stream.open(profile_fn.c_str());
         dlog::prof.add_stream(profile_stream);
+
+        std::string stats_fn = fmt::format("{}-r{}.txt", profile_path, world.rank());
+        dlog::stats.open(stats_fn.c_str(), std::ios::out);
     }
 
     LOG_SEV(info) << "Starting computation";
@@ -297,4 +345,5 @@ int main(int argc, char** argv)
     dlog::prof.flush();     // TODO: this is necessary because the profile file will close before
                             //       the global dlog::prof goes out of scope and flushes the events.
                             //       Need to eventually fix this.
+    dlog::stats.flush();    // just in case; do we need it?
 }
