@@ -22,13 +22,8 @@
 
 #include "format.h"
 
+#include "reader-interfaces.h"
 #include "merge-tree-block.h"
-
-#ifdef REEBER_USE_BOXLIB_READER
-typedef reeber::io::BoxLib::Reader Reader;
-#else
-typedef diy::io::NumPy Reader;
-#endif
 
 // Load the specified chunk of data, compute local merge tree, add block to diy::Master
 struct LoadComputeAdd
@@ -258,7 +253,15 @@ int main(int argc, char** argv)
         !(ops >> PosOption(infn) >> PosOption(outfn)))
     {
         if (world.rank() == 0)
-            fmt::print("Usage: {} IN.npy OUT.mt\n{}", argv[0], ops);
+        {
+            fmt::print("Usage: {} INPUT OUT.mt\n", argv[0]);
+            fmt::print("Compute local-global tree from NumPy");
+#ifdef REEBER_USE_BOXLIB_READER
+            fmt::print(" or BoxLib");
+#endif
+            fmt::print(" input.\n");
+            fmt::print("{}", ops);
+        }
         return 1;
     }
 
@@ -297,13 +300,17 @@ int main(int argc, char** argv)
 
     diy::ContiguousAssigner     assigner(world.size(), nblocks);
 
+    // set up the reader
+    Reader* reader_ptr;
 #ifdef REEBER_USE_BOXLIB_READER
-    Reader                      reader(infn, world);
+    if (boost::algorithm::ends_with(infn, ".npy"))
+        reader_ptr = new NumPyReader(infn, world);
+    else
+        reader_ptr = new BoxLibReader(infn, world);
 #else
-    diy::mpi::io::file          in(world, infn, diy::mpi::io::file::rdonly);
-    Reader                      reader(in);
-    reader.read_header();
+    reader_ptr      = new NumPyReader(infn, world);
 #endif
+    Reader& reader  = *reader_ptr;
 
     diy::DiscreteBounds domain;
     domain.min[0] = domain.min[1] = domain.min[2] = 0;
