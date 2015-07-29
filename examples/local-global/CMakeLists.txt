@@ -2,11 +2,11 @@ foreach                     (real   float double)
 
 add_executable              (mt-local-global-${real}   mt-local-global.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (mt-local-global-${real}   ${libraries})
-set_target_properties       (mt-local-global-${real}   PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real} -std=c++11")
+set_target_properties       (mt-local-global-${real}   PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
 
 add_executable              (mt-lg-ghosts-${real}     mt-lg-ghosts.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (mt-lg-ghosts-${real}     ${libraries})
-set_target_properties       (mt-lg-ghosts-${real}     PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real} -std=c++11")
+set_target_properties       (mt-lg-ghosts-${real}     PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
 
 add_executable              (persistence-lg-${real}   persistence-lg.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (persistence-lg-${real}   ${libraries})
@@ -27,9 +27,9 @@ if                          (boxlib)
 string                      (TOLOWER ${CCSE_PRECISION} CCSE_PRECISION_LC)
 
 target_link_libraries       (mt-local-global-${CCSE_PRECISION_LC}   ${libraries} ${CCSE_LIBRARIES})
-set_target_properties       (mt-local-global-${CCSE_PRECISION_LC}   PROPERTIES COMPILE_FLAGS "-std=c++11 -DREEBER_USE_BOXLIB_READER")
+set_target_properties       (mt-local-global-${CCSE_PRECISION_LC}   PROPERTIES COMPILE_FLAGS "-DREEBER_USE_BOXLIB_READER")
 
 target_link_libraries       (mt-lg-ghosts-${CCSE_PRECISION_LC}      ${libraries} ${CCSE_LIBRARIES})
-set_target_properties       (mt-lg-ghosts-${CCSE_PRECISION_LC}      PROPERTIES COMPILE_FLAGS "-std=c++11 -DREEBER_USE_BOXLIB_READER")
+set_target_properties       (mt-lg-ghosts-${CCSE_PRECISION_LC}      PROPERTIES COMPILE_FLAGS "-DREEBER_USE_BOXLIB_READER")
 
 endif                       (boxlib)
