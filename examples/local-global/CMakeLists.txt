@@ -2,7 +2,7 @@ foreach                     (real   float double)
 
 add_executable              (mt-np-local-global-${real}   mt-np-local-global.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (mt-np-local-global-${real}   ${libraries})
-set_target_properties       (mt-np-local-global-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
+set_target_properties       (mt-np-local-global-${real}   PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real} -std=c++11")
 
 add_executable              (mt-np-lg-ghosts-${real}   mt-np-lg-ghosts.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (mt-np-lg-ghosts-${real}   ${libraries})
@@ -24,8 +24,15 @@ set_target_properties       (print-trees-${real}   PROPERTIES COMPILE_FLAGS "-DR
 endforeach                  (real)
 
 if                          (boxlib)
+
 string                      (TOLOWER ${CCSE_PRECISION} CCSE_PRECISION_LC)
-add_executable              (mt-bl-local-global-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d   mt-bl-local-global.cpp ${DEBUG_SOURCES} ${SOURCES})
+
+add_executable              (mt-bl-local-global-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d   mt-np-local-global.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (mt-bl-local-global-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d   ${libraries} ${CCSE_LIBRARIES})
-set_target_properties       (mt-bl-local-global-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d   PROPERTIES COMPILE_FLAGS "-std=c++11")
+set_target_properties       (mt-bl-local-global-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d   PROPERTIES COMPILE_FLAGS "-std=c++11 -DREEBER_USE_BOXLIB_READER")
+
+add_executable              (mt-bl-lg-ghosts-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d      mt-np-lg-ghosts.cpp ${DEBUG_SOURCES} ${SOURCES})
+target_link_libraries       (mt-bl-lg-ghosts-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d      ${libraries} ${CCSE_LIBRARIES})
+set_target_properties       (mt-bl-lg-ghosts-${CCSE_PRECISION_LC}-${CCSE_SPACEDIM}d      PROPERTIES COMPILE_FLAGS "-std=c++11 -DREEBER_USE_BOXLIB_READER")
+
 endif                       (boxlib)

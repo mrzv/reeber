@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <array>
 
 #include <dlog/stats.h>
 #include <dlog/log.h>
@@ -14,9 +15,20 @@
 #include <diy/io/numpy.hpp>
 #include <diy/io/block.hpp>
 
+#ifdef REEBER_USE_BOXLIB_READER
+#include <algorithm>
+#include <reeber/io/boxlib.h>
+#endif
+
 #include "format.h"
 
 #include "merge-tree-block.h"
+
+#ifdef REEBER_USE_BOXLIB_READER
+typedef reeber::io::BoxLib::reader Reader;
+#else
+typedef diy::io::NumPy Reader;
+#endif
 
 // Load the specified chunk of data, compute local merge tree, add block to diy::Master
 struct LoadComputeAdd
@@ -26,7 +38,7 @@ struct LoadComputeAdd
     typedef         MergeTreeBlock::Box                             Box;
     typedef         MergeTreeBlock::OffsetGrid                      OffsetGrid;
 
-                    LoadComputeAdd(diy::Master& master_, const diy::io::NumPy& reader_, bool negate_):
+                    LoadComputeAdd(diy::Master& master_, const Reader& reader_, bool negate_):
                         master(&master_), reader(reader_), negate(negate_)      {}
 
     void            operator()(int                          gid,
@@ -49,8 +61,45 @@ struct LoadComputeAdd
         LOG_SEV(debug) << "Local box:  " << b->local.from()  << " - " << b->local.to();
         LOG_SEV(debug) << "Global box: " << b->global.from() << " - " << b->global.to();
 
-        // TODO: add the pruning on the boundary (excluding the local minima)
-        r::compute_merge_tree(b->mt, b->local, g, b->local.internal_test());
+        r::compute_merge_tree(b->mt, b->local, g,
+                          [b,&g](MergeTreeBlock::Index v)
+                          {
+                            if (b->local.internal_test()(v))
+                                return true;
+
+                            MergeTreeBlock::Vertex  p    = b->local.position(v);
+                            std::array<int, 3>      side = {{ 0, 0, 0 }};
+                            for (int i = 0; i < 3; ++i)
+                                if (p[i] == b->local.from()[i])
+                                    side[i] = -1;
+                                else if (p[i] == b->local.to()[i])
+                                    side[i] = 1;
+
+                            int zeroes = 0;
+                            MergeTreeBlock::Box     side_box = b->local;
+                            for (int i = 0; i < 3; ++i)
+                            {
+                                if (side[i] == -1)
+                                    side_box.to()[i] = side_box.from()[i];
+                                else if (side[i] == 1)
+                                    side_box.from()[i] = side_box.to()[i];
+                                else // (side[i] == 0)
+                                    ++zeroes;
+                            }
+                            if (zeroes < 2)     // corner
+                                return false;
+
+                            typedef     MergeTreeBlock::MergeTree::Node::ValueVertex    ValueVertex;
+                            ValueVertex vval = { g(v), v };
+                            BOOST_FOREACH(MergeTreeBlock::Index u, side_box.link(v))
+                            {
+                                ValueVertex uval = { g(u), u };
+                                if (b->mt.cmp(uval, vval))      // v is not a minimum
+                                    return true;
+                            }
+
+                            return false;
+                          });
         AssertMsg(b->mt.count_roots() == 1, "The tree can have only one root, not " << b->mt.count_roots());
 
         LOG_SEV(info) << "Initial tree size (" << b->gid << "): " << b->mt.size();
@@ -60,7 +109,7 @@ struct LoadComputeAdd
     }
 
     diy::Master*            master;
-    const diy::io::NumPy&   reader;
+    const Reader&           reader;
     bool                    negate;
 };
 
@@ -179,6 +228,9 @@ int main(int argc, char** argv)
 {
     diy::mpi::environment   env(argc, argv);
     diy::mpi::communicator  world;
+#ifdef REEBER_USE_BOXLIB_READER
+    reeber::io::BoxLib::environment boxlib_env(argc, argv, world);
+#endif
 
     using namespace opts;
 
@@ -245,9 +297,13 @@ int main(int argc, char** argv)
 
     diy::ContiguousAssigner     assigner(world.size(), nblocks);
 
+#ifdef REEBER_USE_BOXLIB_READER
+    Reader                      reader(infn, world);
+#else
     diy::mpi::io::file          in(world, infn, diy::mpi::io::file::rdonly);
-    diy::io::NumPy              reader(in);
+    Reader                      reader(in);
     reader.read_header();
+#endif
 
     diy::DiscreteBounds domain;
     domain.min[0] = domain.min[1] = domain.min[2] = 0;
