@@ -153,7 +153,7 @@ class TreeTracer
                     if (mi.integral == 0)                                            // non-local extrema are redundant
                         continue;
 
-                    int dest_gid = decomposer.point_to_gid(gp.vertex(mi.min_vtx));
+                    int dest_gid = decomposer.point_to_gid(block.local.position(mi.min_vtx));
                     diy::BlockID dest = rp.out_link().target(dest_gid);              // out_link targets are ordered as gids
                     assert(dest.gid == dest_gid);
                     rp.enqueue(dest, mi);
@@ -166,7 +166,7 @@ class TreeTracer
             MinIntegral mi_res(n);
 
             // Find contribution from n
-            if (decomposer.point_to_gid(gp.vertex(n->vertex)) == block.gid) // FIXME: More efficient way? block.local also contains ghosts, so using that won't work
+            if (decomposer.point_to_gid(block.local.position(n->vertex)) == block.gid) // FIXME: More efficient way? block.local also contains ghosts, so using that won't work
             {
                 mi_res.integral += n->value * cell_volume;
                 ++mi_res.n_cells;
@@ -174,7 +174,7 @@ class TreeTracer
             }
 
             BOOST_FOREACH(const MergeTree::Node::ValueVertex& x, n->vertices)
-                if (decomposer.point_to_gid(gp.vertex(x.second)) == block.gid && block.mt.cmp(x.first, t)) // FIXME: More efficient way? block.local also contains ghosts, so using that won't work
+                if (decomposer.point_to_gid(block.local.position(x.second)) == block.gid && block.mt.cmp(x.first, t)) // FIXME: More efficient way? block.local also contains ghosts, so using that won't work
                 {
                     mi_res.integral += x.first * cell_volume;
                     ++mi_res.n_cells;
@@ -222,12 +222,12 @@ class OutputIntegrals {
            MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
            BOOST_FOREACH(MinIntegral &mi, block.persistent_integrals)
            {
-               ofs << gp.vertex(mi.min_vtx) << " (" << mi.min_vtx << " " << mi.min_val << ") " << mi.integral << " " << mi.n_cells;
+               ofs << block.local.position(mi.min_vtx) << " (" << mi.min_vtx << " " << mi.min_val << ") " << mi.integral << " " << mi.n_cells;
 #ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
                ofs << " [ ";
                std::sort(mi.vertices.begin(), mi.vertices.end(), vv_cmp);
                for (std::vector<MergeTreeNode::ValueVertex>::const_iterator it = mi.vertices.begin(); it != mi.vertices.end(); ++it)
-                   ofs << "(" << gp.vertex(it->second) << " ," <<it->second << ",  " << it->first << ") ";
+                   ofs << "(" << block.local.position(it->second) << " ," <<it->second << ",  " << it->first << ") ";
                ofs << "]";
 #endif
                ofs << std::endl;
