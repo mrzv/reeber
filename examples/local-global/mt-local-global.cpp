@@ -285,6 +285,7 @@ int main(int argc, char** argv)
     diy::decompose(3, world.rank(), domain, assigner, create, share_face);
     LOG_SEV(info) << "Domain decomposed: " << master.size();
     LOG_SEV(info) << "  (data read + local trees computed)";
+    delete reader_ptr;
 
     // perform the global swap-reduce
     int k = 2;
