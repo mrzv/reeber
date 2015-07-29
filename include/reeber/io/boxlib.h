@@ -44,7 +44,7 @@ namespace BoxLib
         ~environment()                                                   { ::BoxLib::Finalize(false); }
     };
 
-    class reader
+    class Reader
     {
         public:
                   typedef       std::vector<int>                                         Shape;
@@ -69,7 +69,7 @@ namespace BoxLib
                   };
         public:
                   // Construct reader, get domain and variable names in file.
-                  reader(std::string            filename,
+                  Reader(std::string            filename,
                          diy::mpi::communicator communicator):
                       communicator_(communicator),
                       read_info(filename),

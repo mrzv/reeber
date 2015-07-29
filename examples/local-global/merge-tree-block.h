@@ -10,10 +10,7 @@
 #include <reeber/merge-tree-serialization.h>
 namespace r = reeber;
 
-
-#ifdef REEBER_REAL
-typedef     REEBER_REAL                     Real;
-#endif
+#include "real.h"
 
 struct MergeTreeBlock
 {

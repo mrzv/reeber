@@ -25,7 +25,7 @@
 #include "merge-tree-block.h"
 
 #ifdef REEBER_USE_BOXLIB_READER
-typedef reeber::io::BoxLib::reader Reader;
+typedef reeber::io::BoxLib::Reader Reader;
 #else
 typedef diy::io::NumPy Reader;
 #endif
