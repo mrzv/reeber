@@ -52,6 +52,10 @@ struct LoadComputeAdd
 
         b->gid = gid;
         b->mt.set_negate(negate);
+        b->core  = Box(full_shape, core.min, core.max);
+        for (unsigned i = 0; i < 3; ++i)
+            if (b->core.to()[i] != domain.max[i])
+                b->core.to()[i] -= 1;
         b->local = b->global = Box(full_shape, bounds.min, bounds.max);
         LOG_SEV(debug) << "Local box:  " << b->local.from()  << " - " << b->local.to();
         LOG_SEV(debug) << "Global box: " << b->global.from() << " - " << b->global.to();
@@ -153,7 +157,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
 
         // sparsify
         sparsify(b->mt, LocalOrGlobalBoundary(b->local, b->global));
-        remove_degree2(b->mt, b->local.bounds_test(), GlobalBoundary(b->global));
+        remove_degree2(b->mt, b->core.bounds_test(), GlobalBoundary(b->global));
     }
 
     // send (without the vertices) to the neighbors
@@ -162,7 +166,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
     {
         //LOG_SEV(info) << "Sparsifying final tree of size: " << b->mt.size();
         sparsify(b->mt, b->local.bounds_test());
-        remove_degree2(b->mt, b->local.bounds_test());
+        remove_degree2(b->mt, b->core.bounds_test());
         redistribute_vertices(b->mt);
         LOG_SEV(info) << "Final tree size: " << b->mt.size();
         return;

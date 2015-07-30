@@ -87,7 +87,10 @@ int main(int argc, char** argv)
                                    {
                                     const MergeTreeBlock::MergeTree& mt = b->mt;
 
-                                    fmt::print(out, "Block {}\n", b->gid);
+                                    fmt::print(out, "Block {}", b->gid);
+                                    if (verbose)
+                                        fmt::print(out, " (local: {}, core: {})", b->local, b->core);
+                                    fmt::print(out, "\n");
                                     BOOST_FOREACH(MergeTreeBlock::MergeTree::Neighbor n, mt.nodes() | reeber::ba::map_values)
                                     {
                                         fmt::print(out, "Node {}", n->vertex);
