@@ -29,6 +29,7 @@ struct MinIntegral
                          min_vtx(min_node_->vertex), min_val(min_node_->value), integral(integral_), n_cells(n_cells_)  {}
 
     void             combine(const MinIntegral& other)              { integral += other.integral; n_cells += other.n_cells; append(other); }
+
 #ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
     void             append(const MinIntegral& other)               { vertices.insert(vertices.end(), other.vertices.begin(), other.vertices.end()); }
     void             push_back(const MergeTreeNode::ValueVertex& v) { vertices.push_back(v); }
@@ -36,6 +37,10 @@ struct MinIntegral
     void             append(const MinIntegral& other)               { }
     void             push_back(const MergeTreeNode::ValueVertex& v) { }
 #endif
+
+    bool             operator<(const MinIntegral& other) const     { return min_val < other.min_val || (min_val == other.min_val && min_vtx < other.min_vtx); }
+    bool             operator>(const MinIntegral& other) const     { return min_val > other.min_val || (min_val == other.min_val && min_vtx > other.min_vtx); }
+
     MergeTreeNode::Vertex   min_vtx;
     MergeTreeNode::Value    min_val;
     Real                    integral;
@@ -153,7 +158,7 @@ class TreeTracer
                     if (mi.integral == 0)                                            // non-local extrema are redundant
                         continue;
 
-                    int dest_gid = decomposer.point_to_gid(block.local.position(mi.min_vtx));
+                    int dest_gid = decomposer.point_to_gid(block.global.position(mi.min_vtx));
                     diy::BlockID dest = rp.out_link().target(dest_gid);              // out_link targets are ordered as gids
                     assert(dest.gid == dest_gid);
                     rp.enqueue(dest, mi);
@@ -166,7 +171,7 @@ class TreeTracer
             MinIntegral mi_res(n);
 
             // Find contribution from n
-            if (decomposer.point_to_gid(block.local.position(n->vertex)) == block.gid) // FIXME: More efficient way? block.local also contains ghosts, so using that won't work
+            if (block.core.contains(n->vertex))
             {
                 mi_res.integral += n->value * cell_volume;
                 ++mi_res.n_cells;
@@ -174,7 +179,7 @@ class TreeTracer
             }
 
             BOOST_FOREACH(const MergeTree::Node::ValueVertex& x, n->vertices)
-                if (decomposer.point_to_gid(block.local.position(x.second)) == block.gid && block.mt.cmp(x.first, t)) // FIXME: More efficient way? block.local also contains ghosts, so using that won't work
+                if (block.core.contains(x.second) && block.mt.cmp(x.first, t))
                 {
                     mi_res.integral += x.first * cell_volume;
                     ++mi_res.n_cells;
@@ -185,7 +190,7 @@ class TreeTracer
             BOOST_FOREACH(Neighbor child, n->children)
             {
                 MinIntegral mi = integrate(child, block, gp);
-                if (block.mt.cmp(mi.min_val, mi_res.min_val))
+                if (block.mt.cmp(mi, mi_res))
                 {
                     mi_res.min_val = mi.min_val;
                     mi_res.min_vtx = mi.min_vtx;
