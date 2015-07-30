@@ -491,3 +491,47 @@ reeber::remove_degree2(MergeTree& mt, const Preserve& preserve, const Special& s
     }
     dlog::prof >> "remove-degree2";
 }
+
+template<class MergeTree>
+void
+reeber::redistribute_vertices(MergeTree& mt)
+{
+    dlog::prof << "redistribute-vertices";
+    typedef     typename MergeTree::Neighbor            Neighbor;
+    typedef     typename MergeTree::Node::ValueVertex   ValueVertex;
+
+    Neighbor root = mt.find_root();
+
+    std::stack< std::pair<Neighbor,int> > s;
+    s.push(std::make_pair(root,0));
+    while(!s.empty())
+    {
+        Neighbor n = s.top().first;
+        int&     c = s.top().second;
+
+        if (c == n->children.size())
+        {
+            s.pop();
+
+            // distribute the vertices
+            std::set<ValueVertex>                       vertices(n->vertices.begin(), n->vertices.end());
+            typename std::set<ValueVertex>::iterator    it = vertices.begin();
+            n->vertices.clear();
+            while(it != vertices.end())
+            {
+                // move vertex up
+                ValueVertex parent_vv(n->parent->value, n->parent->vertex);
+                if (n->parent && mt.cmp(parent_vv, *it))
+                    n->parent->vertices.push_back(*it);
+                else
+                    n->vertices.push_back(*it);
+                ++it;
+            }
+        } else
+        {
+            c += 1;
+            s.push(std::make_pair(n->children[c-1], 0));
+        }
+    }
+    dlog::prof >> "redistribute-vertices";
+}

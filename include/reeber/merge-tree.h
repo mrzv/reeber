@@ -169,6 +169,9 @@ void remove_degree2(MergeTree& mt, const Preserve& preserve)
     remove_degree2(mt, preserve, boost::lambda::constant(false));
 }
 
+template<class MergeTree>
+void redistribute_vertices(MergeTree& mt);
+
 
 namespace detail
 {
