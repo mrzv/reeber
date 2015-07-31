@@ -521,9 +521,11 @@ reeber::redistribute_vertices(MergeTree& mt)
             {
                 // move vertex up
                 ValueVertex parent_vv(n->parent->value, n->parent->vertex);
-                if (n->parent && mt.cmp(parent_vv, *it))
-                    n->parent->vertices.push_back(*it);
-                else
+                if (n->parent && !mt.cmp(*it, parent_vv))
+                {
+                    if (mt.cmp(parent_vv, *it))
+                        n->parent->vertices.push_back(*it);
+                } else
                     n->vertices.push_back(*it);
                 ++it;
             }
