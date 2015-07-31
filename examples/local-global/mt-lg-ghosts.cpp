@@ -89,9 +89,11 @@ void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void*)
 {
     MergeTreeBlock* b = static_cast<MergeTreeBlock*>(b_);
 
+    fmt::print(dlog::stats, "{:<25} {}\n", "Local box:", b->local);
     r::compute_merge_tree(b->mt, b->local, b->grid, PruneInitial(b, b->grid));
     AssertMsg(b->mt.count_roots() == 1, "The tree can have only one root, not " << b->mt.count_roots());
     LOG_SEV(info) << "[" << b->gid << "] " << "Initial tree size: " << b->mt.size();
+    fmt::print(dlog::stats, "{:<25} {}\n", "Initial tree size:", b->mt.size());
 
     MergeTreeBlock::OffsetGrid().swap(b->grid);     // clear out the grid, we don't need it anymore
 }
@@ -114,7 +116,7 @@ void enqueue_ghosts(void* b_, const diy::Master::ProxyWithLink& cp, void*)
     MergeTreeBlock* b = static_cast<MergeTreeBlock*>(b_);
     RGLink*         l = static_cast<RGLink*>(cp.link());
 
-    // enqueue to lower sides
+    // enqueue to lower sideflush
     for (unsigned i = 0; i < 8; ++i)
     {
         unsigned side = spread_bits(i, 2);      // spread the bits into even positions
@@ -234,15 +236,19 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
 
         // merge trees and move vertices
         r::merge(b->mt, trees);
+        fmt::print(dlog::stats, "{:<25} {} and {}\n", "Merging trees:", trees[0].size(), trees[1].size());
         BOOST_FOREACH(Neighbor n, static_cast<const MergeTree&>(trees[in_pos]).nodes() | r::ba::map_values)
             if (!n->vertices.empty())
                 b->mt[n->vertex]->vertices.swap(n->vertices);
         trees.clear();
         LOG_SEV(debug) << "  trees merged: " << b->mt.size();
+        fmt::print(dlog::stats, "{:<25} {}\n", "Trees merged:", b->mt.size());
 
         // sparsify
         sparsify(b->mt, LocalOrGlobalBoundary(b->local, b->global));
+        fmt::print(dlog::stats, "{:<25} {}\n", "Trees sparsified:", b->mt.size());
         remove_degree2(b->mt, b->core.bounds_test(), GlobalBoundary(b->global));
+        fmt::print(dlog::stats, "{:<25} {}\n", "Degree-2 removed:", b->mt.size());
     }
 
     // send (without the vertices) to the neighbors
@@ -251,14 +257,18 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
     {
         //LOG_SEV(info) << "Sparsifying final tree of size: " << b->mt.size();
         sparsify(b->mt, b->local.bounds_test());
+        fmt::print(dlog::stats, "{:<25} {}\n", "Final sparsified:", b->mt.size());
         remove_degree2(b->mt, b->core.bounds_test());
+        fmt::print(dlog::stats, "{:<25} {}\n", "Final degree-2 removed:", b->mt.size());
         redistribute_vertices(b->mt);
+        fmt::print(dlog::stats, "{:<25} {}\n", "Vertices redistributed:", b->mt.size());
         LOG_SEV(info) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
         return;
     }
 
     MergeTree mt_out(b->mt.negate());       // tree sparsified w.r.t. global boundary (dropping internal nodes)
     sparsify(mt_out, b->mt, b->global.boundary_test());
+    fmt::print(dlog::stats, "{:<25} {}\n", "Outgoing tree:", mt_out.size());
 
     for (int i = 0; i < out_size; ++i)
     {
@@ -365,6 +375,9 @@ int main(int argc, char** argv)
         std::string profile_fn = fmt::format("{}-r{}.prf", profile_path, world.rank());
         profile_stream.open(profile_fn.c_str());
         dlog::prof.add_stream(profile_stream);
+
+        std::string stats_fn = fmt::format("{}-r{}.txt", profile_path, world.rank());
+        dlog::stats.open(stats_fn.c_str(), std::ios::out);
     }
 
     LOG_SEV(info) << "Starting computation";
@@ -438,4 +451,5 @@ int main(int argc, char** argv)
     dlog::prof.flush();     // TODO: this is necessary because the profile file will close before
                             //       the global dlog::prof goes out of scope and flushes the events.
                             //       Need to eventually fix this.
+    dlog::stats.flush();
 }
