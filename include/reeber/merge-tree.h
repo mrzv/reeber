@@ -53,7 +53,7 @@ class MergeTree
         typedef     MergeTreeNode<Vertex,Value>         Node;
         typedef     typename Node::Neighbor             Neighbor;
 
-        typedef     std::map<Vertex, Neighbor>          VertexNeighborMap;               // TODO: change something like unordered_map; possibly a template parameter
+        typedef     std::map<Vertex, Neighbor>          VertexNeighborMap;  // needs to be an ordered map for TreeUnionTopology
 
     public:
                     MergeTree(bool negate = false):
