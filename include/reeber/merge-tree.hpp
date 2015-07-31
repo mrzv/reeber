@@ -145,7 +145,7 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
         root->vertices.pop_back();
         root->parent = new_root;
         new_root->children.push_back(root);
-        LOG_SEV(info) << "Pulled out new root: " << new_root->vertex << " " << new_root->value;
+        LOG_SEV(debug) << "Pulled out new root: " << new_root->vertex << " " << new_root->value;
     }
     dlog::prof >> "compute-merge-tree";
 }

@@ -42,8 +42,8 @@ struct LoadAdd
 
         Vertex                  full_shape = Vertex(domain.max) - Vertex(domain.min) + Vertex::one();
 
-        LOG_SEV(info) << "[" << b->gid << "] " << "Bounds: " << Vertex(bounds.min) << " - " << Vertex(bounds.max);
-        LOG_SEV(info) << "[" << b->gid << "] " << "Core:   " << Vertex(core.min)   << " - " << Vertex(core.max);
+        LOG_SEV(debug) << "[" << b->gid << "] " << "Bounds: " << Vertex(bounds.min) << " - " << Vertex(bounds.max);
+        LOG_SEV(debug) << "[" << b->gid << "] " << "Core:   " << Vertex(core.min)   << " - " << Vertex(core.max);
 
         diy::DiscreteBounds read_bounds = bounds;
         for (unsigned i = 0; i < 3; ++i)
@@ -92,7 +92,7 @@ void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void*)
     fmt::print(dlog::stats, "{:<25} {}\n", "Local box:", b->local);
     r::compute_merge_tree(b->mt, b->local, b->grid, PruneInitial(b, b->grid));
     AssertMsg(b->mt.count_roots() == 1, "The tree can have only one root, not " << b->mt.count_roots());
-    LOG_SEV(info) << "[" << b->gid << "] " << "Initial tree size: " << b->mt.size();
+    LOG_SEV(debug) << "[" << b->gid << "] " << "Initial tree size: " << b->mt.size();
     fmt::print(dlog::stats, "{:<25} {}\n", "Initial tree size:", b->mt.size());
 
     MergeTreeBlock::OffsetGrid().swap(b->grid);     // clear out the grid, we don't need it anymore
@@ -255,14 +255,14 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
     int out_size = srp.out_link().size();
     if (out_size == 0)        // final round: create the final local-global tree, nothing needs to be sent
     {
-        //LOG_SEV(info) << "Sparsifying final tree of size: " << b->mt.size();
+        //LOG_SEV(debug) << "Sparsifying final tree of size: " << b->mt.size();
         sparsify(b->mt, b->local.bounds_test());
         fmt::print(dlog::stats, "{:<25} {}\n", "Final sparsified:", b->mt.size());
         remove_degree2(b->mt, b->core.bounds_test());
         fmt::print(dlog::stats, "{:<25} {}\n", "Final degree-2 removed:", b->mt.size());
         redistribute_vertices(b->mt);
         fmt::print(dlog::stats, "{:<25} {}\n", "Vertices redistributed:", b->mt.size());
-        LOG_SEV(info) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
+        LOG_SEV(debug) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
         return;
     }
 
@@ -380,7 +380,10 @@ int main(int argc, char** argv)
         dlog::stats.open(stats_fn.c_str(), std::ios::out);
     }
 
-    LOG_SEV(info) << "Starting computation";
+    world.barrier();
+    dlog::Timer timer;
+    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation";
+
     diy::FileStorage            storage(prefix);
 
     diy::Master                 master(world,
@@ -426,13 +429,21 @@ int main(int argc, char** argv)
 
     LoadAdd create(master, reader, negate, wrap_);
     decomposer.decompose(world.rank(), create);
-    LOG_SEV(info) << "Domain decomposed: " << master.size();
-    LOG_SEV(info) << "  (data read)";
+    LOG_SEV_IF(world.rank() == 0, info) << "Domain decomposed: " << master.size();
+    LOG_SEV_IF(world.rank() == 0, info) << "  (data read)";
     delete reader_ptr;
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
 
     master.foreach(&enqueue_ghosts);
     master.exchange();
     master.foreach(&dequeue_ghosts);
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to exchange ghosts: " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
 
     // debug only
     //master.foreach(&save_grids);
@@ -440,13 +451,25 @@ int main(int argc, char** argv)
 
     master.foreach(&compute_tree);
 
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to compute tree:    " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
+
     // perform the global swap-reduce
     int k = 2;
     diy::RegularSwapPartners  partners(3, nblocks, k, true);
     diy::reduce(master, assigner, partners, &merge_sparsify);
 
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time for the reduction:  " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
+
     // save the result
     diy::io::write_blocks(outfn, world, master);
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to output trees:    " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
 
     dlog::prof.flush();     // TODO: this is necessary because the profile file will close before
                             //       the global dlog::prof goes out of scope and flushes the events.
