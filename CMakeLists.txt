@@ -9,7 +9,6 @@ option                      (profile            "Build Reeber with profiling"   
 option                      (counters           "Build Reeber with counters"                    OFF)
 
 add_definitions             (-Wall -fPIC)
-add_definitions             (-std=c++11)
 
 # Find everything that's always required
 find_package                (Boost)

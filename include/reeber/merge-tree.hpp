@@ -422,7 +422,8 @@ reeber::merge(MergeTree& mt, const std::vector<MergeTree>& trees, const Edges& e
     std::vector<Neighbor> nodes;
     for (unsigned i = 0; i < trees.size(); ++i)
         boost::push_back(nodes, trees[i].nodes() | ba::map_values);
-    boost::sort(nodes, [&mt](Neighbor x, Neighbor y) { return mt.cmp(*x,*y); });
+    boost::sort(nodes,
+                boost::bind(static_cast< bool (MergeTree::*) (Neighbor,Neighbor) const >(&MergeTree::cmp), mt, _1, _2));
 
     BOOST_FOREACH(Neighbor n, nodes)
     {

@@ -78,6 +78,7 @@ class MergeTree
 
         template<class T>
         bool        cmp(const T& x, const T& y) const   { return negate_ ? x > y : x < y; }
+        bool        cmp(Neighbor x, Neighbor y) const   { return cmp(*x, *y); }
 
         const VertexNeighborMap&
                     nodes() const                       { return nodes_; }
