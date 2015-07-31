@@ -419,6 +419,8 @@ reeber::merge(MergeTree& mt, const std::vector<MergeTree>& trees, const Edges& e
 
     // Fill and sort the nodes
     typedef     typename MergeTree::Neighbor        Neighbor;
+    typedef     typename MergeTree::Vertex          Vertex;
+
     std::vector<Neighbor> nodes;
     for (unsigned i = 0; i < trees.size(); ++i)
         boost::push_back(nodes, trees[i].nodes() | ba::map_values);
@@ -429,7 +431,18 @@ reeber::merge(MergeTree& mt, const std::vector<MergeTree>& trees, const Edges& e
     {
         Neighbor nn;
         if (!mt.contains(n->vertex))
+        {
             nn = mt.add(n->vertex, n->value);
+
+            // deal with the edges (only once per vertex)
+            BOOST_FOREACH(Vertex v, edges(n->vertex))
+                if (mt.contains(v))
+                {
+                    Neighbor cn = mt.find(v);
+                    if (cn != nn)
+                        mt.link(nn, cn);
+                }
+        }
         else
             nn = mt[n->vertex];
 
