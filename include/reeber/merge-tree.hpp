@@ -5,8 +5,8 @@
 #include <dlog/counters.h>
 
 #include <boost/bind.hpp>
-
-#include "tree-union.h"
+#include <boost/range/algorithm.hpp>
+#include <boost/range/algorithm_ext/push_back.hpp>
 
 template<class Vertex, class Value>
 typename reeber::MergeTree<Vertex, Value>::Neighbor
@@ -27,11 +27,10 @@ add(const Vertex& x, Value v)
 template<class Vertex, class Value>
 typename reeber::MergeTree<Vertex, Value>::Neighbor
 reeber::MergeTree<Vertex, Value>::
-find(const Vertex& x) const
+find(Neighbor xn) const
 {
     // aux_neighbor functions as compressed parent
 
-    Neighbor xn = (*this)[x];
     Neighbor res = xn;
     while (aux_neighbor(res) != 0)
     {
@@ -417,9 +416,35 @@ void
 reeber::merge(MergeTree& mt, const std::vector<MergeTree>& trees, const Edges& edges)
 {
     dlog::prof << "merge";
-    TreeUnionTopology<MergeTree, Edges> union_topology(trees, edges);
-    TreeUnionFunction<MergeTree>        union_function(trees);
-    compute_merge_tree(mt, union_topology, union_function, boost::lambda::constant(false));
+
+    // Fill and sort the nodes
+    typedef     typename MergeTree::Neighbor        Neighbor;
+    std::vector<Neighbor> nodes;
+    for (unsigned i = 0; i < trees.size(); ++i)
+        boost::push_back(nodes, trees[i].nodes() | ba::map_values);
+    boost::sort(nodes, [&mt](Neighbor x, Neighbor y) { return mt.cmp(*x,*y); });
+
+    BOOST_FOREACH(Neighbor n, nodes)
+    {
+        Neighbor nn;
+        if (!mt.contains(n->vertex))
+            nn = mt.add(n->vertex, n->value);
+        else
+            nn = mt[n->vertex];
+
+        for(size_t i = 0; i < n->children.size(); ++i)
+        {
+            assert(mt.contains(n->children[i]->vertex));
+            Neighbor cn = mt.find(n->children[i]->vertex);
+            if (cn != nn)
+                mt.link(nn, cn);
+        }
+    }
+
+    // reset aux
+    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+        mt.aux_neighbor(n) = 0;
+
     dlog::prof >> "merge";
 }
 

@@ -67,7 +67,8 @@ class MergeTree
 
         bool        contains(const Vertex& x) const     { return nodes_.find(x) != nodes_.end(); }
 
-        Neighbor    find(const Vertex& x) const;        // finds root of the subtree containing x
+        Neighbor    find(const Vertex& x) const         { return find((*this)[x]); }
+        Neighbor    find(Neighbor xn) const;            // finds root of the subtree containing x
         static void link(Neighbor xn, Neighbor yn);     // links yn as a child of xn
 
         void        swap(MergeTree& other)              { std::swap(negate_, other.negate_); nodes_.swap(other.nodes_); }
@@ -115,9 +116,9 @@ class MergeTree
         friend void
         sparsify(MT& out, const MT& in, const S& s);
 
-        template<class MT>
+        template<class MT, class E>
         friend void
-        merge(MT& mt, const std::vector<MT>& trees);
+        merge(MT& mt, const std::vector<MT>& trees, const E& edges);
 
         template<class MT, class P, class S>
         friend void
