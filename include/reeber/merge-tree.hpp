@@ -75,7 +75,7 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
 
     std::vector<ValueVertexPair>     vertices;
     vertices.reserve(topology.size());
-    BOOST_FOREACH(const Vertex& v, topology.vertices())
+    BOOST_FOREACH(Vertex v, topology.vertices())
         vertices.push_back(std::make_pair(f(v), v));
 
     if (mt.negate())
@@ -92,7 +92,7 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
         boost::tie(val, u) = fu;
 
         std::set<Neighbor>  roots;
-        BOOST_FOREACH(const Vertex& v, topology.link(u))
+        BOOST_FOREACH(Vertex v, topology.link(u))
         {
             if (mt.contains(v))
             {
