@@ -152,7 +152,7 @@ std::string
 dlog::
 clock_to_string(time_type time)
 {
-    char buf[12];
+    char buf[13];       // +1 for the trailing null
     sprintf(buf, "%02d:%02d:%02d.%03d",
             (unsigned) time/1000/60/60,
             (unsigned) time/1000/60 % 60,
