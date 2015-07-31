@@ -39,9 +39,9 @@ namespace BoxLib
     // Sets up BoxLib and puts DataServices into batch mode
     struct environment
     {
-        environment()                                                    { int argc = 0; char** argv; ::BoxLib::Initialize(argc, argv, false); DataServices::SetBatchMode(); }
-        environment(int argc, char* argv[], diy::mpi::communicator comm) { ::BoxLib::Initialize(argc, argv, false, comm); DataServices::SetBatchMode(); }
-        ~environment()                                                   { ::BoxLib::Finalize(false); }
+        environment()                                                            { int argc = 0; char** argv; ::BoxLib::Initialize(argc, argv, false); DataServices::SetBatchMode(); }
+        environment(int argc, char* argv[], diy::mpi::communicator comm)         { ::BoxLib::Initialize(argc, argv, false, comm); DataServices::SetBatchMode(); }
+        ~environment()                                                           { ::BoxLib::Finalize(false); }
     };
 
     class Reader
@@ -52,20 +52,22 @@ namespace BoxLib
                   typedef       std::vector<std::string>                                 VarNameList;
         private:
                   struct ReadInfo {
+                                   void set_varname(const std::string &varname)  { boost::split(varnames, varname, std::bind1st(std::equal_to<char>(), '+')); }
+
                                    ReadInfo(std::string name):
-                                       filename(""), varname(""), finest_fill_level(-1)
+                                       filename(""), varnames(), finest_fill_level(-1)
                                    {
                                        if (name.empty()) throw std::runtime_error("No filename specified");
                                        std::vector<std::string> parts;
-                                       parts = boost::split(parts, name, std::bind1st(std::equal_to<char>(), ':'));
+                                       boost::split(parts, name, std::bind1st(std::equal_to<char>(), ':'));
                                        filename = parts[0];
-                                       if (parts.size() > 1) varname = parts[1];
-                                       if (parts.size() > 2) varname = parts[2];
+                                       if (parts.size() > 1) set_varname(parts[1]);
+                                       if (parts.size() > 2) finest_fill_level = std::atoi(parts[2].c_str());
                                    }
 
-                      std::string  filename;
-                      std::string  varname;
-                      int          finest_fill_level;
+                      std::string                 filename;
+                      std::vector< std::string >  varnames;           // If more than one variable name is specified, compute sum over list of variables
+                      int                         finest_fill_level;
                   };
         public:
                   // Construct reader, get domain and variable names in file.
@@ -103,15 +105,21 @@ namespace BoxLib
                           varnames_.push_back(plotVarNames[i]);
 
                       // If varname is not set, use first variable defined in file
-                      if (read_info.varname.empty())
+                      if (read_info.varnames.empty())
                       {
-                          read_info.varname = varnames_[0];
+                          read_info.varnames.push_back(varnames_[0]);
                       }
                       // Otherwise check, if specified variable exists
-                      else if (std::find(varnames_.begin(), varnames_.end(), read_info.varname) == varnames_.end())
+                      else
                       {
-                          LOG_SEV_IF(communicator.rank() == 0, fatal) << "Variable " << read_info.varname << " does not exist in file";
-                          throw std::runtime_error("Specified variable does not exit in file");
+                          BOOST_FOREACH(const std::string& var, read_info.varnames)
+                          {
+                              if (std::find(varnames_.begin(), varnames_.end(), var) == varnames_.end())
+                              {
+                                  LOG_SEV_IF(communicator.rank() == 0, fatal) << "Variable " << var << " does not exist in file";
+                                  throw std::runtime_error("Specified variable does not exit in file");
+                              }
+                          }
                       }
 
                       // If level is not set, default to finest level in file
@@ -123,7 +131,6 @@ namespace BoxLib
                           LOG_SEV_IF(communicator.rank() == 0, warning) << "Level " << read_info.finest_fill_level << " does not exist, using finest level in file (" << finest_level << ") instead";
                           read_info.finest_fill_level = finest_level;
                       }
-                      LOG_SEV(debug) << "BoxLib reader constructed: varname=" << read_info.varname << " finest_fill_level = " << read_info.finest_fill_level;
                   }
 
                   const int          finest_level()        const                          { return dataServices_.AmrDataRef().FinestLevel(); }
@@ -132,7 +139,7 @@ namespace BoxLib
                   const Vertex&      to(int level = 0)     const                          { return to_[level]; }
                   const VarNameList& varnames()            const                          { return varnames_; }
 
-                  void               set_read_variable(std::string varname)               { read_info.varname = varname; }    // FIXME: Add check if variable exists
+                  void               set_read_variable(std::string varname)               { read_info.set_varname(varname); }    // FIXME: Add check if variable exists
                   void               set_read_level(int level)                            { read_info.finest_fill_level = std::max(std::min(level, dataServices_.AmrDataRef().FinestLevel()), 0); }
 
                   void               read(const diy::DiscreteBounds& bounds,    // Region to read
@@ -167,10 +174,21 @@ namespace BoxLib
                       // Create the multi FAB and read data into it
                       MultiFab mf;
                       BoxArray mf_boxes(partition_boxes);
-                      mf.define(mf_boxes, 1, 0, dm, Fab_allocate);
-                      dataServices_.AmrDataRef().FillVar(mf, read_info.finest_fill_level, read_info.varname);
+                      mf.define(mf_boxes, read_info.varnames.size(), 0, dm, Fab_allocate);
+                      Array<std::string> varnames(read_info.varnames.size());
+                      Array<int> comps(read_info.varnames.size());
+                      for (int i = 0; i < comps.size(); ++i)
+                      {
+                          varnames[i] = read_info.varnames[i];
+                          comps[i] = i;
+                      }
+                      dataServices_.AmrDataRef().FillVar(mf, read_info.finest_fill_level, varnames, comps);
 
-                      // Copy the data from BoxLib to Reeber2
+                      // Calculate sum, if more than one variable specified
+                      for (int comp = 1; comp < mf.nComp(); ++comp)
+                          MultiFab::Add(mf, mf, comp, 0, 1, 0);
+
+                      // Copy the data from BoxLib to Reeber2 FIXME: Avoid copy?
                       const FArrayBox& my_fab = mf[ParallelDescriptor::MyProc()];
                       const Box& my_partition_box = mf_boxes[ParallelDescriptor::MyProc()];
                       typedef GridRef< Real, BL_SPACEDIM > RealGridRef;
