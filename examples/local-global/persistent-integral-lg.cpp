@@ -304,7 +304,10 @@ int main(int argc, char** argv)
         dlog::prof.add_stream(profile_stream);
     }
 
-    LOG_SEV(info) << "Starting computation";
+    world.barrier();
+    dlog::Timer timer;
+    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation";
+
     diy::FileStorage            storage(prefix);
 
     diy::Master                 mt_master(world,
@@ -323,9 +326,13 @@ int main(int argc, char** argv)
     diy::ContiguousAssigner     assigner(world.size(), 0);
 
     // load the trees
-    LOG_SEV(debug) << "Reading blocks from " << infn;
+    LOG_SEV_IF(world.rank() == 0, debug) << "Reading blocks from " << infn;
     diy::io::read_blocks(infn, world, assigner, mt_master);
-    LOG_SEV(info) << "Blocks read: " << mt_master.size();
+    LOG_SEV_IF(world.rank() ==0 , info) << "Blocks read: " << mt_master.size();
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:                    " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
 
     // get the domain bounds from any block that's in memory (they are all the same) and set up a decomposer
     MergeTreeBlock::Box global = static_cast<MergeTreeBlock*>(((const diy::Master&) mt_master).block(mt_master.loaded_block()))->global;
@@ -339,7 +346,17 @@ int main(int argc, char** argv)
 
     // Compute and combine persistent integrals
     diy::all_to_all(mt_master, assigner, TreeTracer(decomposer, pi_master, m, t, cell_volume), k);
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to compute persistent integrals: " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
+
     // Save persistent integrals to file
     pi_master.foreach(OutputIntegrals(outfn));
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to output persistent integrals:  " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
+
     dlog::prof.flush();
 }
