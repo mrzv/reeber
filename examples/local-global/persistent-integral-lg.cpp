@@ -13,8 +13,6 @@
 
 #include "merge-tree-block.h"
 
-//#define REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
-
 typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
 typedef MergeTreeBlock::MergeTree                                   MergeTree;
 typedef MergeTreeBlock::Vertex                                      Vertex;
@@ -227,15 +225,18 @@ class OutputIntegrals {
            MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
            BOOST_FOREACH(MinIntegral &mi, block.persistent_integrals)
            {
-               ofs << block.local.position(mi.min_vtx) << " (" << mi.min_vtx << " " << mi.min_val << ") " << mi.integral << " " << mi.n_cells;
+               ofs << block.local.position(mi.min_vtx) << " (" << mi.min_vtx << " " << mi.min_val << ") " << mi.integral << " " << mi.n_cells << std::endl;
 #ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
-               ofs << " [ ";
                std::sort(mi.vertices.begin(), mi.vertices.end(), vv_cmp);
-               for (std::vector<MergeTreeNode::ValueVertex>::const_iterator it = mi.vertices.begin(); it != mi.vertices.end(); ++it)
-                   ofs << "(" << block.local.position(it->second) << " ," <<it->second << ",  " << it->first << ") ";
-               ofs << "]";
+               for (std::vector< MergeTreeNode::ValueVertex >::const_iterator it = mi.vertices.begin(); it != mi.vertices.end(); ++it)
+                   ofs << "   " << it->second << " (" << block.local.position(it->second) <<  ")" << std::endl;
+#if 0
+               // Consistency check for debugging
+               for (size_t i =0; i < mi.vertices.size()-1; ++i)
+                   if (mi.vertices[i].second == mi.vertices[i+1].second)
+                       LOG_SEV(info) << "Duplicate vertex " << mi.vertices[i].second << " in component " << mi.min_vtx;
 #endif
-               ofs << std::endl;
+#endif
            }
        }
 

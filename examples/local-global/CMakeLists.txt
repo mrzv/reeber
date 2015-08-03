@@ -1,3 +1,5 @@
+option                      (persistent-integral-trace-vertices  "Record vertices belonging to persistent integral components" OFF)
+
 foreach                     (real   float double)
 
 add_executable              (mt-local-global-${real}   mt-local-global.cpp ${DEBUG_SOURCES} ${SOURCES})
@@ -14,7 +16,11 @@ set_target_properties       (persistence-lg-${real}   PROPERTIES COMPILE_FLAGS -
 
 add_executable              (persistent-integral-lg-${real}   persistent-integral-lg.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (persistent-integral-lg-${real}   ${libraries})
+if                          (persistent-integral-trace-vertices)
+set_target_properties       (persistent-integral-lg-${real}   PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real} -DREEBER_PERSISTENT_INTEGRAL_TRACE_VTCS")
+else                        (persistent-integral-trace-vertices)
 set_target_properties       (persistent-integral-lg-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
+endif                       (persistent-integral-trace-vertices)
 
 add_executable              (print-trees-${real}   print-trees.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (print-trees-${real}   ${libraries})
