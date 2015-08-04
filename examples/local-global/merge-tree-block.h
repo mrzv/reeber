@@ -22,6 +22,7 @@ struct MergeTreeBlock
     typedef     Grid::Value                     Value;
     typedef     r::Box<3>                       Box;
     typedef     r::MergeTree<Index, Value>      MergeTree;
+    typedef     std::vector<Real>               Size;
 
     static void*            create()                                        { return new MergeTreeBlock; }
     static void             destroy(void* b)                                { delete static_cast<MergeTreeBlock*>(b); }
@@ -34,6 +35,7 @@ struct MergeTreeBlock
     Box                     global;
     MergeTree               mt;
     OffsetGrid              grid;
+    Size                    cell_size;
 };
 
 namespace diy
@@ -49,6 +51,7 @@ namespace diy
             diy::save(bb, b.global);
             diy::save(bb, b.mt);
             diy::save(bb, b.grid);
+            diy::save(bb, b.cell_size);
         }
         static void             load(diy::BinaryBuffer& bb, MergeTreeBlock& b)
         {
@@ -58,6 +61,7 @@ namespace diy
             diy::load(bb, b.global);
             diy::load(bb, b.mt);
             diy::load(bb, b.grid);
+            diy::load(bb, b.cell_size);
         }
     };
 }

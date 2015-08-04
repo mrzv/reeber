@@ -48,6 +48,7 @@ namespace BoxLib
     {
         public:
                   typedef       std::vector<int>                                         Shape;
+                  typedef       std::vector<double>                                      Size;
                   typedef       std::vector<int>                                         Vertex;
                   typedef       std::vector<std::string>                                 VarNameList;
         private:
@@ -88,6 +89,7 @@ namespace BoxLib
                       shape_.resize(finest_level + 1);
                       from_.resize(finest_level + 1);
                       to_.resize(finest_level + 1);
+                      cell_size_.resize(finest_level + 1);
                       for (int curr_level = 0; curr_level <= finest_level; ++curr_level)
                       {
                           const Box& domain_box = dataServices_.AmrDataRef().ProbDomain()[curr_level];
@@ -97,6 +99,7 @@ namespace BoxLib
                               to_[curr_level].push_back(domain_box.bigEnd()[d]);
                               shape_[curr_level].push_back(to_[curr_level][d] - from_[curr_level][d] + 1);
                           }
+                          cell_size_[curr_level] = dataServices_.AmrDataRef().DxLevel()[curr_level];
                       }
 
                       // Get variable names
@@ -133,11 +136,12 @@ namespace BoxLib
                       }
                   }
 
-                  const int          finest_level()        const                          { return dataServices_.AmrDataRef().FinestLevel(); }
-                  const Shape&       shape(int level = 0)  const                          { return shape_[level]; }
-                  const Vertex&      from(int level = 0)   const                          { return from_[level]; }
-                  const Vertex&      to(int level = 0)     const                          { return to_[level]; }
-                  const VarNameList& varnames()            const                          { return varnames_; }
+                  const int          finest_level()            const                      { return dataServices_.AmrDataRef().FinestLevel(); }
+                  const Shape&       shape(int level = 0)      const                      { return shape_[level]; }
+                  const Size&        cell_size(int level = 0)  const                      { return cell_size_[level]; }
+                  const Vertex&      from(int level = 0)       const                      { return from_[level]; }
+                  const Vertex&      to(int level = 0)         const                      { return to_[level]; }
+                  const VarNameList& varnames()                const                      { return varnames_; }
 
                   void               set_read_variable(std::string varname)               { read_info.set_varname(varname); }    // FIXME: Add check if variable exists
                   void               set_read_level(int level)                            { read_info.finest_fill_level = std::max(std::min(level, dataServices_.AmrDataRef().FinestLevel()), 0); }
@@ -206,6 +210,7 @@ namespace BoxLib
                   ReadInfo                   read_info;     // What to read. Struct before dataServices_ because it parses the filename to be passed to dataServices constructor.
                   mutable DataServices       dataServices_; // Hack, declare "mutable" since BoxLib does not declare const funrctions for reading
                   std::vector < Shape >      shape_;
+                  std::vector < Size >       cell_size_;
                   std::vector < Vertex >     from_;
                   std::vector < Vertex >     to_;
                   std::vector< std::string > varnames_;

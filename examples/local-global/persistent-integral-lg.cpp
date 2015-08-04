@@ -76,14 +76,16 @@ namespace diy {
 struct PersistentIntegralBlock
 {
     typedef std::vector<MinIntegral>                                MinIntegralVector;
+    typedef std::vector<Real>                                       Size;
     int                                                             gid;
+    Size                                                            cell_size;
     MergeTreeBlock::Box                                             local;
     MergeTreeBlock::Box                                             global;
     MinIntegralVector                                               persistent_integrals;
 
                      PersistentIntegralBlock()                      { }
                      PersistentIntegralBlock(const MergeTreeBlock& mtb) :
-                         gid(mtb.gid), local(mtb.local),
+                         gid(mtb.gid), cell_size(mtb.cell_size), local(mtb.local),
                          global(mtb.global), persistent_integrals() { }
     void             addIntegral(const MinIntegral& mi)             { persistent_integrals.push_back(mi); }
     static void*     create()                                       { return new PersistentIntegralBlock; }
@@ -98,8 +100,8 @@ class TreeTracer
         typedef std::map<MergeTreeNode::Vertex, MinIntegral>        MinIntegralMap;
 
     public:
-                     TreeTracer(const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_, Real cell_volume_) :
-                         decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_), cell_volume(cell_volume_)
+                     TreeTracer(const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_) :
+                         decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_)
         {}
 
         void        operator()(void *b, const diy::ReduceProxy& rp) const
@@ -171,7 +173,7 @@ class TreeTracer
             // Find contribution from n
             if (block.core.contains(n->vertex))
             {
-                mi_res.integral += n->value * cell_volume;
+                mi_res.integral += n->value * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
                 ++mi_res.n_cells;
                 mi_res.push_back(MergeTreeNode::ValueVertex(n->value, n->vertex));
             }
@@ -179,7 +181,7 @@ class TreeTracer
             BOOST_FOREACH(const MergeTree::Node::ValueVertex& x, n->vertices)
                 if (block.core.contains(x.second) && block.mt.cmp(x.first, t))
                 {
-                    mi_res.integral += x.first * cell_volume;
+                    mi_res.integral += x.first * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
                     ++mi_res.n_cells;
                     mi_res.push_back(x);
                 }
@@ -204,7 +206,6 @@ class TreeTracer
         diy::Master&       pi_master;
         Real               m;
         Real               t;
-        Real               cell_volume;
 };
 
 bool vv_cmp(const MergeTreeNode::ValueVertex& a, const MergeTreeNode::ValueVertex& b)
@@ -214,7 +215,7 @@ bool vv_cmp(const MergeTreeNode::ValueVertex& a, const MergeTreeNode::ValueVerte
 
 class OutputIntegrals {
     public:
-                    OutputIntegrals(std::string outfn_) : outfn(outfn_) {}
+                    OutputIntegrals(std::string outfn_, bool verbose_) : outfn(outfn_), verbose(verbose_) {}
        void         operator()(void *b, const diy::Master::ProxyWithLink& cp, void* aux) const
        {
            PersistentIntegralBlock&  block = *static_cast<PersistentIntegralBlock*>(b);
@@ -225,7 +226,14 @@ class OutputIntegrals {
            MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
            BOOST_FOREACH(MinIntegral &mi, block.persistent_integrals)
            {
-               ofs << block.local.position(mi.min_vtx) << " (" << mi.min_vtx << " " << mi.min_val << ") " << mi.integral << " " << mi.n_cells << std::endl;
+               Vertex v = block.local.position(mi.min_vtx);
+               ofs << v[0] * block.cell_size[0] << " " << v[1] * block.cell_size[1] << " " << v[2] * block.cell_size[2] << " ";
+               if (verbose)
+                   ofs << v[0] << "x" << v[1] << "x" << v[2] << " (" << mi.min_vtx << ") ";
+               ofs <<  mi.integral;
+               if (verbose)
+                   ofs << " " << mi.n_cells;
+              ofs << std::endl;
 #ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
                std::sort(mi.vertices.begin(), mi.vertices.end(), vv_cmp);
                for (std::vector< MergeTreeNode::ValueVertex >::const_iterator it = mi.vertices.begin(); it != mi.vertices.end(); ++it)
@@ -242,6 +250,7 @@ class OutputIntegrals {
 
     private:
         std::string outfn;
+        bool        verbose;
 };
 
 int main(int argc, char** argv)
@@ -257,7 +266,6 @@ int main(int argc, char** argv)
     int         k           = 2;
     Real        m           = 200;
     Real        t           = 80;
-    Real        cell_volume = 1;;
 
     std::string profile_path;
     std::string log_level = "info";
@@ -271,9 +279,8 @@ int main(int argc, char** argv)
         >> Option('l', "log",       log_level,    "log level")
         >> Option('x', "max",       m,            "maximum threshold")
         >> Option('i', "iso",       t,            "isofind threshold")
-        >> Option('v', "volume",    cell_volume,  "cell volume")
     ;
-    //bool verbose = ops >> Present('v', "verbose", "verbose output");
+    bool verbose = ops >> Present('v', "verbose", "verbose output: logical coordiantes and number of cells");
 
     std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
@@ -345,14 +352,14 @@ int main(int argc, char** argv)
     diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner, Decomposer::BoolVector(3, true));
 
     // Compute and combine persistent integrals
-    diy::all_to_all(mt_master, assigner, TreeTracer(decomposer, pi_master, m, t, cell_volume), k);
+    diy::all_to_all(mt_master, assigner, TreeTracer(decomposer, pi_master, m, t), k);
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute persistent integrals: " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
     // Save persistent integrals to file
-    pi_master.foreach(OutputIntegrals(outfn));
+    pi_master.foreach(OutputIntegrals(outfn, verbose));
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to output persistent integrals:  " << dlog::clock_to_string(timer.elapsed());

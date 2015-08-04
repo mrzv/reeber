@@ -65,6 +65,7 @@ struct LoadAdd
         }
 
         b->gid = gid;
+        b->cell_size = reader.cell_size();
         b->mt.set_negate(negate);
         b->core  = Box(full_shape, core.min, core.max);
         for (unsigned i = 0; i < 3; ++i)
