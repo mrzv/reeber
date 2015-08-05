@@ -9,7 +9,7 @@
 namespace r = reeber;
 #endif
 
-#include "real.h"
+#include "reeber-real.h"
 
 struct Reader
 {
