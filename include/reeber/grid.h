@@ -198,6 +198,21 @@ struct GridRestriction
     Vertex          from_, to_;
 };
 
+template<class Grid>
+struct RestrictGrid;
+
+template<class C, unsigned D>
+struct RestrictGrid< Grid<C,D> >
+{
+    typedef     GridRestriction<C,D>        type;
+};
+
+template<class C, unsigned D>
+struct RestrictGrid< OffsetGrid<C,D> >
+{
+    typedef     GridRestriction<C,D>        type;
+};
+
 }
 
 #endif

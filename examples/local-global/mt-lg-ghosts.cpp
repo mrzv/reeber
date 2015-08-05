@@ -17,6 +17,7 @@
 #include "format.h"
 
 #include "reader-interfaces.h"
+#include "ghosts.h"
 #include "merge-tree-block.h"
 #include "prune.h"
 
@@ -97,69 +98,6 @@ void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void*)
     fmt::print(dlog::stats, "{:<25} {}\n", "Initial tree size:", b->mt.size());
 
     MergeTreeBlock::OffsetGrid().swap(b->grid);     // clear out the grid, we don't need it anymore
-}
-
-unsigned spread_bits(unsigned x, unsigned factor)
-{
-    unsigned res = 0;
-    for (unsigned j = 0; (1 << j) <= x; ++j)
-        if (x & (1 << j))
-            res |= (1 << factor*j);     // spread the bits into even positions
-    return res;
-}
-
-// send ghosts to the lower neighbors
-void enqueue_ghosts(void* b_, const diy::Master::ProxyWithLink& cp, void*)
-{
-    typedef     diy::RegularGridLink                RGLink;
-    typedef     MergeTreeBlock::GridRestriction     GridRestriction;
-
-    MergeTreeBlock* b = static_cast<MergeTreeBlock*>(b_);
-    RGLink*         l = static_cast<RGLink*>(cp.link());
-
-    // enqueue to lower sideflush
-    for (unsigned i = 0; i < 8; ++i)
-    {
-        unsigned side = spread_bits(i, 2);      // spread the bits into even positions
-
-        int nbr = l->direction(diy::Direction(side));
-        if (nbr == -1)
-            continue;
-
-        GridRestriction grid_side = GridRestriction::side(b->grid, side);
-        for (unsigned i = 0; i < 3; ++i)
-            if (grid_side.to()[i] != grid_side.from()[i] &&
-                b->local.to()[i]  != b->local.grid_shape()[i]-1)       // reduce the grid sides by one
-                grid_side.to()[i]--;
-        cp.enqueue(l->target(nbr), grid_side);
-    }
-}
-
-// receive ghosts from the upper neighbors
-void dequeue_ghosts(void* b_, const diy::Master::ProxyWithLink& cp, void*)
-{
-    typedef     diy::RegularGridLink                RGLink;
-    typedef     MergeTreeBlock::GridRestriction     GridRestriction;
-
-    MergeTreeBlock* b = static_cast<MergeTreeBlock*>(b_);
-    RGLink*         l = static_cast<RGLink*>(cp.link());
-
-    // dequeue from upper sides
-    for (unsigned i = 0; i < 8; ++i)
-    {
-        unsigned side = spread_bits(i, 2) << 1;      // spread the bits into odd positions
-
-        int nbr = l->direction(diy::Direction(side));
-        if (nbr == -1)
-            continue;
-
-        GridRestriction grid_side = GridRestriction::side(b->grid, side);
-        for (unsigned i = 0; i < 3; ++i)
-            if (grid_side.to()[i] != grid_side.from()[i] &&
-                b->local.to()[i]  != b->local.grid_shape()[i]-1)       // reduce the grid sides by one
-                grid_side.to()[i]--;
-        cp.dequeue(l->target(nbr).gid, grid_side);
-    }
 }
 
 void save_no_vertices(diy::BinaryBuffer& bb, const MergeTreeBlock::MergeTree& mt)
@@ -438,9 +376,9 @@ int main(int argc, char** argv)
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
-    master.foreach(&enqueue_ghosts);
+    master.foreach(EnqueueGhosts<MergeTreeBlock>(&MergeTreeBlock::grid, &MergeTreeBlock::local));
     master.exchange();
-    master.foreach(&dequeue_ghosts);
+    master.foreach(DequeueGhosts<MergeTreeBlock>(&MergeTreeBlock::grid, &MergeTreeBlock::local));
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to exchange ghosts: " << dlog::clock_to_string(timer.elapsed());
