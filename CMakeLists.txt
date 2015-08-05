@@ -78,7 +78,7 @@ set                         (libraries
                              ${MPI_CXX_LIBRARIES})
 
 # Sources
-set                         (SOURCES ${CMAKE_SOURCE_DIR}/src/format.cc)
+set                         (SOURCES ${CMAKE_SOURCE_DIR}/src/format.cpp)
 
 
 # backwards.hpp
