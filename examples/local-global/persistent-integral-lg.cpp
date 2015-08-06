@@ -269,6 +269,7 @@ int main(int argc, char** argv)
 
     std::string profile_path;
     std::string log_level = "info";
+
     Options ops(argc, argv);
     ops
         >> Option('m', "memory",    in_memory,    "maximum blocks to store in memory")
@@ -286,7 +287,10 @@ int main(int argc, char** argv)
     if (  ops >> Present('h', "help", "show help message") ||
         !(ops >> PosOption(infn) >> PosOption(outfn)))
     {
-        fmt::print("Usage: {} IN.lgt OUT.pi\n{}", argv[0], ops);
+        if (world.rank() == 0)
+        {
+            fmt::print("Usage: {} IN.lgt OUT.pi\n{}", argv[0], ops);
+        }
         return 1;
     }
 
@@ -306,7 +310,7 @@ int main(int argc, char** argv)
         dlog::prof.add_stream(std::cerr);
     else if (!profile_path.empty())
     {
-        std::string profile_fn = fmt::format("{}.prf", profile_path);
+        std::string profile_fn = fmt::format("{}-r{}.prf", profile_path, world.rank());
         profile_stream.open(profile_fn.c_str());
         dlog::prof.add_stream(profile_stream);
     }
@@ -365,5 +369,8 @@ int main(int argc, char** argv)
     LOG_SEV_IF(world.rank() == 0, info) << "Time to output persistent integrals:  " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
-    dlog::prof.flush();
+    dlog::prof.flush();     // TODO: this is necessary because the profile file will close before
+                            //       the global dlog::prof goes out of scope and flushes the events.
+                            //       Need to eventually fix this.
+    dlog::stats.flush();
 }
