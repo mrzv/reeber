@@ -24,6 +24,7 @@
 
 // BoxLib
 #include "ParallelDescriptor.H"
+#include <AmrLevel.H>
 #include "DataServices.H"
 #include "Geometry.H"
 #include "Utility.H"
@@ -214,6 +215,98 @@ namespace BoxLib
                   std::vector < Vertex >     from_;
                   std::vector < Vertex >     to_;
                   std::vector< std::string > varnames_;
+    };
+
+    class InSituCopier
+    {
+        public:
+                  typedef       std::vector<int>                                         Shape;
+                  typedef       std::vector<Real>                                        Size;
+                  typedef       std::vector<int>                                         Vertex;
+                  typedef       std::vector<std::string>                                 VarNameList;
+        public:
+                  // Construct reader, get domain and variable names in file.
+                  InSituCopier(AmrLevel&        amr_level,
+                         Real                   curr_time,
+                         int                    state_index,
+                         int                    component,
+                         diy::mpi::communicator communicator):
+                      communicator_(communicator), amr_level_(amr_level), curr_time_(curr_time), state_index_(state_index), component_(component)
+                  {
+                      const Box& domain_box = amr_level.Domain();
+                      for (int d = 0; d < BL_SPACEDIM; ++d)
+                      {
+                          from_.push_back(domain_box.smallEnd()[d]);
+                          to_.push_back(domain_box.bigEnd()[d]);
+                          shape_.push_back(to_[d] - from_[d] + 1);
+                          cell_size_.push_back(amr_level.Geom().CellSize(d));
+                      }
+                  }
+
+                  const Shape&       shape()     const                       { return shape_; }
+                  const Size&        cell_size() const                       { return cell_size_; }
+                  const Vertex&      from()      const                       { return from_; }
+                  const Vertex&      to()        const                       { return to_; }
+
+                  void               read(const diy::DiscreteBounds& bounds,    // Region to read
+                                          Real* buffer,                         // Buffer where data will be copied to
+                                          bool collective = true) const         // Collective I/O? (FIXME: Non-collective I/O not implemented, yet)
+                  {
+                      // FIXME: Hack. Either implement non-collective I/O or remove flag
+                      if (!collective) throw std::runtime_error("Non-collective reading not implemented for BoxLib reader");
+
+                      // BoxLib expects a list of boxes to read on all ranks.
+                      // Gather the bounds for the read requests on all processors.
+                      std::vector< std::vector<char> > buffer_vector;
+                      diy::MemoryBuffer                bb;
+                      diy::save(bb, bounds);
+                      diy::mpi::all_gather(communicator_, bb.buffer, buffer_vector);
+
+                      // Create the list of all boxes to read as well as the distribution mapping
+                      // specifying on which rank a box is reead.
+                      BoxList    partition_boxes;
+                      Array<int> proc_for_box(communicator_.size() + 1); // + 1 is for historic reasons
+                      for (int i = 0; i < buffer_vector.size(); ++i)
+                      {
+                          diy::DiscreteBounds bnds;
+                          diy::MemoryBuffer bb; bb.buffer.swap(buffer_vector[i]);
+                          diy::load(bb, bnds);
+                          IntVect from(bnds.min), to(bnds.max);
+                          partition_boxes.push_back(Box(from, to));
+                          proc_for_box[i] = i;
+                      }
+                      DistributionMapping dm(proc_for_box);
+
+                      // Create the multi FAB and copy data into it
+                      MultiFab mf;
+                      BoxArray mf_boxes(partition_boxes);
+                      mf.define(mf_boxes, 1, 0, dm, Fab_allocate);
+
+                      mf.copy(amr_level_.get_data(state_index_, curr_time_), component_, 0, 1);
+
+                      // Copy the data from BoxLib to Reeber2 FIXME: Avoid copy?
+                      const FArrayBox& my_fab = mf[ParallelDescriptor::MyProc()];
+                      const Box& my_partition_box = mf_boxes[ParallelDescriptor::MyProc()];
+                      typedef GridRef< Real, BL_SPACEDIM > RealGridRef;
+                      typedef RealGridRef::Vertex GridVertex;
+                      RealGridRef grid(buffer, GridVertex(bounds.max) - GridVertex(bounds.min) + GridVertex::one());
+                      for (IntVect iv = my_partition_box.smallEnd(); iv <= my_partition_box.bigEnd(); my_partition_box.next(iv))
+                      {
+                          GridVertex pos((iv - my_partition_box.smallEnd()).getVect());
+                          grid(pos) = my_fab(iv);
+                      }
+                  }
+
+        private:
+                  diy::mpi::communicator     communicator_;
+                  AmrLevel&                  amr_level_;
+                  Real                       curr_time_;
+                  int                        state_index_;
+                  int                        component_;
+                  Shape                      shape_;
+                  Size                       cell_size_;
+                  Vertex                     from_;
+                  Vertex                     to_;
     };
 }
 }

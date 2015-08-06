@@ -45,8 +45,8 @@ struct NumPyReader: public Reader
 #ifdef REEBER_USE_BOXLIB_READER
 struct BoxLibReader: public Reader
 {
-                            BoxLibReader(std::string             infn,
-                                        diy::mpi::communicator  world):
+                            BoxLibReader(std::string            infn,
+                                         diy::mpi::communicator world):
                                 boxlib_reader(infn, world)          {}
 
 
@@ -58,6 +58,27 @@ struct BoxLibReader: public Reader
 
     r::io::BoxLib::Reader   boxlib_reader;
 };
+
+struct BoxLibInSituCopier: public Reader
+{
+                               BoxLibInSituCopier(AmrLevel&              amr_level,
+                                                  Real                   curr_time,
+                                                  int                    state_index,
+                                                  int                    component,
+                                                  diy::mpi::communicator world):
+                                   boxlib_copier(amr_level, curr_time, state_index,
+                                                 component, world)     {}
+
+
+    virtual const Shape&       shape() const                           { return boxlib_copier.shape(); }
+    virtual const Size&        cell_size() const                       { return boxlib_copier.cell_size(); }
+    virtual void               read(const diy::DiscreteBounds& bounds,
+                                     Real* buffer,
+                                     bool collective = true) const     { boxlib_copier.read(bounds, buffer, collective); }
+
+    r::io::BoxLib::InSituCopier boxlib_copier;
+};
+
 #endif
 
 #endif
