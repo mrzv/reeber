@@ -16,14 +16,17 @@ namespace diy
         static void save(BinaryBuffer& bb, const Grid& g)
         {
             diy::save(bb, g.shape());
+            diy::save(bb, g.c_order());
             diy::save(bb, g.data(), g.size());
         }
 
         static void load(BinaryBuffer& bb, Grid& g)
         {
             Vertex shape;
+            bool c_order;
             diy::load(bb, shape);
-            Grid tmp(shape);
+            diy::load(bb, c_order);
+            Grid tmp(shape, c_order);
             diy::load(bb, tmp.data(), tmp.size());
             g.swap(tmp);
         }

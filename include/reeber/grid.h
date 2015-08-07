@@ -20,11 +20,12 @@ struct GridRef
 
     public:
         template<class Int>
-                GridRef(C* data, const Point<Int,D>& shape):
-                    data_(data), shape_(shape)                  { set_stride(); }
+                GridRef(C* data, const Point<Int,D>& shape, bool c_order = true):
+                    data_(data), shape_(shape), c_order_(c_order)   { set_stride(); }
 
                 GridRef(Grid<C,D>& g):
-                    data_(g.data()), shape_(g.shape())          { set_stride(); }
+                    data_(g.data()), shape_(g.shape()),
+                    c_order_(g.c_order())                       { set_stride(); }
 
         template<class Int>
         C       operator()(const Point<Int, D>& v) const        { return data_[v*stride_]; }
@@ -44,13 +45,16 @@ struct GridRef
 
         // Set every element to the given value
         GridRef&    operator=(C value)                          { Index s = size(); for (Index i = 0; i < s; ++i) data_[i] = value; return *this; }
+        GridRef&    operator/=(C value)                         { Index s = size(); for (Index i = 0; i < s; ++i) data_[i] /= value; return *this; }
 
         Vertex      vertex(Index idx) const                     { Vertex v; for (unsigned i = 0; i < D; ++i) { v[i] = idx / stride_[i]; idx %= stride_[i]; } return v; }
         Index       index(const Vertex& v) const                { Index idx = 0; for (unsigned i = 0; i < D; ++i) { idx += ((Index) v[i]) * ((Index) stride_[i]); } return idx; }
 
         Index       size() const                                { return size(shape()); }
 
-        void        swap(GridRef& other)                        { std::swap(data_, other.data_); std::swap(shape_, other.shape_); std::swap(stride_, other.stride_); }
+        void        swap(GridRef& other)                        { std::swap(data_, other.data_); std::swap(shape_, other.shape_); std::swap(stride_, other.stride_); std::swap(c_order_, other.c_order_);  }
+
+        bool        c_order() const                             { return c_order_; }
 
         static
         unsigned    dimension()                                 { return D; }
@@ -59,14 +63,24 @@ struct GridRef
         static Index
                 size(const Vertex& v)                           { Index res = 1; for (unsigned i = 0; i < D; ++i) res *= v[i]; return res; }
 
-        void    set_stride()                                    { Index cur = 1; for (unsigned i = D; i > 0; --i) { stride_[i-1] = cur; cur *= shape_[i-1]; } }
+        void    set_stride()
+        {
+            Index cur = 1;
+            if (c_order_)
+                for (unsigned i = D; i > 0; --i) { stride_[i-1] = cur; cur *= shape_[i-1]; }
+            else
+                for (unsigned i = 0; i < D; ++i) { stride_[i] = cur; cur *= shape_[i]; }
+
+        }
         void    set_shape(const Vertex& v)                      { shape_ = v; set_stride(); }
         void    set_data(C* data)                               { data_ = data; }
+        void    set_c_order(bool order)                         { c_order_ = order; }
 
     private:
         C*      data_;
         Vertex  shape_;
         Vertex  stride_;
+        bool    c_order_;
 };
 
 
@@ -87,22 +101,32 @@ struct Grid: public GridRef<C,D>
                 Grid():
                     Parent(new C[0], Vertex::zero())            {}
         template<class Int>
-                Grid(const Point<Int, D>& shape):
-                    Parent(new C[size(shape)], shape)
+                Grid(const Point<Int, D>& shape, bool c_order = true):
+                    Parent(new C[size(shape)], shape, c_order)
                 {}
 
                 Grid(const Parent& g):
-                    Parent(new C[size(g.shape())], g.shape())   { copy_data(g.data()); }
+                    Parent(new C[size(g.shape())], g.shape(),
+                           g.c_order())                     { copy_data(g.data()); }
+
+        template<class OtherGrid>
+                Grid(const OtherGrid& g):
+                    Parent(new C[size(g.shape())],
+                           g.shape(),
+                           g.c_order())   { copy_data(g.data()); }
 
                 ~Grid()                                         { delete[] Parent::data(); }
 
-        Grid&   operator=(const Grid& other)
+        template<class OC>
+        Grid&   operator=(const GridRef<OC, D>& other)
         {
             delete[] Parent::data();
-            Parent::set_shape(other.shape);
+            Parent::set_c_order(other.c_order());       // NB: order needs to be set before the shape, to set the stride correctly
+            Parent::set_shape(other.shape());
             Index s = size(shape());
             Parent::set_data(new C[s]);
             copy_data(other.data());
+            return *this;
         }
 
         using Parent::data;
@@ -112,7 +136,8 @@ struct Grid: public GridRef<C,D>
         using Parent::size;
 
     private:
-        void    copy_data(const C* data)
+        template<class OC>
+        void    copy_data(const OC* data)
         {
             Index s = size(shape());
             for (Index i = 0; i < s; ++i)
@@ -133,8 +158,8 @@ struct OffsetGrid: public Grid<C, D>
                     OffsetGrid():
                         Grid(Vertex::zero()), g_(0, Vertex::zero()), offset(Vertex::zero()) {}
 
-                    OffsetGrid(const Vertex& full_shape, const Vertex& from, const Vertex& to):
-                        Grid(to - from + Vertex::one()),
+                    OffsetGrid(const Vertex& full_shape, const Vertex& from, const Vertex& to, bool c_order = true):
+                        Grid(to - from + Vertex::one(), c_order),
                         g_(0, full_shape),
                         offset(from)                        {}
 
