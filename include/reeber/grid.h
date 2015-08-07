@@ -28,10 +28,10 @@ struct GridRef
                     c_order_(g.c_order())                       { set_stride(); }
 
         template<class Int>
-        C       operator()(const Point<Int, D>& v) const        { return data_[v*stride_]; }
+        C       operator()(const Point<Int, D>& v) const        { return (*this)(index(v)); }
 
         template<class Int>
-        C&      operator()(const Point<Int, D>& v)              { return data_[v*stride_]; }
+        C&      operator()(const Point<Int, D>& v)              { return (*this)(index(v)); }
 
         C       operator()(Index i) const                       { return data_[i]; }
         C&      operator()(Index i)                             { return data_[i]; }
@@ -51,8 +51,7 @@ struct GridRef
         Index       index(const Vertex& v) const                { Index idx = 0; for (unsigned i = 0; i < D; ++i) { idx += ((Index) v[i]) * ((Index) stride_[i]); } return idx; }
 
         Index       size() const                                { return size(shape()); }
-
-        void        swap(GridRef& other)                        { std::swap(data_, other.data_); std::swap(shape_, other.shape_); std::swap(stride_, other.stride_); std::swap(c_order_, other.c_order_);  }
+        void        swap(GridRef& other)                        { std::swap(data_, other.data_); std::swap(shape_, other.shape_); std::swap(stride_, other.stride_); std::swap(c_order_, other.c_order_); }
 
         bool        c_order() const                             { return c_order_; }
 
