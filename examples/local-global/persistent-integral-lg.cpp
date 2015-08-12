@@ -64,7 +64,7 @@ class TreeTracer
 
                 PersistentIntegralBlock *pi_block = new PersistentIntegralBlock(block);
                 for (MinIntegralMap::const_iterator it = mi_map.begin(); it != mi_map.end(); ++it)
-                    pi_block->addIntegral(it->second);
+                    pi_block->add_integral(it->second);
                 pi_master.add(rp.gid(), pi_block, new diy::Link);
             }
         }

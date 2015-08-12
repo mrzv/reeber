@@ -72,7 +72,7 @@ struct PersistentIntegralBlock
                      PersistentIntegralBlock(const MergeTreeBlock& mtb) :
                          gid(mtb.gid), cell_size(mtb.cell_size), local(mtb.local),
                          global(mtb.global), persistent_integrals() { }
-    void             addIntegral(const MinIntegral& mi)             { persistent_integrals.push_back(mi); }
+    void             add_integral(const MinIntegral& mi)            { persistent_integrals.push_back(mi); }
     static void*     create()                                       { return new PersistentIntegralBlock; }
     static void      destroy(void*b)  { delete static_cast<PersistentIntegralBlock*>(b); }
     static void      save(const void *b, diy::BinaryBuffer& bb)     { diy::save(bb, *static_cast<const PersistentIntegralBlock*>(b)); }
