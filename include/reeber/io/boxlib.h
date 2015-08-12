@@ -24,7 +24,6 @@
 
 // BoxLib
 #include "ParallelDescriptor.H"
-#include <AmrLevel.H>
 #include "DataServices.H"
 #include "Geometry.H"
 #include "Utility.H"
@@ -226,20 +225,19 @@ namespace BoxLib
                   typedef       std::vector<std::string>                                 VarNameList;
         public:
                   // Construct reader, get domain and variable names in file.
-                  InSituCopier(AmrLevel&        amr_level,
-                         Real                   curr_time,
-                         int                    state_index,
+                  InSituCopier(const MultiFab&  simulation_data,
+                         const Geometry&        geometry,
                          int                    component,
                          diy::mpi::communicator communicator):
-                      communicator_(communicator), amr_level_(amr_level), curr_time_(curr_time), state_index_(state_index), component_(component)
+                      communicator_(communicator), simulation_data_(simulation_data), component_(component)
                   {
-                      const Box& domain_box = amr_level.Domain();
+                      const Box& domain_box = geometry.Domain();
                       for (int d = 0; d < BL_SPACEDIM; ++d)
                       {
                           from_.push_back(domain_box.smallEnd()[d]);
                           to_.push_back(domain_box.bigEnd()[d]);
                           shape_.push_back(to_[d] - from_[d] + 1);
-                          cell_size_.push_back(amr_level.Geom().CellSize(d));
+                          cell_size_.push_back(geometry.CellSize(d));
                       }
                   }
 
@@ -282,7 +280,7 @@ namespace BoxLib
                       BoxArray mf_boxes(partition_boxes);
                       mf.define(mf_boxes, 1, 0, dm, Fab_allocate);
 
-                      mf.copy(amr_level_.get_data(state_index_, curr_time_), component_, 0, 1);
+                      mf.copy(simulation_data_, component_, 0, 1);
 
                       // Copy the data from BoxLib to Reeber2 FIXME: Avoid copy?
                       const FArrayBox& my_fab = mf[ParallelDescriptor::MyProc()];
@@ -299,9 +297,7 @@ namespace BoxLib
 
         private:
                   diy::mpi::communicator     communicator_;
-                  AmrLevel&                  amr_level_;
-                  Real                       curr_time_;
-                  int                        state_index_;
+                  const MultiFab&            simulation_data_;
                   int                        component_;
                   Shape                      shape_;
                   Size                       cell_size_;

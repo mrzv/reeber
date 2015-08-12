@@ -61,12 +61,11 @@ struct BoxLibReader: public Reader
 
 struct BoxLibInSituCopier: public Reader
 {
-                               BoxLibInSituCopier(AmrLevel&              amr_level,
-                                                  Real                   curr_time,
-                                                  int                    state_index,
+                               BoxLibInSituCopier(const MultiFab&        simulation_data,
+                                                  const Geometry&        geometry,
                                                   int                    component,
                                                   diy::mpi::communicator world):
-                                   boxlib_copier(amr_level, curr_time, state_index,
+                                   boxlib_copier(simulation_data, geometry,
                                                  component, world)     {}
 
 
