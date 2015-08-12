@@ -1,6 +1,10 @@
 #include <iostream>
 #include <string>
 
+#include <boost/foreach.hpp>
+#include <boost/lambda/lambda.hpp>
+#include <boost/range/adaptor/map.hpp>
+
 #include <opts/opts.h>
 #include <dlog/log.h>
 #include <dlog/stats.h>
@@ -14,12 +18,37 @@
 #include "merge-tree-block.h"
 #include "persistent-integral-block.h"
 
+namespace ba = boost::adaptors;
+
 typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
 typedef MergeTreeBlock::Vertex                                      Vertex;
 typedef MergeTreeBlock::Value                                       Value;
 
-class ComputeAverage
+void compute_average(void *b_, const diy::Master::ProxyWithLink& cp, void*)
 {
+    const MergeTreeBlock& b     = *static_cast<MergeTreeBlock*>(b_);
+    double                value = 0;
+    size_t                count = 0;
+
+    BOOST_FOREACH(const Neighbor node, const_cast<const MergeTree&>(b.mt).nodes() | ba::map_values)
+    {
+        if (b.core.contains(node->vertex))
+        {
+            value += node->value;
+            count += 1;
+        }
+        BOOST_FOREACH(const MergeTreeNode::ValueVertex& x, node->vertices)
+        {
+            if (b.core.contains(x.second))
+            {
+                value += x.first;
+                count += 1;
+            }
+        }
+    }
+
+    cp.all_reduce(value, std::plus<double>());
+    cp.all_reduce(count, std::plus<size_t>());
 }
 
 class TreeTracer
@@ -28,7 +57,7 @@ class TreeTracer
         typedef std::map<MergeTreeNode::Vertex, MinIntegral>        MinIntegralMap;
 
     public:
-                     TreeTracer(const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_) :
+                    TreeTracer(const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_) :
                          decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_)
         {}
 
@@ -193,7 +222,7 @@ int main(int argc, char** argv)
     int         threads     = 1;
     int         k           = 2;
     Real        m           = 200;
-    Real        t           = 80;
+    Real        t           = 82;
 
     std::string profile_path;
     std::string log_level = "info";
@@ -209,7 +238,8 @@ int main(int argc, char** argv)
         >> Option('x', "max",       m,            "maximum threshold")
         >> Option('i', "iso",       t,            "isofind threshold")
     ;
-    bool verbose = ops >> Present('v', "verbose", "verbose output: logical coordiantes and number of cells");
+    bool absolute = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean");
+    bool verbose  = ops >> Present('v', "verbose",  "verbose output: logical coordiantes and number of cells");
 
     std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
@@ -282,6 +312,20 @@ int main(int argc, char** argv)
         domain.max[i] = global.to()[i];
     }
     diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner, Decomposer::BoolVector(3, true));
+
+    // Compute average
+    if (!absolute)
+    {
+        mt_master.foreach(&compute_average);
+        mt_master.exchange();
+
+        const diy::Master::ProxyWithLink& proxy = mt_master.proxy(mt_master.loaded_block());
+        double mean = proxy.get<double>() / proxy.get<size_t>();
+        m *= mean;
+        t *= mean;
+
+        LOG_SEV_IF(world.rank() == 0, info) << "Average value is " << mean << ". Using isofind threshold of " << t << " and maximum threshold of " << m;
+    }
 
     // Compute and combine persistent integrals
     diy::all_to_all(mt_master, assigner, TreeTracer(decomposer, pi_master, m, t), k);
