@@ -536,8 +536,10 @@ void
 reeber::redistribute_vertices(MergeTree& mt)
 {
     dlog::prof << "redistribute-vertices";
-    typedef     typename MergeTree::Neighbor            Neighbor;
-    typedef     typename MergeTree::Node::ValueVertex   ValueVertex;
+    typedef     typename MergeTree::Neighbor                Neighbor;
+    typedef     typename MergeTree::Node::ValueVertex       ValueVertex;
+    typedef     typename MergeTree::Node::VerticesVector    VerticesVector;
+    typedef     typename VerticesVector::iterator           VerticesVectorIterator;
 
     Neighbor root = mt.find_root();
 
@@ -553,10 +555,12 @@ reeber::redistribute_vertices(MergeTree& mt)
             s.pop();
 
             // distribute the vertices
-            std::set<ValueVertex>                       vertices(n->vertices.begin(), n->vertices.end());
-            typename std::set<ValueVertex>::iterator    it = vertices.begin();
-            n->vertices.clear();
-            while(it != vertices.end())
+            VerticesVector vertices;
+            vertices.swap(n->vertices);
+            std::sort(vertices.begin(), vertices.end());
+            VerticesVectorIterator end = std::unique(vertices.begin(), vertices.end());
+            VerticesVectorIterator it  = vertices.begin();
+            while(it != end)
             {
                 // move vertex up
                 ValueVertex parent_vv(n->parent->value, n->parent->vertex);
