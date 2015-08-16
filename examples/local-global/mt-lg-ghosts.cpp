@@ -164,6 +164,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
               srp.dequeue(nbr_gid, bounds[i]);
               srp.dequeue(nbr_gid, trees[i]);
               LOG_SEV(debug) << "  received tree of size: " << trees[i].size();
+              srp.incoming(nbr_gid).wipe();
           }
         }
         LOG_SEV(debug) << "  trees and bounds received";
