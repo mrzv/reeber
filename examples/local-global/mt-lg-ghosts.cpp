@@ -121,118 +121,143 @@ struct GlobalBoundary
 {
     typedef     MergeTreeBlock::Box             Box;
 
-                GlobalBoundary(const Box& global_):
-                    global_test(global_)                        {}
+                GlobalBoundary(const Box& global_, bool wrap_):
+                    global(global_), wrap(wrap_)                                    {}
 
-    bool        operator()(MergeTreeBlock::Index v) const                           { return global_test(v); }
+    bool        operator()(MergeTreeBlock::Index v) const
+    {
+        Box::Position       vp          = global.position(v);
+        const Box::Position full_shape  = global.grid_shape();
+        for (int i = 0; i < global.dimension(); ++i)
+        {
+            if      ( wrap &&  global.from()[i] == 0 && global.to()[i] == full_shape[i])
+                continue;
+            else if (!wrap && (global.from()[i] == 0 || global.to()[i] == full_shape[i] - 1))
+                continue;
 
-    Box::BoundaryTest       global_test;
+            if (vp[i] == global.from()[i] || vp[i] == global.to()[i])
+                return true;
+        }
+
+        return false;
+    }
+
+    const Box&      global;
+    bool            wrap;
 };
 
 struct LocalOrGlobalBoundary
 {
     typedef     MergeTreeBlock::Box             Box;
 
-                LocalOrGlobalBoundary(const Box& local_, const Box& global_):
-                    local_test(local_), global_test(global_)                        {}
+                LocalOrGlobalBoundary(const Box& local_, const Box& global_, bool wrap):
+                    local_test(local_), global_test(global_, wrap)                  {}
 
     bool        operator()(MergeTreeBlock::Index v) const                           { return local_test(v) || global_test(v); }
 
     Box::BoundsTest         local_test;
-    Box::BoundaryTest       global_test;
+    GlobalBoundary          global_test;
 };
 
-void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwapPartners& partners)
+struct MergeSparsify
 {
-    typedef                     MergeTreeBlock::MergeTree           MergeTree;
-    typedef                     MergeTreeBlock::Box                 Box;
-    typedef                     MergeTree::Neighbor                 Neighbor;
+            MergeSparsify(bool wrap_):
+                wrap(wrap_)                                                         {}
 
-    LOG_SEV(debug) << "Entered merge_sparsify()";
-
-    MergeTreeBlock*             b        = static_cast<MergeTreeBlock*>(b_);
-    unsigned                    round    = srp.round();
-    LOG_SEV(debug) << "Round: " << round;
-    LOG_SEV_IF(srp.master()->communicator().rank() == 0, info) << "round = " << srp.round();
-
-    // receive trees, merge, and sparsify
-    int in_size = srp.in_link().size();
-    LOG_SEV(debug) << "  incoming link size: " << in_size;
-    if (in_size)
+    void    operator()(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwapPartners& partners) const
     {
-        std::vector<Box>        bounds(in_size, b->global.grid_shape());
-        std::vector<MergeTree>  trees(in_size, b->mt.negate());
-        int in_pos = -1;
-        for (int i = 0; i < in_size; ++i)
+        typedef                     MergeTreeBlock::MergeTree           MergeTree;
+        typedef                     MergeTreeBlock::Box                 Box;
+        typedef                     MergeTree::Neighbor                 Neighbor;
+
+        LOG_SEV(debug) << "Entered merge_sparsify()";
+
+        MergeTreeBlock*             b        = static_cast<MergeTreeBlock*>(b_);
+        unsigned                    round    = srp.round();
+        LOG_SEV(debug) << "Round: " << round;
+        LOG_SEV_IF(srp.master()->communicator().rank() == 0, info) << "round = " << srp.round();
+
+        // receive trees, merge, and sparsify
+        int in_size = srp.in_link().size();
+        LOG_SEV(debug) << "  incoming link size: " << in_size;
+        if (in_size)
         {
-          int nbr_gid = srp.in_link().target(i).gid;
-          if (nbr_gid == srp.gid())
+            std::vector<Box>        bounds(in_size, b->global.grid_shape());
+            std::vector<MergeTree>  trees(in_size, b->mt.negate());
+            int in_pos = -1;
+            for (int i = 0; i < in_size; ++i)
+            {
+              int nbr_gid = srp.in_link().target(i).gid;
+              if (nbr_gid == srp.gid())
+              {
+                  in_pos = i;
+                  bounds[i].swap(b->global);
+                  trees[i].swap(b->mt);
+                  LOG_SEV(debug) << "  swapped in tree of size: " << trees[i].size();
+              } else
+              {
+                  srp.dequeue(nbr_gid, bounds[i]);
+                  srp.dequeue(nbr_gid, trees[i]);
+                  LOG_SEV(debug) << "  received tree of size: " << trees[i].size();
+                  srp.incoming(nbr_gid).wipe();
+              }
+            }
+            LOG_SEV(debug) << "  trees and bounds received";
+
+            // merge boxes
+            b->global.from() = bounds.front().from();
+            b->global.to()   = bounds.back().to();
+            LOG_SEV(debug) << "  boxes merged: " << b->global.from() << " - " << b->global.to() << " (" << b->global.grid_shape() << ')';
+
+            // merge trees and move vertices
+            record_stats("Merging trees:", "{} and {}", trees[0].size(), trees[1].size());
+            r::merge(b->mt, trees);
+            BOOST_FOREACH(Neighbor n, static_cast<const MergeTree&>(trees[in_pos]).nodes() | r::ba::map_values)
+                if (!n->vertices.empty())
+                    b->mt[n->vertex]->vertices.swap(n->vertices);
+            trees.clear();
+            LOG_SEV(debug) << "  trees merged: " << b->mt.size();
+            record_stats("Trees merged:", "{}", b->mt.size());
+
+            // sparsify
+            sparsify(b->mt, LocalOrGlobalBoundary(b->local, b->global, wrap));
+            record_stats("Trees sparsified:", "{}", b->mt.size());
+            remove_degree2(b->mt, b->core.bounds_test(), GlobalBoundary(b->global, wrap));
+            record_stats("Degree-2 removed:", "{}", b->mt.size());
+        }
+
+        // send (without the vertices) to the neighbors
+        int out_size = srp.out_link().size();
+        if (out_size == 0)        // final round: create the final local-global tree, nothing needs to be sent
+        {
+            //LOG_SEV(debug) << "Sparsifying final tree of size: " << b->mt.size();
+            sparsify(b->mt, b->local.bounds_test());
+            record_stats("Final sparsified:", "{}", b->mt.size());
+            remove_degree2(b->mt, b->core.bounds_test());
+            record_stats("Final degree-2 removed:", "{}", b->mt.size());
+            redistribute_vertices(b->mt);
+            record_stats("Vertices redistributed:", "{}", b->mt.size());
+            LOG_SEV(debug) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
+            return;
+        }
+
+        MergeTree mt_out(b->mt.negate());       // tree sparsified w.r.t. global boundary (dropping internal nodes)
+        sparsify(mt_out, b->mt, b->global.boundary_test());
+        record_stats("Outgoing tree:", "{}", mt_out.size());
+
+        for (int i = 0; i < out_size; ++i)
+        {
+          diy::BlockID nbr_bid = srp.out_link().target(i);
+          if (nbr_bid.gid != srp.gid())
           {
-              in_pos = i;
-              bounds[i].swap(b->global);
-              trees[i].swap(b->mt);
-              LOG_SEV(debug) << "  swapped in tree of size: " << trees[i].size();
-          } else
-          {
-              srp.dequeue(nbr_gid, bounds[i]);
-              srp.dequeue(nbr_gid, trees[i]);
-              LOG_SEV(debug) << "  received tree of size: " << trees[i].size();
-              srp.incoming(nbr_gid).wipe();
+            srp.enqueue(nbr_bid, b->global);
+            srp.enqueue(nbr_bid, mt_out, &save_no_vertices);
           }
         }
-        LOG_SEV(debug) << "  trees and bounds received";
-
-        // merge boxes
-        b->global.from() = bounds.front().from();
-        b->global.to()   = bounds.back().to();
-        LOG_SEV(debug) << "  boxes merged: " << b->global.from() << " - " << b->global.to() << " (" << b->global.grid_shape() << ')';
-
-        // merge trees and move vertices
-        record_stats("Merging trees:", "{} and {}", trees[0].size(), trees[1].size());
-        r::merge(b->mt, trees);
-        BOOST_FOREACH(Neighbor n, static_cast<const MergeTree&>(trees[in_pos]).nodes() | r::ba::map_values)
-            if (!n->vertices.empty())
-                b->mt[n->vertex]->vertices.swap(n->vertices);
-        trees.clear();
-        LOG_SEV(debug) << "  trees merged: " << b->mt.size();
-        record_stats("Trees merged:", "{}", b->mt.size());
-
-        // sparsify
-        sparsify(b->mt, LocalOrGlobalBoundary(b->local, b->global));
-        record_stats("Trees sparsified:", "{}", b->mt.size());
-        remove_degree2(b->mt, b->core.bounds_test(), GlobalBoundary(b->global));
-        record_stats("Degree-2 removed:", "{}", b->mt.size());
     }
 
-    // send (without the vertices) to the neighbors
-    int out_size = srp.out_link().size();
-    if (out_size == 0)        // final round: create the final local-global tree, nothing needs to be sent
-    {
-        //LOG_SEV(debug) << "Sparsifying final tree of size: " << b->mt.size();
-        sparsify(b->mt, b->local.bounds_test());
-        record_stats("Final sparsified:", "{}", b->mt.size());
-        remove_degree2(b->mt, b->core.bounds_test());
-        record_stats("Final degree-2 removed:", "{}", b->mt.size());
-        redistribute_vertices(b->mt);
-        record_stats("Vertices redistributed:", "{}", b->mt.size());
-        LOG_SEV(debug) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
-        return;
-    }
-
-    MergeTree mt_out(b->mt.negate());       // tree sparsified w.r.t. global boundary (dropping internal nodes)
-    sparsify(mt_out, b->mt, b->global.boundary_test());
-    record_stats("Outgoing tree:", "{}", mt_out.size());
-
-    for (int i = 0; i < out_size; ++i)
-    {
-      diy::BlockID nbr_bid = srp.out_link().target(i);
-      if (nbr_bid.gid != srp.gid())
-      {
-        srp.enqueue(nbr_bid, b->global);
-        srp.enqueue(nbr_bid, mt_out, &save_no_vertices);
-      }
-    }
-}
+    bool                    wrap;
+};
 
 // debug only
 void save_grids(void* b_, const diy::Master::ProxyWithLink& cp, void*)
@@ -411,7 +436,7 @@ int main(int argc, char** argv)
     // perform the global swap-reduce
     int k = 2;
     diy::RegularSwapPartners  partners(3, nblocks, k, true);
-    diy::reduce(master, assigner, partners, &merge_sparsify);
+    diy::reduce(master, assigner, partners, MergeSparsify(wrap_));
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time for the reduction:  " << dlog::clock_to_string(timer.elapsed());
