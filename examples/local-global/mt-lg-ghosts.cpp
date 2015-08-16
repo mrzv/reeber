@@ -15,6 +15,7 @@
 #include <diy/io/block.hpp>
 
 #include "format.h"
+#include "memory.h"
 
 #include "reader-interfaces.h"
 #include "ghosts.h"
@@ -141,6 +142,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
     MergeTreeBlock*             b        = static_cast<MergeTreeBlock*>(b_);
     unsigned                    round    = srp.round();
     LOG_SEV(debug) << "Round: " << round;
+    LOG_SEV_IF(srp.master()->communicator().rank() == 0, info) << "round = " << srp.round();
 
     // receive trees, merge, and sparsify
     int in_size = srp.in_link().size();
@@ -209,6 +211,9 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
     MergeTree mt_out(b->mt.negate());       // tree sparsified w.r.t. global boundary (dropping internal nodes)
     sparsify(mt_out, b->mt, b->global.boundary_test());
     fmt::print(dlog::stats, "{:<25} {}\n", "Outgoing tree:", mt_out.size());
+    fmt::print(dlog::stats, "{:<25} {}\n", "hwm = ", proc_status_value("VmHWM"));
+    dlog::prof.flush();
+    dlog::stats.flush();
 
     for (int i = 0; i < out_size; ++i)
     {
