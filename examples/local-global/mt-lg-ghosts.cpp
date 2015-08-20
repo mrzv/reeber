@@ -132,7 +132,8 @@ struct GlobalBoundary
         {
             if      ( wrap &&  global.from()[i] == 0 && global.to()[i] == full_shape[i])
                 continue;
-            else if (!wrap && (global.from()[i] == 0 || global.to()[i] == full_shape[i] - 1))
+            else if (!wrap && (   (global.from()[i] == 0               && vp[i] == global.from()[i])
+                               || (global.to()[i] == full_shape[i] - 1 && vp[i] == global.to()[i])))
                 continue;
 
             if (vp[i] == global.from()[i] || vp[i] == global.to()[i])
@@ -242,7 +243,7 @@ struct MergeSparsify
         }
 
         MergeTree mt_out(b->mt.negate());       // tree sparsified w.r.t. global boundary (dropping internal nodes)
-        sparsify(mt_out, b->mt, b->global.boundary_test());
+        sparsify(mt_out, b->mt, GlobalBoundary(b->global, wrap));
         record_stats("Outgoing tree:", "{}", mt_out.size());
 
         for (int i = 0; i < out_size; ++i)
