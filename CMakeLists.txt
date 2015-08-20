@@ -93,4 +93,5 @@ if                          (debug)
     endif                   (LIBDW_LIBRARY)
 endif                       (debug)
 
+enable_testing              ()
 add_subdirectory            (examples)
