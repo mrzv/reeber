@@ -39,3 +39,5 @@ target_link_libraries       (mt-lg-ghosts-${CCSE_PRECISION_LC}      ${libraries}
 set_target_properties       (mt-lg-ghosts-${CCSE_PRECISION_LC}      PROPERTIES COMPILE_FLAGS "-DREEBER_USE_BOXLIB_READER")
 
 endif                       (boxlib)
+
+add_subdirectory            (tests)
