@@ -7,6 +7,7 @@ option                      (debug              "Build Reeber with debugging on"
 option                      (optimize           "Build Reeber with optimization"                ON)
 option                      (profile            "Build Reeber with profiling"                   ON)
 option                      (counters           "Build Reeber with counters"                    OFF)
+option                      (slow-tests         "Enable slow tests"                             ON)
 
 add_definitions             (-Wall -fPIC)
 
