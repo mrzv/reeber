@@ -183,7 +183,7 @@ class OutputIntegrals {
            MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
            BOOST_FOREACH(MinIntegral &mi, block.persistent_integrals)
            {
-               Vertex v = block.local.position(mi.min_vtx);
+               Vertex v = block.global.position(mi.min_vtx);
                ofs << v[0] * block.cell_size[0] << " " << v[1] * block.cell_size[1] << " " << v[2] * block.cell_size[2] << " ";
                if (verbose)
                    ofs << v[0] << "x" << v[1] << "x" << v[2] << " (" << mi.min_vtx << ") ";
