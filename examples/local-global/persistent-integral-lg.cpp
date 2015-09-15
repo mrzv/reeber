@@ -297,7 +297,7 @@ int main(int argc, char** argv)
     // load the trees
     LOG_SEV_IF(world.rank() == 0, debug) << "Reading blocks from " << infn;
     diy::io::read_blocks(infn, world, assigner, mt_master);
-    LOG_SEV_IF(world.rank() ==0 , info) << "Blocks read: " << mt_master.size();
+    LOG_SEV_IF(world.rank() == 0, info) << "Blocks read: " << mt_master.size();
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:                    " << dlog::clock_to_string(timer.elapsed());
