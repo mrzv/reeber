@@ -236,7 +236,7 @@ class OutputIntegrals {
 #ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
                std::sort(mi.vertices.begin(), mi.vertices.end(), vv_cmp);
                for (std::vector< MergeTreeNode::ValueVertex >::const_iterator it = mi.vertices.begin(); it != mi.vertices.end(); ++it)
-                   ofs << "   " << it->second << " (" << block.local.position(it->second) <<  ")" << std::endl;
+                   ofs << "   " << it->second << " (" << block.global.position(it->second) <<  ")" << std::endl;
 #if 0
                // Consistency check for debugging
                for (size_t i =0; i < mi.vertices.size()-1; ++i)
