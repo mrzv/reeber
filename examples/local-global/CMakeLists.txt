@@ -38,6 +38,13 @@ set_target_properties       (mt-local-global-${CCSE_PRECISION_LC}   PROPERTIES C
 target_link_libraries       (mt-lg-ghosts-${CCSE_PRECISION_LC}      ${libraries} ${CCSE_LIBRARIES})
 set_target_properties       (mt-lg-ghosts-${CCSE_PRECISION_LC}      PROPERTIES COMPILE_FLAGS "-DREEBER_USE_BOXLIB_READER")
 
+target_link_libraries       (persistent-integral-lg-${CCSE_PRECISION_LC}  ${libraries} ${CCSE_LIBRARIES})
+
+if                          (persistent-integral-trace-vertices)
+set_target_properties       (persistent-integral-lg-${CCSE_PRECISION_LC}  PROPERTIES COMPILE_FLAGS "-DREEBER_USE_BOXLIB_READER -DREEBER_PERSISTENT_INTEGRAL_TRACE_VTCS")
+else                        (persistent-integral-trace-vertices)
+set_target_properties       (persistent-integral-lg-${CCSE_PRECISION_LC}  PROPERTIES COMPILE_FLAGS "-DREEBER_USE_BOXLIB_READER")
+endif                       (persistent-integral-trace-vertices)
 endif                       (boxlib)
 
 add_subdirectory            (tests)

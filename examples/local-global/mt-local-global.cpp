@@ -14,11 +14,6 @@
 #include <diy/io/numpy.hpp>
 #include <diy/io/block.hpp>
 
-#ifdef REEBER_USE_BOXLIB_READER
-#include <algorithm>
-#include <reeber/io/boxlib.h>
-#endif
-
 #include "format.h"
 
 #include "reader-interfaces.h"
@@ -270,15 +265,7 @@ int main(int argc, char** argv)
     diy::ContiguousAssigner     assigner(world.size(), nblocks);
 
     // set up the reader
-    Reader* reader_ptr;
-#ifdef REEBER_USE_BOXLIB_READER
-    if (boost::algorithm::ends_with(infn, ".npy"))
-        reader_ptr = new NumPyReader(infn, world);
-    else
-        reader_ptr = new BoxLibReader(infn, world);
-#else
-    reader_ptr      = new NumPyReader(infn, world);
-#endif
+    Reader* reader_ptr = Reader::create(infn, world);
     Reader& reader  = *reader_ptr;
 
     diy::DiscreteBounds domain;

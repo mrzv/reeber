@@ -1,17 +1,31 @@
 #ifndef REEBER_PESISTENT_INTEGRAL_BLOCK_H
 #define REEBER_PESISTENT_INTEGRAL_BLOCK_H
 
+#include <cassert>
+
+#include <boost/range/combine.hpp>
+#include <boost/foreach.hpp>
+
 typedef MergeTreeBlock::MergeTree                                   MergeTree;
 typedef MergeTreeBlock::MergeTree::Neighbor                         Neighbor;
 typedef MergeTree::Node                                             MergeTreeNode;
 
 struct MinIntegral
 {
-                     MinIntegral() : min_vtx(0), min_val(0), integral(0), n_cells(0)  {}
-                     MinIntegral(const Neighbor min_node_, Real integral_ = 0, size_t n_cells_ = 0) :
-                         min_vtx(min_node_->vertex), min_val(min_node_->value), integral(integral_), n_cells(n_cells_)  {}
+                     MinIntegral() : min_vtx(0), min_val(0), integral(0), n_cells(0), add_sums()  {}
+                     MinIntegral(const Neighbor min_node_, size_t n_add_sums = 0,  Real integral_ = 0, size_t n_cells_ = 0) :
+                         min_vtx(min_node_->vertex), min_val(min_node_->value), integral(integral_), n_cells(n_cells_), add_sums(n_add_sums, 0) {}
 
-    void             combine(const MinIntegral& other)              { integral += other.integral; n_cells += other.n_cells; append(other); }
+    void             combine(const MinIntegral& other)
+    {
+        integral += other.integral;
+        n_cells += other.n_cells;
+        typedef boost::tuple<Real&, Real> Realref_Real_tuple;
+        assert(add_sums.size() == other.add_sums.size());
+        BOOST_FOREACH(Realref_Real_tuple t, boost::combine(add_sums, other.add_sums))
+            t.get<0>() += t.get<1>();
+        append(other);
+    }
 
 #ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
     void             append(const MinIntegral& other)               { vertices.insert(vertices.end(), other.vertices.begin(), other.vertices.end()); }
@@ -28,12 +42,12 @@ struct MinIntegral
     MergeTreeNode::Value    min_val;
     Real                    integral;
     size_t                  n_cells;
+    std::vector<Real>       add_sums;
 #ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
     std::vector<MergeTreeNode::ValueVertex> vertices;
 #endif
 };
 
-#ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
 namespace diy {
     template<>
     struct Serialization<MinIntegral>
@@ -44,7 +58,10 @@ namespace diy {
             diy::save(bb, mi.min_val);
             diy::save(bb, mi.integral);
             diy::save(bb, mi.n_cells);
+            diy::save(bb, mi.add_sums);
+#ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
             diy::save(bb, mi.vertices);
+#endif
         }
         static void      load(diy::BinaryBuffer& bb, MinIntegral &mi)
         {
@@ -52,11 +69,13 @@ namespace diy {
             diy::load(bb, mi.min_val);
             diy::load(bb, mi.integral);
             diy::load(bb, mi.n_cells);
+            diy::load(bb, mi.add_sums);
+#ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS
             diy::load(bb, mi.vertices);
+#endif
         }
     };
 }
-#endif
 
 struct PersistentIntegralBlock
 {

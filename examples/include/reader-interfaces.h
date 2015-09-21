@@ -3,6 +3,8 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 
+#include <diy/io/numpy.hpp>
+
 #ifdef REEBER_USE_BOXLIB_READER
 #include <algorithm>
 #include <reeber/io/boxlib.h>
@@ -21,6 +23,7 @@ struct Reader
                                  Real* buffer,                          // Buffer where data will be copied to
                                  bool collective = true) const          =0;
     virtual                 ~Reader()                                   {}
+    static Reader*          create(std::string, diy::mpi::communicator);
 };
 
 struct NumPyReader: public Reader
@@ -79,5 +82,19 @@ struct BoxLibInSituCopier: public Reader
 };
 
 #endif
+
+inline Reader* Reader::create(std::string infn, diy::mpi::communicator world)
+{
+    Reader* reader_ptr;
+#ifdef REEBER_USE_BOXLIB_READER
+    if (boost::algorithm::ends_with(infn, ".npy"))
+        reader_ptr = new NumPyReader(infn, world);
+    else
+        reader_ptr = new BoxLibReader(infn, world);
+#else
+    reader_ptr      = new NumPyReader(infn, world);
+#endif
+    return reader_ptr;
+}
 
 #endif
