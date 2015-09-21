@@ -127,7 +127,7 @@ struct GlobalBoundary
     {
         Box::Position       vp          = global.position(v);
         const Box::Position full_shape  = global.grid_shape();
-        for (int i = 0; i < global.dimension(); ++i)
+        for (size_t i = 0; i < global.dimension(); ++i)
         {
             if      ( wrap &&  global.from()[i] == 0 && global.to()[i] == full_shape[i])
                 continue;

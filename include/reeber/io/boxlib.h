@@ -164,7 +164,7 @@ namespace BoxLib
                       // specifying on which rank a box is reead.
                       BoxList    partition_boxes;
                       Array<int> proc_for_box(communicator_.size() + 1); // + 1 is for historic reasons
-                      for (int i = 0; i < buffer_vector.size(); ++i)
+                      for (size_t i = 0; i < buffer_vector.size(); ++i)
                       {
                           diy::DiscreteBounds bnds;
                           diy::MemoryBuffer bb; bb.buffer.swap(buffer_vector[i]);
@@ -264,7 +264,7 @@ namespace BoxLib
                       // specifying on which rank a box is reead.
                       BoxList    partition_boxes;
                       Array<int> proc_for_box(communicator_.size() + 1); // + 1 is for historic reasons
-                      for (int i = 0; i < buffer_vector.size(); ++i)
+                      for (size_t i = 0; i < buffer_vector.size(); ++i)
                       {
                           diy::DiscreteBounds bnds;
                           diy::MemoryBuffer bb; bb.buffer.swap(buffer_vector[i]);
