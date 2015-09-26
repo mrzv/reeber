@@ -60,8 +60,8 @@ class TreeTracer
         typedef std::map<MergeTreeNode::Vertex, MinIntegral>        MinIntegralMap;
 
     public:
-                    TreeTracer(const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_, std::vector<std::string> avg_fn_list_, bool density_weighted_) :
-                         decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_), density_weighted(density_weighted_)
+                    TreeTracer(const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_, std::vector<std::string> avg_fn_list_, bool density_weighted_, bool divide_by_density_) :
+                         decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_), density_weighted(density_weighted_), divide_by_density(divide_by_density_)
         {
 
             diy::mpi::communicator world;
@@ -167,7 +167,16 @@ class TreeTracer
                 mi_res.integral += n->value * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
                 ++mi_res.n_cells;
                 BOOST_FOREACH(RealRef_OffsetGridPtr_tuple t, boost::combine(mi_res.add_sums, add_data))
-                    t.get<0>() += (density_weighted ? n->value * block.cell_size[0] * block.cell_size[1] * block.cell_size[2] : 1) * (*t.get<1>())(n->vertex);
+                {
+                    Real new_val = (*t.get<1>())(n->vertex);
+                    if (density_weighted && !divide_by_density)
+                        new_val *= n->value * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
+                    else if (!density_weighted && divide_by_density)
+                        new_val /= n->value;
+                    else if (density_weighted && divide_by_density)
+                        new_val *= block.cell_size[0] * block.cell_size[1] * block.cell_size[2]; // FIXME: Hack so that we can divide by the integral instead of carrying the sum separately. This will only work for single level data sets with one cell size
+                    t.get<0>() += new_val;
+                }
                 mi_res.push_back(MergeTreeNode::ValueVertex(n->value, n->vertex));
             }
 
@@ -177,7 +186,16 @@ class TreeTracer
                     mi_res.integral += x.first * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
                     ++mi_res.n_cells;
                     BOOST_FOREACH(RealRef_OffsetGridPtr_tuple t, boost::combine(mi_res.add_sums, add_data))
-                        t.get<0>() += (density_weighted ? x.first * block.cell_size[0] * block.cell_size[1] * block.cell_size[2] : 1) * (*t.get<1>())(x.second);
+                    {
+                        Real new_val = (*t.get<1>())(x.second);
+                        if (density_weighted && !divide_by_density)
+                            new_val *= x.first * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
+                        else if (!density_weighted && divide_by_density)
+                            new_val /= x.first;
+                        else if (density_weighted && divide_by_density)
+                            new_val *=  block.cell_size[0] * block.cell_size[1] * block.cell_size[2]; // FIXME: Hack so that we can divide by the integral instead of carrying the sum separately. This will only work for single level data sets with one cell size
+                        t.get<0>() += new_val;
+                    }
                     mi_res.push_back(x);
                 }
 
@@ -202,6 +220,7 @@ class TreeTracer
         Real                 m;
         Real                 t;
         bool                 density_weighted;
+        bool                 divide_by_density;
         std::vector<Reader*> readers;
 };
 
@@ -289,6 +308,7 @@ int main(int argc, char** argv)
     bool absolute         = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
     bool verbose          = ops >> Present('v', "verbose",  "verbose output: logical coordiantes and number of cells");
     bool density_weighted = ops >> Present('w', "weight",   "compute density-weighted averages");
+    bool divide_by_density= ops >> Present('q', "quotient", "divide by density");
 
     std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
@@ -381,7 +401,7 @@ int main(int argc, char** argv)
     }
 
     // Compute and combine persistent integrals
-    diy::all_to_all(mt_master, assigner, TreeTracer(decomposer, pi_master, m, t, avg_fn_list, density_weighted), k);
+    diy::all_to_all(mt_master, assigner, TreeTracer(decomposer, pi_master, m, t, avg_fn_list, density_weighted, divide_by_density), k);
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute persistent integrals: " << dlog::clock_to_string(timer.elapsed());
