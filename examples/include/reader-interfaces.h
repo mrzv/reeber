@@ -5,11 +5,14 @@
 
 #include <diy/io/numpy.hpp>
 
+#include <reeber/box.h>
+
 #ifdef REEBER_USE_BOXLIB_READER
 #include <algorithm>
 #include <reeber/io/boxlib.h>
-namespace r = reeber;
 #endif
+
+namespace r = reeber;
 
 #include "reeber-real.h"
 
@@ -17,14 +20,29 @@ struct Reader
 {
     typedef                 std::vector<int>                            Shape;
     typedef                 std::vector<Real>                           Size;
+    typedef                 r::OffsetGrid<Real, 3>                      OffsetGrid;
     virtual const Shape&    shape() const                               =0;
     virtual const Size&     cell_size() const                           =0;
     virtual void            read(const diy::DiscreteBounds& bounds,     // Region to read
                                  Real* buffer,                          // Buffer where data will be copied to
                                  bool collective = true) const          =0;
+    virtual OffsetGrid*     read(const r::Box<3> &core);
     virtual                 ~Reader()                                   {}
     static Reader*          create(std::string, diy::mpi::communicator);
 };
+
+inline Reader::OffsetGrid* Reader::read(const r::Box<3> &bounds)
+{
+    diy::DiscreteBounds read_bounds;
+    for (int d=0; d<3; ++d)
+    {
+        read_bounds.min[d] = bounds.from()[d];
+        read_bounds.max[d] = bounds.to()[d];
+    }
+    OffsetGrid *og = new OffsetGrid(shape(), read_bounds.min, read_bounds.max);
+    read(read_bounds, og->data(), true);
+    return og;
+}
 
 struct NumPyReader: public Reader
 {

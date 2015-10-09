@@ -60,23 +60,29 @@ class TreeTracer
         typedef std::map<MergeTreeNode::Vertex, MinIntegral>        MinIntegralMap;
 
     public:
-                    TreeTracer(const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_, std::vector<std::string> avg_fn_list_, bool density_weighted_, bool divide_by_density_) :
-                         decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_), density_weighted(density_weighted_), divide_by_density(divide_by_density_)
+                    TreeTracer(const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_, std::vector<std::string> avg_fn_list_, std::string density_fn_, bool density_weighted_) :
+                         decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_), density_reader(0), density_weighted(density_weighted_)
         {
 
             diy::mpi::communicator world;
 
             BOOST_FOREACH(const std::string& fn, avg_fn_list_)
             {
-                readers.push_back(Reader::create(fn, world));
+                avg_var_readers.push_back(Reader::create(fn, world));
+            }
+
+            if (!density_fn_.empty())
+            {
+                density_reader = Reader::create(density_fn_, world);
             }
 
         }
 
                     ~TreeTracer()
         {
-            BOOST_FOREACH(Reader* reader, readers)
+            BOOST_FOREACH(Reader* reader, avg_var_readers)
                 delete reader;
+            delete density_reader;
         }
 
         void        operator()(void *b, const diy::ReduceProxy& rp) const
@@ -87,20 +93,13 @@ class TreeTracer
             {
                 MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
                 std::vector<MergeTreeBlock::OffsetGrid*> add_data;
-                BOOST_FOREACH(Reader* reader, readers)
-                {
-                    diy::DiscreteBounds read_bounds;
-                    for (int d=0; d<3; ++d)
-                    {
-                        read_bounds.min[d] = block.core.from()[d];
-                        read_bounds.max[d] = block.core.to()[d];
-                    }
-                    add_data.push_back(new MergeTreeBlock::OffsetGrid(reader->shape(), read_bounds.min, read_bounds.max));
-                    reader->read(read_bounds, add_data.back()->data(), true);
-                }
-                trace(block.mt.find_root(), block, gp, add_data, rp);
+                BOOST_FOREACH(Reader* reader, avg_var_readers)
+                    add_data.push_back(reader->read(block.core));
+                MergeTreeBlock::OffsetGrid *density_data = density_reader ? density_reader->read(block.core) : 0;
+                trace(block.mt.find_root(), block, gp, add_data, density_data, rp);
                 BOOST_FOREACH(MergeTreeBlock::OffsetGrid* og, add_data)
                     delete og;
+                delete density_data;
             }
             else
             {
@@ -130,17 +129,17 @@ class TreeTracer
             }
         }
 
-        void        trace(Neighbor n, const MergeTreeBlock& block, const MergeTreeBlock::OffsetGrid::GridProxy& gp, const std::vector<MergeTreeBlock::OffsetGrid*>& add_data, const diy::ReduceProxy& rp) const
+        void        trace(Neighbor n, const MergeTreeBlock& block, const MergeTreeBlock::OffsetGrid::GridProxy& gp, const std::vector<MergeTreeBlock::OffsetGrid*>& add_data, MergeTreeBlock::OffsetGrid* density_data, const diy::ReduceProxy& rp) const
         {
             BOOST_FOREACH(Neighbor child, n->children)
             {
                 if (block.mt.cmp(t, child->value))                                   // still too high
                 {
-                    trace(child, block, gp, add_data, rp);
+                    trace(child, block, gp, add_data, density_data, rp);
                 }
                 else                                                                 // crossing the threshold
                 {
-                    MinIntegral mi = integrate(child, block, gp, add_data);
+                    MinIntegral mi = integrate(child, block, gp, add_data, density_data);
                     if (block.mt.cmp(m, mi.min_val))
                         continue;
 
@@ -155,7 +154,7 @@ class TreeTracer
             }
         }
 
-        MinIntegral integrate(Neighbor n, const MergeTreeBlock& block, const MergeTreeBlock::OffsetGrid::GridProxy& gp, const std::vector<MergeTreeBlock::OffsetGrid*>& add_data) const
+        MinIntegral integrate(Neighbor n, const MergeTreeBlock& block, const MergeTreeBlock::OffsetGrid::GridProxy& gp, const std::vector<MergeTreeBlock::OffsetGrid*>& add_data, MergeTreeBlock::OffsetGrid *density_data) const
         {
 
             typedef boost::tuple<Real&, MergeTreeBlock::OffsetGrid*> RealRef_OffsetGridPtr_tuple;
@@ -169,12 +168,10 @@ class TreeTracer
                 BOOST_FOREACH(RealRef_OffsetGridPtr_tuple t, boost::combine(mi_res.add_sums, add_data))
                 {
                     Real new_val = (*t.get<1>())(n->vertex);
-                    if (density_weighted && !divide_by_density)
+                    if (density_data)
+                        new_val /= (*density_data)(n->vertex);
+                    if (density_weighted)
                         new_val *= n->value * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
-                    else if (!density_weighted && divide_by_density)
-                        new_val /= n->value;
-                    else if (density_weighted && divide_by_density)
-                        new_val *= block.cell_size[0] * block.cell_size[1] * block.cell_size[2]; // FIXME: Hack so that we can divide by the integral instead of carrying the sum separately. This will only work for single level data sets with one cell size
                     t.get<0>() += new_val;
                 }
                 mi_res.push_back(MergeTreeNode::ValueVertex(n->value, n->vertex));
@@ -188,12 +185,10 @@ class TreeTracer
                     BOOST_FOREACH(RealRef_OffsetGridPtr_tuple t, boost::combine(mi_res.add_sums, add_data))
                     {
                         Real new_val = (*t.get<1>())(x.second);
-                        if (density_weighted && !divide_by_density)
+                        if (density_data)
+                            new_val /= (*density_data)(x.second);
+                        if (density_weighted)
                             new_val *= x.first * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
-                        else if (!density_weighted && divide_by_density)
-                            new_val /= x.first;
-                        else if (density_weighted && divide_by_density)
-                            new_val *=  block.cell_size[0] * block.cell_size[1] * block.cell_size[2]; // FIXME: Hack so that we can divide by the integral instead of carrying the sum separately. This will only work for single level data sets with one cell size
                         t.get<0>() += new_val;
                     }
                     mi_res.push_back(x);
@@ -202,7 +197,7 @@ class TreeTracer
             // Find contribution from children + min
             BOOST_FOREACH(Neighbor child, n->children)
             {
-                MinIntegral mi = integrate(child, block, gp, add_data);
+                MinIntegral mi = integrate(child, block, gp, add_data, density_data);
                 if (block.mt.cmp(mi, mi_res))
                 {
                     mi_res.min_val = mi.min_val;
@@ -219,9 +214,9 @@ class TreeTracer
         diy::Master&         pi_master;
         Real                 m;
         Real                 t;
+        std::vector<Reader*> avg_var_readers;
+        Reader*              density_reader;
         bool                 density_weighted;
-        bool                 divide_by_density;
-        std::vector<Reader*> readers;
 };
 
 bool vv_cmp(const MergeTreeNode::ValueVertex& a, const MergeTreeNode::ValueVertex& b)
@@ -292,6 +287,7 @@ int main(int argc, char** argv)
     std::string profile_path;
     std::string log_level = "info";
     std::string avg_fn_str = "";
+    std::string density_fn = "";
 
     Options ops(argc, argv);
     ops
@@ -304,11 +300,11 @@ int main(int argc, char** argv)
         >> Option('x', "max",       m,            "maximum threshold")
         >> Option('i', "iso",       t,            "isofind threshold")
         >> Option('f', "mean",      avg_fn_str,   "list of additionals files/variables to average separated by ','")
+        >> Option('q', "quotient",  density_fn,   "divide by density in file")
     ;
     bool absolute         = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
     bool verbose          = ops >> Present('v', "verbose",  "verbose output: logical coordiantes and number of cells");
     bool density_weighted = ops >> Present('w', "weight",   "compute density-weighted averages");
-    bool divide_by_density= ops >> Present('q', "quotient", "divide by density");
 
     std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
@@ -401,7 +397,7 @@ int main(int argc, char** argv)
     }
 
     // Compute and combine persistent integrals
-    diy::all_to_all(mt_master, assigner, TreeTracer(decomposer, pi_master, m, t, avg_fn_list, density_weighted, divide_by_density), k);
+    diy::all_to_all(mt_master, assigner, TreeTracer(decomposer, pi_master, m, t, avg_fn_list, density_fn, density_weighted), k);
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute persistent integrals: " << dlog::clock_to_string(timer.elapsed());

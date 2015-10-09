@@ -92,7 +92,7 @@ namespace BoxLib
                       cell_size_.resize(finest_level + 1);
                       for (int curr_level = 0; curr_level <= finest_level; ++curr_level)
                       {
-                          const Box& domain_box = dataServices_.AmrDataRef().ProbDomain()[curr_level];
+                          const ::Box& domain_box = dataServices_.AmrDataRef().ProbDomain()[curr_level];
                           for (int d = 0; d < BL_SPACEDIM; ++d)
                           {
                               from_[curr_level].push_back(domain_box.smallEnd()[d]);
@@ -170,7 +170,7 @@ namespace BoxLib
                           diy::MemoryBuffer bb; bb.buffer.swap(buffer_vector[i]);
                           diy::load(bb, bnds);
                           IntVect from(bnds.min), to(bnds.max);
-                          partition_boxes.push_back(Box(from, to));
+                          partition_boxes.push_back(::Box(from, to));
                           proc_for_box[i] = i;
                       }
                       DistributionMapping dm(proc_for_box);
@@ -194,7 +194,7 @@ namespace BoxLib
 
                       // Copy the data from BoxLib to Reeber2 FIXME: Avoid copy?
                       const FArrayBox& my_fab = mf[ParallelDescriptor::MyProc()];
-                      const Box& my_partition_box = mf_boxes[ParallelDescriptor::MyProc()];
+                      const ::Box& my_partition_box = mf_boxes[ParallelDescriptor::MyProc()];
                       typedef GridRef< Real, BL_SPACEDIM > RealGridRef;
                       typedef RealGridRef::Vertex GridVertex;
                       RealGridRef grid(buffer, GridVertex(bounds.max) - GridVertex(bounds.min) + GridVertex::one());
@@ -231,7 +231,7 @@ namespace BoxLib
                          diy::mpi::communicator communicator):
                       communicator_(communicator), simulation_data_(simulation_data), component_(component)
                   {
-                      const Box& domain_box = geometry.Domain();
+                      const ::Box& domain_box = geometry.Domain();
                       for (int d = 0; d < BL_SPACEDIM; ++d)
                       {
                           from_.push_back(domain_box.smallEnd()[d]);
@@ -270,7 +270,7 @@ namespace BoxLib
                           diy::MemoryBuffer bb; bb.buffer.swap(buffer_vector[i]);
                           diy::load(bb, bnds);
                           IntVect from(bnds.min), to(bnds.max);
-                          partition_boxes.push_back(Box(from, to));
+                          partition_boxes.push_back(::Box(from, to));
                           proc_for_box[i] = i;
                       }
                       DistributionMapping dm(proc_for_box);
@@ -284,7 +284,7 @@ namespace BoxLib
 
                       // Copy the data from BoxLib to Reeber2 FIXME: Avoid copy?
                       const FArrayBox& my_fab = mf[ParallelDescriptor::MyProc()];
-                      const Box& my_partition_box = mf_boxes[ParallelDescriptor::MyProc()];
+                      const ::Box& my_partition_box = mf_boxes[ParallelDescriptor::MyProc()];
                       typedef GridRef< Real, BL_SPACEDIM > RealGridRef;
                       typedef RealGridRef::Vertex GridVertex;
                       RealGridRef grid(buffer, GridVertex(bounds.max) - GridVertex(bounds.min) + GridVertex::one());
