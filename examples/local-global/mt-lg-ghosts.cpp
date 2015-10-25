@@ -316,6 +316,7 @@ int main(int argc, char** argv)
     ;
     bool        negate      = ops >> Present('n', "negate", "sweep superlevel sets");
     bool        wrap_       = ops >> Present('w', "wrap",   "periodic boundary conditions");
+    bool        split       = ops >> Present(     "split",  "use split IO");
 
     std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
@@ -435,7 +436,10 @@ int main(int argc, char** argv)
     timer.restart();
 
     // save the result
-    diy::io::write_blocks(outfn, world, master);
+    if (!split)
+        diy::io::write_blocks(outfn, world, master);
+    else
+        diy::io::split::write_blocks(outfn, world, master);
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to output trees:    " << dlog::clock_to_string(timer.elapsed());

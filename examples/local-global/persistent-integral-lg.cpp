@@ -305,6 +305,7 @@ int main(int argc, char** argv)
     bool absolute         = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
     bool verbose          = ops >> Present('v', "verbose",  "verbose output: logical coordiantes and number of cells");
     bool density_weighted = ops >> Present('w', "weight",   "compute density-weighted averages");
+    bool split            = ops >> Present(     "split",    "use split IO");
 
     std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
@@ -365,7 +366,10 @@ int main(int argc, char** argv)
 
     // load the trees
     LOG_SEV_IF(world.rank() == 0, debug) << "Reading blocks from " << infn;
-    diy::io::read_blocks(infn, world, assigner, mt_master);
+    if (!split)
+        diy::io::read_blocks(infn, world, assigner, mt_master);
+    else
+        diy::io::split::read_blocks(infn, world, assigner, mt_master);
     LOG_SEV_IF(world.rank() == 0, info) << "Blocks read: " << mt_master.size();
 
     world.barrier();

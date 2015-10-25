@@ -94,6 +94,7 @@ int main(int argc, char** argv)
         >> Option('l', "log",       log_level,    "log level")
     ;
     bool verbose = ops >> Present('v', "verbose", "verbose output");
+    bool split   = ops >> Present(     "split",   "use split IO");
 
     std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
@@ -139,7 +140,10 @@ int main(int argc, char** argv)
     diy::ContiguousAssigner     assigner(world.size(), 0);
 
     // load the trees
-    diy::io::read_blocks(infn, world, assigner, master);
+    if (!split)
+        diy::io::read_blocks(infn, world, assigner, master);
+    else
+        diy::io::split::read_blocks(infn, world, assigner, master);
     LOG_SEV(info) << "Blocks read: " << master.size();
 
     // get the domain bounds from any block that's in memory (they are all the same) and set up a decomposer
