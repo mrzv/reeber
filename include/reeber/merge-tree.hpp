@@ -64,7 +64,7 @@ link(Neighbor xn, Neighbor yn)
 /* Compute merge tree */
 template<class MergeTree, class Topology, class Function, class Collapsible>
 void
-reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Function& f, const Collapsible& collapsible)
+reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Function& f, const Collapsible& collapsible, bool preserve)
 {
     dlog::prof << "compute-merge-tree";
     typedef     typename Topology::Vertex       Vertex;
@@ -103,7 +103,8 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
         if (roots.size() == 1 && collapsible(u))
         {
             Neighbor n = *roots.begin();
-            n->vertices.push_back(fu);
+            if (preserve)
+                n->vertices.push_back(fu);
             mt.nodes()[u] = n;
             COUNTER(typename MergeTree::CollapseEvent)++;
         } else

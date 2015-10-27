@@ -81,7 +81,7 @@ int main(int argc, char** argv)
 
     std::string prefix     = "./DIY.XXXXXX";
     int         in_memory  = -1;
-    int         threads    = -1;
+    int         threads    = 1;
 
     std::string profile_path;
     std::string log_level = "info";

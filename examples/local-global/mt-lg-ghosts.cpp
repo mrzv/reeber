@@ -98,12 +98,15 @@ void record_stats(const char* message, const char* format, fmt::ArgList args)
 }
 FMT_VARIADIC(void, record_stats, const char*, const char*)
 
-void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void*)
+void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void* aux)
 {
     MergeTreeBlock* b = static_cast<MergeTreeBlock*>(b_);
+    bool compact = *static_cast<bool*>(aux);
 
     record_stats("Local box:", "{}", b->local);
-    r::compute_merge_tree(b->mt, b->local, b->grid, PruneInitial(b, b->grid));
+    r::compute_merge_tree(b->mt, b->local, b->grid, PruneInitial(b, b->grid), !compact);
+    if (compact)    // remove map entries that aren't nodes themselves
+        b->mt.prune_indirect();
     AssertMsg(b->mt.count_roots() == 1, "The tree can have only one root, not " << b->mt.count_roots());
     LOG_SEV(debug) << "[" << b->gid << "] " << "Initial tree size: " << b->mt.size();
     record_stats("Initial tree size:", "{}", b->mt.size());
@@ -317,6 +320,7 @@ int main(int argc, char** argv)
     bool        negate      = ops >> Present('n', "negate", "sweep superlevel sets");
     bool        wrap_       = ops >> Present('w', "wrap",   "periodic boundary conditions");
     bool        split       = ops >> Present(     "split",  "use split IO");
+    bool        compact     = ops >> Present('c', "compact", "compute compact representation (store only local minima)");
 
     std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
@@ -420,7 +424,7 @@ int main(int argc, char** argv)
     //master.foreach(&save_grids);
     //master.foreach(&test_link);
 
-    master.foreach(&compute_tree);
+    master.foreach(&compute_tree, &compact);
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute tree:    " << dlog::clock_to_string(timer.elapsed());

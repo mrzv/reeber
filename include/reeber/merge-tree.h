@@ -87,6 +87,9 @@ class MergeTree
         size_t      count_roots() const                 { size_t s = 0; BOOST_FOREACH(Neighbor n, nodes() | ba::map_values) if (!n->parent) ++s; return s; }
         void        reset_aux() const                   { BOOST_FOREACH(Neighbor n, nodes() | ba::map_values) aux_neighbor(n) = 0; }
 
+        // remove entries from the map where the key doesn't match the node's vertex
+        void        prune_indirect()                    { typename VertexNeighborMap::iterator it = nodes_.begin(); while (it != nodes_.end()) { if (it->first != it->second->vertex) nodes_.erase(it++); else it++; } }
+
         friend struct ::reeber::Serialization<MergeTree>;
 
     public:
@@ -103,7 +106,7 @@ class MergeTree
 
         template<class MT, class T, class F, class C>
         friend void
-        compute_merge_tree(MT& mt, const T& t, const F& f, const C& c);
+        compute_merge_tree(MT& mt, const T& t, const F& f, const C& c, bool p);
 
         template<class MT, class F>
         friend void
@@ -136,13 +139,13 @@ class MergeTree
  * Collapsible indicates whether a node can be simplified away (if it's a degree-2 node).
  */
 template<class MergeTree, class Topology, class Function, class Collapsible>
-void compute_merge_tree(MergeTree& mt, const Topology& topology, const Function& f, const Collapsible& collapsible);
+void compute_merge_tree(MergeTree& mt, const Topology& topology, const Function& f, const Collapsible& collapsible, bool preserve = true);
 
 // By default, everything is collapsible
 template<class MergeTree, class Topology, class Function>
 void compute_merge_tree(MergeTree& mt, const Topology& topology, const Function& f)
 {
-    compute_merge_tree(mt, topology, f, boost::lambda::constant(true));
+    compute_merge_tree(mt, topology, f, boost::lambda::constant(true), true);
 }
 
 template<class MergeTree, class Functor>
