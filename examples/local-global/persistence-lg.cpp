@@ -125,7 +125,7 @@ int main(int argc, char** argv)
         dlog::prof.add_stream(profile_stream);
     }
 
-    LOG_SEV(info) << "Starting computation";
+    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation";
     diy::FileStorage            storage(prefix);
 
     diy::Master                 master(world,
@@ -144,7 +144,7 @@ int main(int argc, char** argv)
         diy::io::read_blocks(infn, world, assigner, master);
     else
         diy::io::split::read_blocks(infn, world, assigner, master);
-    LOG_SEV(info) << "Blocks read: " << master.size();
+    LOG_SEV_IF(world.rank() == 0, info) << "Blocks read: " << master.size();
 
     // get the domain bounds from any block that's in memory (they are all the same) and set up a decomposer
     MergeTreeBlock::Box global = static_cast<MergeTreeBlock*>(((const diy::Master&) master).block(master.loaded_block()))->global;
