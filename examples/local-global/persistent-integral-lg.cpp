@@ -64,7 +64,7 @@ class TreeTracer
                          decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_), density_reader(0), density_weighted(density_weighted_)
         {
 
-            diy::mpi::communicator world;
+            diy::mpi::communicator& world = pi_master_.communicator();
 
             BOOST_FOREACH(const std::string& fn, avg_fn_list_)
             {
