@@ -107,14 +107,6 @@ int main(int argc, char** argv)
     dlog::add_stream(std::cerr, dlog::severity(log_level))
         << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
 
-#ifdef PROFILE
-    if (threads != 1)
-    {
-        LOG_SEV_IF(world.rank() == 0, fatal) << "Cannot use profiling with more than one thread";
-        return 1;
-    }
-#endif
-
     std::ofstream   profile_stream;
     if (profile_path == "-")
         dlog::prof.add_stream(std::cerr);

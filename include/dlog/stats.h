@@ -28,6 +28,8 @@
 #include <mach/mach.h>
 #endif
 
+#include <diy/thread.hpp>
+
 namespace dlog
 {
 
@@ -105,9 +107,9 @@ struct Profiler
     void    output_events();
 
     private:
-        time            start;
-        std::vector<std::ostream*>   outs;
-        EventsVector    events;
+        time                                    start;
+        std::vector<std::ostream*>              outs;
+        diy::critical_resource<EventsVector>    events;
 };
 #else
 struct Profiler
@@ -183,7 +185,7 @@ void
 dlog::Profiler::
 enter(std::string name)
 {
-    events.push_back(Event(name, true));
+    events.access()->push_back(Event(name, true));
 #ifdef DEBUG
     flush();
 #endif
@@ -193,7 +195,7 @@ void
 dlog::Profiler::
 exit(std::string name)
 {
-    events.push_back(Event(name, false));
+    events.access()->push_back(Event(name, false));
 #ifdef DEBUG
     flush();
 #endif
@@ -203,16 +205,17 @@ void
 dlog::Profiler::
 output_events()
 {
+    diy::critical_resource<EventsVector>::accessor a = events.access();
     for (size_t j = 0; j < outs.size(); ++j)
     {
         std::ostream& out = *outs[j];
-        for (size_t i = 0; i < events.size(); ++i)
+        for (size_t i = 0; i < a->size(); ++i)
         {
-            const Event& e = events[i];
+            const Event& e = (*a)[i];
             out << clock_to_string(e.stamp - start) << (e.begin ? " <" : " >") << e.name << '\n';
         }
     }
-    events.clear();
+    a->clear();
 }
 #endif // PROFILE
 
