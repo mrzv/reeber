@@ -3,7 +3,6 @@
 
 #include <cassert>
 
-#include <boost/range/combine.hpp>
 #include <boost/foreach.hpp>
 
 typedef MergeTreeBlock::MergeTree                                   MergeTree;
@@ -20,10 +19,9 @@ struct MinIntegral
     {
         integral += other.integral;
         n_cells += other.n_cells;
-        typedef boost::tuple<Real&, Real> Realref_Real_tuple;
         assert(add_sums.size() == other.add_sums.size());
-        BOOST_FOREACH(Realref_Real_tuple t, boost::combine(add_sums, other.add_sums))
-            t.get<0>() += t.get<1>();
+        for (size_t i = 0; i < add_sums.size(); ++i)
+            add_sums[i] += other.add_sums[i];
         append(other);
     }
 

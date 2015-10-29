@@ -4,7 +4,6 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/foreach.hpp>
 #include <boost/lambda/lambda.hpp>
-#include <boost/range/combine.hpp>
 
 #include <opts/opts.h>
 #include <dlog/log.h>
@@ -25,28 +24,35 @@ typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
 typedef MergeTreeBlock::Vertex                                      Vertex;
 typedef MergeTreeBlock::Value                                       Value;
 
+bool vv_cmp(const MergeTreeNode::ValueVertex& a, const MergeTreeNode::ValueVertex& b)
+{
+    return a.second < b.second;
+}
+
 class TreeTracer
 {
     private:
         typedef std::map<MergeTreeNode::Vertex, MinIntegral>        MinIntegralMap;
+        typedef MergeTreeBlock::OffsetGrid                          OffsetGrid;
+        typedef std::vector<OffsetGrid*>                            OffsetGridVector;
 
     public:
-                    TreeTracer(const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_, std::vector<std::string> avg_fn_list_, std::string density_fn_, bool density_weighted_) :
-                         decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_), density_reader(0), density_weighted(density_weighted_)
+                    TreeTracer(const Decomposer& decomposer_, diy::Master& pi_master_,
+                               Real m_, Real t_, Real e_,
+                               std::vector<std::string> avg_fn_list_,
+                               std::string density_fn_,
+                               bool density_weighted_):
+                         decomposer(decomposer_), pi_master(pi_master_),
+                         m(m_), t(t_), e(e_),
+                         density_reader(0), density_weighted(density_weighted_)
         {
-
             diy::mpi::communicator& world = pi_master_.communicator();
 
             BOOST_FOREACH(const std::string& fn, avg_fn_list_)
-            {
                 avg_var_readers.push_back(Reader::create(fn, world));
-            }
 
             if (!density_fn_.empty())
-            {
                 density_reader = Reader::create(density_fn_, world);
-            }
-
         }
 
                     ~TreeTracer()
@@ -56,34 +62,48 @@ class TreeTracer
             delete density_reader;
         }
 
-        void        operator()(void *b, const diy::ReduceProxy& rp) const
+        void        operator()(void* b, const diy::ReduceProxy& rp) const
         {
             MergeTreeBlock &block = *static_cast<MergeTreeBlock*>(b);
 
+            MinIntegralMap mi_map;
+
             if (rp.in_link().size() == 0)
             {
-                MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
-                std::vector<MergeTreeBlock::OffsetGrid*> add_data;
+                OffsetGridVector add_data;
                 BOOST_FOREACH(Reader* reader, avg_var_readers)
                     add_data.push_back(reader->read(block.core));
                 MergeTreeBlock::OffsetGrid *density_data = density_reader ? density_reader->read(block.core) : 0;
-                trace(block.mt.find_root(), block, gp, add_data, density_data, rp);
+
+                reeber::traverse_persistence(block.mt, Integrator(m,t,e,density_weighted, &mi_map, &block, &add_data, density_data));
+
+                BOOST_FOREACH(const MinIntegral& mi, mi_map | ba::map_values)
+                {
+                    if (block.mt.cmp(m, mi.min_val))
+                        continue;
+
+                    if (mi.integral == 0)                                            // this block doesn't contribute anything to this extremum
+                        continue;
+
+                    int dest_gid = decomposer.point_to_gid(block.global.position(mi.min_vtx));
+                    diy::BlockID dest = rp.out_link().target(dest_gid);              // out_link targets are ordered as gids
+                    assert(dest.gid == dest_gid);
+                    rp.enqueue(dest, mi);
+                }
+
                 BOOST_FOREACH(MergeTreeBlock::OffsetGrid* og, add_data)
                     delete og;
                 delete density_data;
             }
             else
             {
-                MinIntegralMap mi_map;
                 for (int i = 0; i < rp.in_link().size(); ++i)
                 {
                     int gid = rp.in_link().target(i).gid;
                     assert(gid == i);
 
-                    // ALTERNATIVE: diy::MemoryBiffer& incoming = rp.incoming(gid);
-                    while (rp.incoming(gid)) // ALTERNATIVE: while (incoming)
+                    while (rp.incoming(gid))
                     {
-                        // ALTERNATIVE: diy::load(incoming, mi);
                         MinIntegral mi;
                         rp.dequeue(gid, mi);
                         if (mi_map.find(mi.min_vtx) == mi_map.end())
@@ -100,104 +120,114 @@ class TreeTracer
             }
         }
 
-        void        trace(Neighbor n, const MergeTreeBlock& block, const MergeTreeBlock::OffsetGrid::GridProxy& gp, const std::vector<MergeTreeBlock::OffsetGrid*>& add_data, MergeTreeBlock::OffsetGrid* density_data, const diy::ReduceProxy& rp) const
+        struct Integrator
         {
-            BOOST_FOREACH(Neighbor child, n->children)
+            Real                m,t,e;
+            bool                density_weighted;
+            MinIntegralMap*     mi_map_;
+            MergeTreeBlock*     b;
+            OffsetGridVector*   add_data_;
+            OffsetGrid*         density_data;
+
+                        Integrator(Real m_, Real t_, Real e_, bool density_weighted_,
+                                   MinIntegralMap* mi_map, MergeTreeBlock* b_, OffsetGridVector* add_data, OffsetGrid* density_data_):
+                            m(m_), t(t_), e(e_), density_weighted(density_weighted_),
+                            mi_map_(mi_map), b(b_), add_data_(add_data), density_data(density_data_)    {}
+
+            void        operator()(Neighbor from, Neighbor through, Neighbor to) const
             {
-                if (block.mt.cmp(t, child->value))                                   // still too high
+                MinIntegralMap& mi_map = *mi_map_;
+
+                // contribution of the edge from -- from->parent to the integral of from
+                mi_map[from->vertex].combine(integrate(from));
+
+                // figure out the contribution of the edge through -- through->parent to the integral of to
+                bool record_through = through->children.size() == 2;
+                if (!record_through && from != to)    // if we have more than 2 children record through when processing the highest one (lexicographically)
                 {
-                    trace(child, block, gp, add_data, density_data, rp);
-                }
-                else                                                                 // crossing the threshold
-                {
-                    MinIntegral mi = integrate(child, block, gp, add_data, density_data);
-                    if (block.mt.cmp(m, mi.min_val))
-                        continue;
-
-                    if (mi.integral == 0)                                            // non-local extrema are redundant
-                        continue;
-
-                    int dest_gid = decomposer.point_to_gid(block.global.position(mi.min_vtx));
-                    diy::BlockID dest = rp.out_link().target(dest_gid);              // out_link targets are ordered as gids
-                    assert(dest.gid == dest_gid);
-                    rp.enqueue(dest, mi);
-                }
-            }
-        }
-
-        MinIntegral integrate(Neighbor n, const MergeTreeBlock& block, const MergeTreeBlock::OffsetGrid::GridProxy& gp, const std::vector<MergeTreeBlock::OffsetGrid*>& add_data, MergeTreeBlock::OffsetGrid *density_data) const
-        {
-
-            typedef boost::tuple<Real&, MergeTreeBlock::OffsetGrid*> RealRef_OffsetGridPtr_tuple;
-            MinIntegral mi_res(n, add_data.size());
-
-            // Find contribution from n
-            if (block.core.contains(n->vertex))
-            {
-                mi_res.integral += n->value * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
-                ++mi_res.n_cells;
-                BOOST_FOREACH(RealRef_OffsetGridPtr_tuple t, boost::combine(mi_res.add_sums, add_data))
-                {
-                    Real new_val = (*t.get<1>())(n->vertex);
-                    if (density_data)
-                        new_val /= (*density_data)(n->vertex);
-                    if (density_weighted)
-                        new_val *= n->value * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
-                    t.get<0>() += new_val;
-                }
-                mi_res.push_back(MergeTreeNode::ValueVertex(n->value, n->vertex));
-            }
-
-            BOOST_FOREACH(const MergeTree::Node::ValueVertex& x, n->vertices)
-                if (block.core.contains(x.second) && block.mt.cmp(x.first, t))
-                {
-                    mi_res.integral += x.first * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
-                    ++mi_res.n_cells;
-                    BOOST_FOREACH(RealRef_OffsetGridPtr_tuple t, boost::combine(mi_res.add_sums, add_data))
+                    Neighbor n = 0;
+                    for (size_t i = 0; i < through->children.size(); ++i)
                     {
-                        Real new_val = (*t.get<1>())(x.second);
-                        if (density_data)
-                            new_val /= (*density_data)(x.second);
-                        if (density_weighted)
-                            new_val *= x.first * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
-                        t.get<0>() += new_val;
+                        Neighbor nc = through->children[i];
+                        if (static_cast<Neighbor>(nc->aux) != to && nc > n)
+                            n = nc;
                     }
-                    mi_res.push_back(x);
+
+                    if (n == 0)
+                        assert(from == to);
+                    else if (static_cast<Neighbor>(n->aux) == from)
+                        record_through = true;
                 }
 
-            // Find contribution from children + min
-            BOOST_FOREACH(Neighbor child, n->children)
-            {
-                MinIntegral mi = integrate(child, block, gp, add_data, density_data);
-                if (block.mt.cmp(mi, mi_res))
+                if (record_through && from != to)
+                    mi_map[to->vertex].combine(integrate(through));
+
+                // if we are not looking at the global pair, add the entire from-integral (now correct) to the integral of to
+                if (from != to && !b->mt.cmp(t, through->value))
+                    mi_map[to->vertex].combine(mi_map[from->vertex]);
+
+                // from-through pair is not persistent enough, erase
+                if (std::abs(through->value - from->value) < e)
+                    mi_map.erase(from->vertex);
+                else
                 {
-                    mi_res.min_val = mi.min_val;
-                    mi_res.min_vtx = mi.min_vtx;
+                    // fix the integral id (initialized to zero up until now)
+                    MinIntegral mi(from);
+                    mi.combine(mi_map[from->vertex]);
+                    mi_map[from->vertex] = mi;
                 }
-                mi_res.combine(mi);
             }
 
-            return mi_res;
-        }
+            void        integrate(MinIntegral& mi, Value val, MergeTree::Vertex vrt) const
+            {
+                OffsetGridVector& add_data = *add_data_;
+
+                if (b->core.contains(vrt) && !b->mt.cmp(t, val))
+                {
+                    mi.integral += val * b->cell_size[0] * b->cell_size[1] * b->cell_size[2];
+                    ++mi.n_cells;
+                    for (size_t i = 0; i < add_data.size(); ++i)
+                    {
+                        Real new_val = (*add_data[i])(vrt);
+                        if (density_data)
+                            new_val /= (*density_data)(vrt);
+                        if (density_weighted)
+                            new_val *= val * b->cell_size[0] * b->cell_size[1] * b->cell_size[2];
+                        mi.add_sums[i] += new_val;
+                    }
+                    mi.push_back(MergeTreeNode::ValueVertex(val, vrt));
+                }
+            }
+
+            MinIntegral integrate(Neighbor n) const
+            {
+                MinIntegral mi;
+
+                integrate(mi, n->value, n->vertex);
+
+                BOOST_FOREACH(const MergeTree::Node::ValueVertex& x, n->vertices)
+                    integrate(mi, x.first, x.second);
+
+                return mi;
+            }
+        };
 
     private:
         const Decomposer&    decomposer;
         diy::Master&         pi_master;
         Real                 m;
         Real                 t;
+        Real                 e;
         std::vector<Reader*> avg_var_readers;
         Reader*              density_reader;
         bool                 density_weighted;
 };
 
-bool vv_cmp(const MergeTreeNode::ValueVertex& a, const MergeTreeNode::ValueVertex& b)
+struct OutputIntegrals
 {
-    return a.second < b.second;
-}
+                    OutputIntegrals(std::string outfn_, bool density_weighted_, bool verbose_):
+                        outfn(outfn_), density_weighted(density_weighted_), verbose(verbose_)   {}
 
-class OutputIntegrals {
-    public:
-                    OutputIntegrals(std::string outfn_, bool density_weighted_, bool verbose_) : outfn(outfn_), density_weighted(density_weighted_), verbose(verbose_) {}
        void         operator()(void *b, const diy::Master::ProxyWithLink& cp, void* aux) const
        {
            PersistentIntegralBlock&  block = *static_cast<PersistentIntegralBlock*>(b);
@@ -205,7 +235,6 @@ class OutputIntegrals {
            std::string   dgm_fn = fmt::format("{}-b{}.comp", outfn, block.gid);
            std::ofstream ofs(dgm_fn.c_str());
  
-           MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
            BOOST_FOREACH(MinIntegral &mi, block.persistent_integrals)
            {
                Vertex v = block.global.position(mi.min_vtx);
@@ -222,11 +251,11 @@ class OutputIntegrals {
                std::sort(mi.vertices.begin(), mi.vertices.end(), vv_cmp);
                for (std::vector< MergeTreeNode::ValueVertex >::const_iterator it = mi.vertices.begin(); it != mi.vertices.end(); ++it)
                    ofs << "   " << it->second << " (" << block.global.position(it->second) <<  ")" << std::endl;
-#if 0
+#if 1
                // Consistency check for debugging
-               for (size_t i =0; i < mi.vertices.size()-1; ++i)
+               for (size_t i = 0; i < mi.vertices.size() - 1; ++i)
                    if (mi.vertices[i].second == mi.vertices[i+1].second)
-                       LOG_SEV(info) << "Duplicate vertex " << mi.vertices[i].second << " in component " << mi.min_vtx;
+                       LOG_SEV(fatal) << "Duplicate vertex " << mi.vertices[i].second << " in component " << mi.min_vtx;
 #endif
 #endif
            }
@@ -254,6 +283,7 @@ int main(int argc, char** argv)
     int         k           = 2;
     Real        m           = 200;
     Real        t           = 82;
+    Real        e           = m - t;
 
     std::string profile_path;
     std::string log_level = "info";
@@ -270,6 +300,7 @@ int main(int argc, char** argv)
         >> Option('l', "log",       log_level,    "log level")
         >> Option('x', "max",       m,            "maximum threshold")
         >> Option('i', "iso",       t,            "isofind threshold")
+        >> Option('e', "epsilon",   e,            "persistence threshold")
         >> Option('f', "mean",      avg_fn_str,   "list of additionals files/variables to average separated by ','")
         >> Option('q', "quotient",  density_fn,   "divide by density in file")
     ;
@@ -364,7 +395,7 @@ int main(int argc, char** argv)
     }
 
     // Compute and combine persistent integrals
-    diy::all_to_all(mt_master, assigner, TreeTracer(decomposer, pi_master, m, t, avg_fn_list, density_fn, density_weighted), k);
+    diy::all_to_all(mt_master, assigner, TreeTracer(decomposer, pi_master, m, t, e, avg_fn_list, density_fn, density_weighted), k);
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute persistent integrals: " << dlog::clock_to_string(timer.elapsed());

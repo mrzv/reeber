@@ -1,6 +1,9 @@
 #ifndef REEBER_MERGE_TREE_BLOCK_H
 #define REEBER_MERGE_TREE_BLOCK_H
 
+#include <boost/range/adaptor/map.hpp>
+namespace ba = boost::adaptors;
+
 #include <diy/serialization.hpp>
 
 #include <reeber/merge-tree.h>
@@ -28,6 +31,8 @@ struct MergeTreeBlock
     static void             destroy(void* b)                                { delete static_cast<MergeTreeBlock*>(b); }
     static void             save(const void* b, diy::BinaryBuffer& bb)      { diy::save(bb, *static_cast<const MergeTreeBlock*>(b)); }
     static void             load(      void* b, diy::BinaryBuffer& bb)      { diy::load(bb, *static_cast<MergeTreeBlock*>(b)); }
+
+    inline void             compute_average(const diy::Master::ProxyWithLink& cp, void*);
 
     int                     gid;
     Box                     core;
@@ -64,6 +69,33 @@ namespace diy
             diy::load(bb, b.cell_size);
         }
     };
+}
+
+void
+MergeTreeBlock::
+compute_average(const diy::Master::ProxyWithLink& cp, void*)
+{
+    double                value = 0;
+    size_t                count = 0;
+
+    BOOST_FOREACH(const MergeTree::Neighbor node, const_cast<const MergeTree&>(mt).nodes() | ba::map_values)
+    {
+        if (core.contains(node->vertex))
+        {
+            value += node->value;
+            count += 1;
+        }
+
+        BOOST_FOREACH(const MergeTree::Node::ValueVertex& x, node->vertices)
+            if (core.contains(x.second))
+            {
+                value += x.first;
+                count += 1;
+            }
+    }
+
+    cp.all_reduce(value, std::plus<double>());
+    cp.all_reduce(count, std::plus<size_t>());
 }
 
 #endif
