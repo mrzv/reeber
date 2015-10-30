@@ -167,7 +167,7 @@ class TreeTracer
                     mi_map[to->vertex].combine(mi_map[from->vertex]);
 
                 // from-through pair is not persistent enough, erase
-                if (std::abs(through->value - from->value) < e)
+                if (from->value/through->value < e)     // we should make this more generic somehow
                     mi_map.erase(from->vertex);
                 else
                 {
