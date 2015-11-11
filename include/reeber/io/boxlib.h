@@ -48,7 +48,7 @@ namespace BoxLib
     {
         public:
                   typedef       std::vector<int>                                         Shape;
-                  typedef       std::vector<double>                                      Size;
+                  typedef       std::vector<Real>                                        Size;
                   typedef       std::vector<int>                                         Vertex;
                   typedef       std::vector<std::string>                                 VarNameList;
         private:
