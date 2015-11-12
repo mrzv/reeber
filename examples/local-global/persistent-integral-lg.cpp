@@ -382,6 +382,10 @@ int main(int argc, char** argv)
         t *= mean;
 
         LOG_SEV_IF(world.rank() == 0, info) << "Average value is " << mean << ". Using isofind threshold of " << t << " and maximum threshold of " << m;
+
+        world.barrier();
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute average:              " << dlog::clock_to_string(timer.elapsed());
+        timer.restart();
     }
 
     // Compute and combine persistent integrals
