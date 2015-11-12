@@ -11,7 +11,8 @@
 #include <dlog/stats.h>
 
 #include <diy/decomposition.hpp>
-#include <diy/reduce-operations.hpp>
+#include <diy/reduce.hpp>
+#include <diy/partners/swap.hpp>
 #include <diy/io/block.hpp>
 
 #include "format.h"
@@ -31,22 +32,18 @@ class TreeTracer
         typedef std::map<MergeTreeNode::Vertex, MinIntegral>        MinIntegralMap;
 
     public:
-                    TreeTracer(const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_, std::vector<std::string> avg_fn_list_, std::string density_fn_, bool density_weighted_) :
-                         decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_), density_reader(0), density_weighted(density_weighted_)
+                    TreeTracer(size_t sz, const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_, std::vector<std::string> avg_fn_list_, std::string density_fn_, bool density_weighted_) :
+                         decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_), density_reader(0), density_weighted(density_weighted_),
+                         boxes(sz, decomposer_.domain)
         {
 
             diy::mpi::communicator& world = pi_master_.communicator();
 
             BOOST_FOREACH(const std::string& fn, avg_fn_list_)
-            {
                 avg_var_readers.push_back(Reader::create(fn, world));
-            }
 
             if (!density_fn_.empty())
-            {
                 density_reader = Reader::create(density_fn_, world);
-            }
-
         }
 
                     ~TreeTracer()
@@ -56,29 +53,30 @@ class TreeTracer
             delete density_reader;
         }
 
-        void        operator()(void *b, const diy::ReduceProxy& rp) const
+        void        operator()(void *b, const diy::ReduceProxy& rp, const diy::RegularSwapPartners& partners) const
         {
             MergeTreeBlock &block = *static_cast<MergeTreeBlock*>(b);
 
+            MinIntegralMap mi_map;
             if (rp.in_link().size() == 0)
             {
-                MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
                 std::vector<MergeTreeBlock::OffsetGrid*> add_data;
                 BOOST_FOREACH(Reader* reader, avg_var_readers)
                     add_data.push_back(reader->read(block.core));
+
+                MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
                 MergeTreeBlock::OffsetGrid *density_data = density_reader ? density_reader->read(block.core) : 0;
-                trace(block.mt.find_root(), block, gp, add_data, density_data, rp);
+                trace(block.mt.find_root(), block, gp, add_data, density_data, mi_map);
+
                 BOOST_FOREACH(MergeTreeBlock::OffsetGrid* og, add_data)
                     delete og;
                 delete density_data;
             }
             else
             {
-                MinIntegralMap mi_map;
                 for (int i = 0; i < rp.in_link().size(); ++i)
                 {
                     int gid = rp.in_link().target(i).gid;
-                    assert(gid == i);
 
                     // ALTERNATIVE: diy::MemoryBiffer& incoming = rp.incoming(gid);
                     while (rp.incoming(gid)) // ALTERNATIVE: while (incoming)
@@ -92,7 +90,36 @@ class TreeTracer
                             mi_map[mi.min_vtx].combine(mi);
                     }
                 }
+            }
 
+            if (rp.out_link().size() != 0)
+            {
+                diy::DiscreteBounds& box = boxes[rp.master()->lid(rp.gid())];
+
+                int         group_size  = rp.out_link().size();     // number of outbound partners
+                unsigned    round       = rp.round();               // current round number
+                int         dim         = partners.dim(round);      // current dimension along which groups are formed
+                int         width       = (box.max[dim] - box.min[dim] + 1)/group_size;
+
+                BOOST_FOREACH(const MinIntegral& mi, mi_map | ba::map_values)
+                {
+                    int dest_gid = decomposer.point_to_gid(block.global.position(mi.min_vtx));
+                    Decomposer::DivisionsVector coords;
+                    decomposer.gid_to_coords(dest_gid, coords);
+
+                    int pos = (coords[dim] - box.min[dim])/width;
+                    rp.enqueue(rp.out_link().target(pos), mi);
+                }
+
+                // adjust our box boundaries
+                Decomposer::DivisionsVector coords;
+                decomposer.gid_to_coords(rp.gid(), coords);
+                int pos = (coords[dim] - box.min[dim])/width;
+
+                box.max[dim] = box.min[dim] + (pos+1)*width - 1;
+                box.min[dim] = box.min[dim] + pos*width;
+            } else
+            {
                 PersistentIntegralBlock *pi_block = new PersistentIntegralBlock(block);
                 for (MinIntegralMap::const_iterator it = mi_map.begin(); it != mi_map.end(); ++it)
                     pi_block->add_integral(it->second);
@@ -100,14 +127,12 @@ class TreeTracer
             }
         }
 
-        void        trace(Neighbor n, const MergeTreeBlock& block, const MergeTreeBlock::OffsetGrid::GridProxy& gp, const std::vector<MergeTreeBlock::OffsetGrid*>& add_data, MergeTreeBlock::OffsetGrid* density_data, const diy::ReduceProxy& rp) const
+        void        trace(Neighbor n, const MergeTreeBlock& block, const MergeTreeBlock::OffsetGrid::GridProxy& gp, const std::vector<MergeTreeBlock::OffsetGrid*>& add_data, MergeTreeBlock::OffsetGrid* density_data, MinIntegralMap& mi_map) const
         {
             BOOST_FOREACH(Neighbor child, n->children)
             {
                 if (block.mt.cmp(t, child->value))                                   // still too high
-                {
-                    trace(child, block, gp, add_data, density_data, rp);
-                }
+                    trace(child, block, gp, add_data, density_data, mi_map);
                 else                                                                 // crossing the threshold
                 {
                     MinIntegral mi = integrate(child, block, gp, add_data, density_data);
@@ -117,10 +142,7 @@ class TreeTracer
                     if (mi.integral == 0)                                            // non-local extrema are redundant
                         continue;
 
-                    int dest_gid = decomposer.point_to_gid(block.global.position(mi.min_vtx));
-                    diy::BlockID dest = rp.out_link().target(dest_gid);              // out_link targets are ordered as gids
-                    assert(dest.gid == dest_gid);
-                    rp.enqueue(dest, mi);
+                    mi_map[mi.min_vtx] = mi;
                 }
             }
         }
@@ -188,6 +210,7 @@ class TreeTracer
         std::vector<Reader*> avg_var_readers;
         Reader*              density_reader;
         bool                 density_weighted;
+        mutable std::vector<diy::DiscreteBounds>  boxes;
 };
 
 bool vv_cmp(const MergeTreeNode::ValueVertex& a, const MergeTreeNode::ValueVertex& b)
@@ -283,9 +306,7 @@ int main(int argc, char** argv)
         !(ops >> PosOption(infn) >> PosOption(outfn)))
     {
         if (world.rank() == 0)
-        {
             fmt::print("Usage: {} IN.lgt OUT.pi\n{}", argv[0], ops);
-        }
         return 1;
     }
 
@@ -364,7 +385,8 @@ int main(int argc, char** argv)
     }
 
     // Compute and combine persistent integrals
-    diy::all_to_all(mt_master, assigner, TreeTracer(decomposer, pi_master, m, t, avg_fn_list, density_fn, density_weighted), k);
+    diy::RegularSwapPartners  partners(3, assigner.nblocks(), k, false);    // contiguous = false: distance halving
+    diy::reduce(mt_master, assigner, partners, TreeTracer(mt_master.size(), decomposer, pi_master, m, t, avg_fn_list, density_fn, density_weighted));
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute persistent integrals: " << dlog::clock_to_string(timer.elapsed());
