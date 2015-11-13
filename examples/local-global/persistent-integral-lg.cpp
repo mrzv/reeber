@@ -28,13 +28,14 @@ typedef MergeTreeBlock::Value                                       Value;
 
 class TreeTracer
 {
-    private:
+    public:
         typedef std::map<MergeTreeNode::Vertex, MinIntegral>        MinIntegralMap;
+        typedef std::vector<diy::DiscreteBounds>                    Boxes;
 
     public:
-                    TreeTracer(size_t sz, const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_, std::vector<std::string> avg_fn_list_, std::string density_fn_, bool density_weighted_) :
+                    TreeTracer(Boxes* boxes_, const Decomposer& decomposer_, diy::Master& pi_master_, Real m_, Real t_, std::vector<std::string> avg_fn_list_, std::string density_fn_, bool density_weighted_) :
                          decomposer(decomposer_), pi_master(pi_master_), m(m_), t(t_), density_reader(0), density_weighted(density_weighted_),
-                         boxes(sz, decomposer_.domain)
+                         boxes(boxes_)
         {
 
             diy::mpi::communicator& world = pi_master_.communicator();
@@ -94,7 +95,7 @@ class TreeTracer
 
             if (rp.out_link().size() != 0)
             {
-                diy::DiscreteBounds& box = boxes[rp.master()->lid(rp.gid())];
+                diy::DiscreteBounds& box = (*boxes)[rp.master()->lid(rp.gid())];
 
                 int         group_size  = rp.out_link().size();     // number of outbound partners
                 unsigned    round       = rp.round();               // current round number
@@ -210,7 +211,7 @@ class TreeTracer
         std::vector<Reader*> avg_var_readers;
         Reader*              density_reader;
         bool                 density_weighted;
-        mutable std::vector<diy::DiscreteBounds>  boxes;
+        std::vector<diy::DiscreteBounds>*  boxes;
 };
 
 bool vv_cmp(const MergeTreeNode::ValueVertex& a, const MergeTreeNode::ValueVertex& b)
@@ -389,8 +390,15 @@ int main(int argc, char** argv)
     }
 
     // Compute and combine persistent integrals
+    diy::DiscreteBounds divs;
+    for (unsigned i = 0; i < 3; ++i)
+    {
+        divs.min[i] = 0;
+        divs.max[i] = decomposer.divisions[i];
+    }
+    TreeTracer::Boxes boxes(mt_master.size(), divs);
     diy::RegularSwapPartners  partners(3, assigner.nblocks(), k, false);    // contiguous = false: distance halving
-    diy::reduce(mt_master, assigner, partners, TreeTracer(mt_master.size(), decomposer, pi_master, m, t, avg_fn_list, density_fn, density_weighted));
+    diy::reduce(mt_master, assigner, partners, TreeTracer(&boxes, decomposer, pi_master, m, t, avg_fn_list, density_fn, density_weighted));
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute persistent integrals: " << dlog::clock_to_string(timer.elapsed());
