@@ -159,10 +159,14 @@ reeber::traverse_persistence(const MergeTree& mt, const Functor& f)
     typedef     typename MergeTree::Neighbor        Neighbor;
 
     // find root
-    Neighbor root = mt.find_root();
-
+    std::vector<Neighbor> roots;
     std::stack<Neighbor> s;
-    s.push(root);
+    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+        if (!n->parent)
+        {
+            roots.push_back(n);
+            s.push(n);
+        }
     while(!s.empty())
     {
         Neighbor n = s.top();
@@ -198,7 +202,8 @@ reeber::traverse_persistence(const MergeTree& mt, const Functor& f)
         }
     }
 
-    f(MergeTree::aux_neighbor(root), root, MergeTree::aux_neighbor(root));
+    BOOST_FOREACH(Neighbor root, roots)
+        f(MergeTree::aux_neighbor(root), root, MergeTree::aux_neighbor(root));
 
     mt.reset_aux();
 
@@ -218,10 +223,10 @@ reeber::sparsify(MergeTree& mt, const Special& special)
 
     typedef     typename MergeTree::Neighbor        Neighbor;
 
-    Neighbor root = mt.find_root();
-
     std::stack<Neighbor> s;
-    s.push(root);
+    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+        if (!n->parent && !n->children.empty())     // if no children, it's a special case, and we keep it no matter what
+            s.push(n);
     while(!s.empty())
     {
         Neighbor n = s.top();
@@ -318,9 +323,15 @@ reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
 
     VertexNeighborMap   deepest_root;       // map from deepest node to its current root in the new tree
 
-    Neighbor root = in.find_root();
     std::stack<Neighbor> s;
-    s.push(root);
+    BOOST_FOREACH(Neighbor n, in.nodes() | ba::map_values)
+        if (!n->parent)
+        {
+            if (!n->children.empty())
+                s.push(n);
+            else
+                out.add(n->vertex, n->value);       // special case: isolated tree in a forest, preserve it no matter what
+        }
     while(!s.empty())
     {
         Neighbor n = s.top();
@@ -480,10 +491,10 @@ reeber::remove_degree2(MergeTree& mt, const Preserve& preserve, const Special& s
     dlog::prof << "remove-degree2";
     typedef     typename MergeTree::Neighbor        Neighbor;
 
-    Neighbor root = mt.find_root();
-
     std::stack<Neighbor> s;
-    s.push(root);
+    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+        if (!n->parent)
+            s.push(n);
     while(!s.empty())
     {
         Neighbor n = s.top();
@@ -542,10 +553,10 @@ reeber::redistribute_vertices(MergeTree& mt)
     typedef     typename MergeTree::Node::VerticesVector    VerticesVector;
     typedef     typename VerticesVector::iterator           VerticesVectorIterator;
 
-    Neighbor root = mt.find_root();
-
     std::stack< std::pair<Neighbor,int> > s;
-    s.push(std::make_pair(root,0));
+    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+        if (!n->parent)
+            s.push(std::make_pair(n,0));
     while(!s.empty())
     {
         Neighbor n = s.top().first;
