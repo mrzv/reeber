@@ -15,6 +15,15 @@ namespace reeber
 
 namespace ba = boost::adaptors;
 
+template<class Vertex, class Value>
+class MergeTree;
+
+namespace detail
+{
+    template<class MergeTree, class Special>
+    void clean_roots(MergeTree& mt, const std::vector<typename MergeTree::Neighbor>& roots, const Special& special);
+}
+
 template<class Vertex_, class Value_>
 struct MergeTreeNode
 {
@@ -119,6 +128,10 @@ class MergeTree
         template<class MT, class S>
         friend void
         sparsify(MT& out, const MT& in, const S& s);
+
+        template<class MT, class S>
+        friend void
+        detail::clean_roots(MT& mt, const std::vector<typename MT::Neighbor>& in, const S& s);
 
         template<class MT, class E>
         friend void

@@ -223,10 +223,14 @@ reeber::sparsify(MergeTree& mt, const Special& special)
 
     typedef     typename MergeTree::Neighbor        Neighbor;
 
+    std::vector<Neighbor> roots;
     std::stack<Neighbor> s;
     BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
         if (!n->parent && !n->children.empty())     // if no children, it's a special case, and we keep it no matter what
+        {
+            roots.push_back(n);
             s.push(n);
+        }
     while(!s.empty())
     {
         Neighbor n = s.top();
@@ -300,6 +304,7 @@ reeber::sparsify(MergeTree& mt, const Special& special)
         }
     }
 
+    detail::clean_roots(mt, roots, special);
     mt.reset_aux();
 
     dlog::prof >> "sparsify";
@@ -323,6 +328,7 @@ reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
 
     VertexNeighborMap   deepest_root;       // map from deepest node to its current root in the new tree
 
+    std::vector<Neighbor> roots;
     std::stack<Neighbor> s;
     BOOST_FOREACH(Neighbor n, in.nodes() | ba::map_values)
         if (!n->parent)
@@ -330,7 +336,10 @@ reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
             if (!n->children.empty())
                 s.push(n);
             else
-                out.add(n->vertex, n->value);       // special case: isolated tree in a forest, preserve it no matter what
+            {
+                Neighbor r = out.add(n->vertex, n->value);       // special case: isolated tree in a forest, preserve it no matter what
+                roots.push_back(r);
+            }
         }
     while(!s.empty())
     {
@@ -384,6 +393,8 @@ reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
             if (preserve || end > 1)
             {
                 Neighbor new_n = out.add(n->vertex, n->value);
+                if (!n->parent)
+                    roots.push_back(new_n);
                 for (unsigned i = 0; i < end; ++i)
                 {
                     Neighbor        child_deepest = MergeTree::aux_neighbor(n->children[i]);
@@ -410,10 +421,42 @@ reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
         }
     }
 
+    detail::clean_roots(out, roots, special);
+
     in.reset_aux();
     out.reset_aux();
 
     dlog::prof >> "sparsify";
+}
+
+template<class MergeTree, class Special>
+void
+reeber::detail::clean_roots(MergeTree& mt, const std::vector<typename MergeTree::Neighbor>& roots, const Special& special)
+{
+    typedef     typename MergeTree::Neighbor        Neighbor;
+
+    BOOST_FOREACH(Neighbor root, roots)
+    {
+        AssertMsg(!root->parent, "A root could not have acquired a parent during sparsification");
+        if (root->children.empty())     // isolated root
+        {
+            if(!root->any_vertex(special))
+            {
+                mt.nodes().erase(root->vertex);
+                delete root;
+            }
+        } else if (root->children.size() == 1 && root->children[0] == root->aux)        // a tree that's just an edge
+        {
+            Neighbor child = root->children[0];
+            if(!root->any_vertex(special) && !child->any_vertex(special))
+            {
+                mt.nodes().erase(child->vertex);
+                delete child;
+                mt.nodes().erase(root->vertex);
+                delete root;
+            }
+        }
+    }
 }
 
 template<class MergeTree>
