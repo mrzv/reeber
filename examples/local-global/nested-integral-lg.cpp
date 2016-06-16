@@ -378,7 +378,7 @@ int main(int argc, char** argv)
         domain.min[i] = global.from()[i];
         domain.max[i] = global.to()[i];
     }
-    diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner, Decomposer::BoolVector(3, true));
+    diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner.nblocks(), Decomposer::BoolVector(3, true));
 
     // Compute average
     if (!absolute)

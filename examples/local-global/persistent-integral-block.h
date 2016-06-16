@@ -96,5 +96,28 @@ struct PersistentIntegralBlock
     static void      load(      void *b, diy::BinaryBuffer& bb)     { diy::load(bb, *static_cast<PersistentIntegralBlock*>(b)); }
 };
 
+namespace diy {
+    template<>
+    struct Serialization<PersistentIntegralBlock>
+    {
+        static void      save(diy::BinaryBuffer& bb, const PersistentIntegralBlock& b)
+        {
+            diy::save(bb, b.gid);
+            diy::save(bb, b.cell_size);
+            diy::save(bb, b.local);
+            diy::save(bb, b.global);
+            diy::save(bb, b.persistent_integrals);
+        }
+        static void      load(diy::BinaryBuffer& bb, PersistentIntegralBlock& b)
+        {
+            diy::load(bb, b.gid);
+            diy::load(bb, b.cell_size);
+            diy::load(bb, b.local);
+            diy::load(bb, b.global);
+            diy::load(bb, b.persistent_integrals);
+        }
+    };
+}
+
 #endif
 

@@ -141,6 +141,10 @@ class MergeTree
         friend void
         remove_degree2(MT& mt, const P& p, const S& s);
 
+        template<class MT>
+        friend void redistribute_vertices(MT& mt);
+
+
     private:
         bool                        negate_;
         VertexNeighborMap           nodes_;

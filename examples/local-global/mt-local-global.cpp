@@ -265,17 +265,17 @@ int main(int argc, char** argv)
     for (unsigned i = 0; i < reader.shape().size(); ++i)
       domain.max[i] = reader.shape()[i] - 1;
 
-    diy::RegularDecomposer<diy::DiscreteBounds>::BoolVector       share_face(3, true);
-
     LoadComputeAdd create(master, reader, negate);
-    diy::decompose(3, world.rank(), domain, assigner, create, share_face);
+    diy::RegularDecomposer<diy::DiscreteBounds>::BoolVector     share_face(3, true);
+    diy::RegularDecomposer<diy::DiscreteBounds>                 decomposer(3, domain, assigner.nblocks(), share_face);
+    decomposer.decompose(world.rank(), assigner, create);
     LOG_SEV(info) << "Domain decomposed: " << master.size();
     LOG_SEV(info) << "  (data read + local trees computed)";
     delete reader_ptr;
 
     // perform the global swap-reduce
     int k = 2;
-    diy::RegularSwapPartners  partners(3, nblocks, k, true);
+    diy::RegularSwapPartners  partners(decomposer, k, true);
     diy::reduce(master, assigner, partners, &merge_sparsify);
 
     // save the result

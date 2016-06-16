@@ -383,7 +383,7 @@ int main(int argc, char** argv)
 
     diy::RegularDecomposer<diy::DiscreteBounds>::BoolVector       share_face(3, true);
     diy::RegularDecomposer<diy::DiscreteBounds>::BoolVector       wrap(3, wrap_);
-    diy::RegularDecomposer<diy::DiscreteBounds>                   decomposer(3, domain, assigner, share_face, wrap);
+    diy::RegularDecomposer<diy::DiscreteBounds>                   decomposer(3, domain, assigner.nblocks(), share_face, wrap);
     if (wrap_)
     {
         for (unsigned i = 0; i < 3; ++i)
@@ -395,7 +395,7 @@ int main(int argc, char** argv)
     }
 
     LoadAdd create(master, reader, negate, wrap_);
-    decomposer.decompose(world.rank(), create);
+    decomposer.decompose(world.rank(), assigner, create);
     LOG_SEV_IF(world.rank() == 0, info) << "Domain decomposed: " << master.size();
     LOG_SEV_IF(world.rank() == 0, info) << "  (data read)";
     delete reader_ptr;
@@ -424,7 +424,7 @@ int main(int argc, char** argv)
 
     // perform the global swap-reduce
     int k = 2;
-    diy::RegularSwapPartners  partners(3, nblocks, k, true);
+    diy::RegularSwapPartners  partners(decomposer, k, true);
     diy::reduce(master, assigner, partners, MergeSparsify(wrap_));
 
     world.barrier();

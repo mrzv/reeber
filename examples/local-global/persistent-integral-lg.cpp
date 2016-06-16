@@ -369,7 +369,7 @@ int main(int argc, char** argv)
         domain.min[i] = global.from()[i];
         domain.max[i] = global.to()[i];
     }
-    diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner, Decomposer::BoolVector(3, true));
+    diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner.nblocks(), Decomposer::BoolVector(3, true));
 
     // Compute average
     if (!absolute)
@@ -397,7 +397,7 @@ int main(int argc, char** argv)
         divs.max[i] = decomposer.divisions[i];
     }
     TreeTracer::Boxes boxes(mt_master.size(), divs);
-    diy::RegularSwapPartners  partners(3, assigner.nblocks(), k, false);    // contiguous = false: distance halving
+    diy::RegularSwapPartners  partners(decomposer, k, false);    // contiguous = false: distance halving
     diy::reduce(mt_master, assigner, partners, TreeTracer(&boxes, decomposer, pi_master, m, t, avg_fn_list, density_fn, density_weighted));
 
     world.barrier();
