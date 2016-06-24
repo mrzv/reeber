@@ -8,6 +8,8 @@
 #include <boost/lambda/lambda.hpp>
 #include <boost/range/adaptor/map.hpp>
 
+#include <boost/unordered_map.hpp>
+
 #include "serialization.h"
 
 namespace reeber
@@ -62,7 +64,7 @@ class MergeTree
         typedef     MergeTreeNode<Vertex,Value>         Node;
         typedef     typename Node::Neighbor             Neighbor;
 
-        typedef     std::map<Vertex, Neighbor>          VertexNeighborMap;  // needs to be an ordered map for TreeUnionTopology
+        typedef     boost::unordered_map<Vertex, Neighbor>  VertexNeighborMap;
 
     public:
                     MergeTree(bool negate = false):
