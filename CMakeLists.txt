@@ -33,6 +33,8 @@ else                        (debug)
 endif                       (debug)
 add_definitions             (${cxx_flags})
 
+set                         (CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+
 if                          (profile)
     add_definitions         (-DPROFILE)
 endif                       (profile)
