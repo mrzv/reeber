@@ -3,8 +3,8 @@
 #include "format.h"
 
 template<class Vertex, class Value>
-typename reeber::MergeTree<Vertex, Value>::Neighbor
-reeber::MergeTree<Vertex, Value>::
+typename reeber::TripletMergeTree<Vertex, Value>::Neighbor
+reeber::TripletMergeTree<Vertex, Value>::
 add(const Vertex& x, Value v)
 {
     Neighbor n = new Node;
@@ -18,10 +18,10 @@ add(const Vertex& x, Value v)
 
 template<class Vertex, class Value>
 void
-reeber::MergeTree<Vertex, Value>::
+reeber::TripletMergeTree<Vertex, Value>::
 repair(const Neighbor u)
 {
-    typedef     typename MergeTree::Neighbor         Neighbor;
+    typedef     typename TripletMergeTree::Neighbor         Neighbor;
 
     Neighbor s, v, s2, v2;
     std::tie(s, v) = u->parent;
@@ -36,8 +36,8 @@ repair(const Neighbor u)
 }
 
 template<class Vertex, class Value>
-typename reeber::MergeTree<Vertex, Value>::Neighbor
-reeber::MergeTree<Vertex, Value>::
+typename reeber::TripletMergeTree<Vertex, Value>::Neighbor
+reeber::TripletMergeTree<Vertex, Value>::
 find_deepest(const Neighbor u)
 {
     Neighbor u_ = u->cur_deepest;
@@ -64,15 +64,13 @@ find_deepest(const Neighbor u)
 }
 
 
-template<class MergeTree, class Topology, class Function>
+template<class Vertex, class Value, class Topology, class Function>
 void
-reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Function& f)
+reeber::compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f)
 {
     dlog::prof << "compute-merge-tree";
-    typedef     typename Topology::Vertex       Vertex;
-    typedef     typename Function::Value        Value;
-    typedef     std::pair<Value, Vertex>        ValueVertexPair;
-    typedef     typename MergeTree::Neighbor    Neighbor;
+    typedef     std::pair<Value, Vertex>                           ValueVertexPair;
+    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor Neighbor;
 
     std::vector<ValueVertexPair>     vertices;
     vertices.reserve(topology.size());
@@ -115,12 +113,11 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
     dlog::prof >> "compute-merge-tree";
 }
 
-template<class MergeTree, class Topology, class Function>
+template<class Vertex, class Value, class Topology, class Function>
 void
-reeber::compute_merge_tree2(MergeTree& mt, const Topology& topology, const Function& f)
+reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f)
 {
-    typedef     typename MergeTree::Vertex          Vertex;
-    typedef     typename MergeTree::Neighbor        Neighbor;
+    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
 
     Neighbor u, v;
     for (Vertex a : topology.vertices())
@@ -142,30 +139,29 @@ reeber::compute_merge_tree2(MergeTree& mt, const Topology& topology, const Funct
     for (auto n : mt.nodes()) mt.repair(n.second);
 }
 
-template<class MergeTree, class Special>
+template<class Vertex, class Value, class Special>
 void
-reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
+reeber::sparsify(TripletMergeTree<Vertex, Value>& out, const TripletMergeTree<Vertex, Value>& in, const Special& special)
 {
     dlog::prof << "sparsify";
 
-    typedef     typename MergeTree::Vertex          Vertex;
-    typedef     typename MergeTree::Neighbor        Neighbor;
+    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
 
 
-    Vertex s, v;
+    Neighbor u, s, v, u_, s_, v_;
 
     for (auto n : in.nodes())
     {
         if (special(n.first))
         {
-            Neighbor u = n.second;
+            u = n.second;
             while (!in.contains(u->vertex))
             {
                 std::tie(s, v) = u->parent;
-                out.add(u->vertex, u->value);
-                out.add(s->vertex, s->value);
-                out.add(v->vertex, v->value);
-                out.link(u->vertex, s->vertex, v->vertex);
+                u_ = out.add(u->vertex, u->value);
+                s_ = out.add(s->vertex, s->value);
+                v_ = out.add(v->vertex, v->value);
+                out.link(u_, s_, v_);
                 u = v;
             }
         }
@@ -174,12 +170,20 @@ reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
     dlog::prof >> "sparsify";
 }
 
-
-template<class MergeTree>
+template<class Vertex, class Value, class Special>
 void
-reeber::merge(MergeTree& mt, typename MergeTree::Neighbor u, typename MergeTree::Neighbor s, typename MergeTree::Neighbor v)
+reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
 {
-    typedef     typename MergeTree::Neighbor          Neighbor;
+    TripletMergeTree<Vertex, Value> out(mt.negate());
+    sparsify(out, mt, special);
+    mt = out;
+}
+
+template<class Vertex, class Value>
+void
+reeber::merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Vertex, Value>::Neighbor u, typename TripletMergeTree<Vertex, Value>::Neighbor s, typename TripletMergeTree<Vertex, Value>::Neighbor v)
+{
+    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor          Neighbor;
 
     Neighbor s_u, u_, s_v, v_;
     // mt.repair(u);
@@ -215,12 +219,11 @@ reeber::merge(MergeTree& mt, typename MergeTree::Neighbor u, typename MergeTree:
 }
 
 
-template<class MergeTree, class Edges>
+template<class Vertex, class Value, class Edges>
 void
-reeber::merge(MergeTree& mt1, const MergeTree& mt2, const Edges& edges)
+reeber::merge(TripletMergeTree<Vertex, Value>& mt1, const TripletMergeTree<Vertex, Value>& mt2, const Edges& edges)
 {
-    typedef     typename MergeTree::Vertex          Vertex;
-    typedef     typename MergeTree::Neighbor        Neighbor;
+    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
 
     mt1.nodes_.insert(mt2.nodes().begin(), mt2.nodes().end());
 
@@ -239,11 +242,11 @@ reeber::merge(MergeTree& mt1, const MergeTree& mt2, const Edges& edges)
 }
 
 
-template<class MergeTree, class Functor>
+template<class Vertex, class Value, class Functor>
 void
-reeber::traverse_persistence(const MergeTree& mt, const Functor& f)
+reeber::traverse_persistence(const TripletMergeTree<Vertex, Value>& mt, const Functor& f)
 {
-    typedef     typename MergeTree::Neighbor        Neighbor;
+    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
 
     Neighbor u, s, v;
     for (auto x : mt.nodes())

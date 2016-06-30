@@ -17,19 +17,19 @@ namespace r = reeber;
 
 #include "format.h"
 
-typedef     REEBER_REAL                     Real;
+typedef     REEBER_REAL                       Real;
 
-typedef     r::Grid<Real, 3>                Grid;
-typedef     r::OffsetGrid<Real, 3>          OffsetGrid;
-typedef     Grid::Index                     Index;
-typedef     Grid::Vertex                    Vertex;
-typedef     Grid::Value                     Value;
-typedef     r::Box<3>                       Box;
-typedef     r::MergeTree<Index, Value>      MergeTree;
+typedef     r::Grid<Real, 3>                  Grid;
+typedef     r::OffsetGrid<Real, 3>            OffsetGrid;
+typedef     Grid::Index                       Index;
+typedef     Grid::Vertex                      Vertex;
+typedef     Grid::Value                       Value;
+typedef     r::Box<3>                         Box;
+typedef     r::TripletMergeTree<Index, Value> TripletMergeTree;
 
 struct OutputPairs
 {
-            OutputPairs(std::ostream& out_, MergeTree &mt_):
+            OutputPairs(std::ostream& out_, TripletMergeTree &mt_):
                 out(out_), negate(mt_.negate()), mt(mt_)           {}
 
     void    operator()(const Index from, const Index through, const Index to) const
@@ -44,7 +44,7 @@ struct OutputPairs
 
     std::ostream&       out;
     bool                negate;
-    MergeTree&          mt;
+    TripletMergeTree&          mt;
 };
 
 int main(int argc, char** argv)
@@ -154,8 +154,8 @@ int main(int argc, char** argv)
         ++it;
     }
 
-    MergeTree mt1(negate);
-    // MergeTree mt2(negate);
+    TripletMergeTree mt1(negate);
+    // TripletMergeTree mt2(negate);
 
     // r::compute_merge_tree(mt1, domain1, g1);
     // r::compute_merge_tree(mt2, domain2, g2);

@@ -1,5 +1,5 @@
-#ifndef REEBER_MERGE_TREE_H
-#define REEBER_MERGE_TREE_H
+#ifndef REEBER_TRIPLET_MERGE_TREE_H
+#define REEBER_TRIPLET_MERGE_TREE_H
 
 #include <vector>
 #include <unordered_map>
@@ -17,17 +17,17 @@ namespace reeber
 namespace ba = boost::adaptors;
 
 template<class Vertex_, class Value_>
-struct MergeTreeNode
+struct TripletMergeTreeNode
 {
     typedef                     Vertex_                         Vertex;
     typedef                     Value_                          Value;
 
-    typedef                     MergeTreeNode*                  Neighbor;
+    typedef                     TripletMergeTreeNode*           Neighbor;
 
     typedef                     std::tuple<Neighbor, Neighbor> Parent;
 
-    bool                        operator<(const MergeTreeNode& other) const     { return value < other.value || (value == other.value && vertex < other.vertex); }
-    bool                        operator>(const MergeTreeNode& other) const     { return value > other.value || (value == other.value && vertex > other.vertex); }
+    bool                        operator<(const TripletMergeTreeNode& other) const     { return value < other.value || (value == other.value && vertex < other.vertex); }
+    bool                        operator>(const TripletMergeTreeNode& other) const     { return value > other.value || (value == other.value && vertex > other.vertex); }
 
     Vertex                      vertex;
     Value                       value;
@@ -36,20 +36,20 @@ struct MergeTreeNode
 };
 
 template<class Vertex_, class Value_>
-class MergeTree
+class TripletMergeTree
 {
     public:
         typedef     Vertex_                             Vertex;
         typedef     Value_                              Value;
 
-        typedef     MergeTreeNode<Vertex,Value>         Node;
+        typedef     TripletMergeTreeNode<Vertex,Value>  Node;
         typedef     typename Node::Neighbor             Neighbor;
 
         typedef     std::unordered_map<Vertex, Neighbor>
                                                         VertexNeighborMap;
 
     public:
-                    MergeTree(bool negate = false):
+                    TripletMergeTree(bool negate = false):
                         negate_(negate)                 {}
 
         void        repair(const Neighbor u);
@@ -63,7 +63,7 @@ class MergeTree
 
         bool        contains(const Vertex& x) const     { return nodes_.find(x) != nodes_.end(); }
 
-        void        swap(MergeTree& other)              { std::swap(negate_, other.negate_); nodes_.swap(other.nodes_); }
+        void        swap(TripletMergeTree& other)       { std::swap(negate_, other.negate_); nodes_.swap(other.nodes_); }
 
         bool        negate() const                      { return negate_; }
         void        set_negate(bool negate)             { negate_ = negate; }
@@ -73,38 +73,42 @@ class MergeTree
         bool        cmp(Neighbor x, Neighbor y) const   { return cmp(*x, *y); }
 
         Neighbor    node(const Vertex& x) const         { return nodes_.find(x)->second; }
+        Neighbor    operator[](const Vertex& x) const   { return nodes_.find(x)->second; }
 
         const VertexNeighborMap& nodes() const          { return nodes_; }
-        const std::vector<Vertex> vertices() const      { std::vector<Vertex> vs; boost::copy(nodes_ | ba::map_keys, std::back_inserter(vs)); return vs; }
 
-        friend struct ::reeber::Serialization<MergeTree>;
+        friend struct ::reeber::Serialization<TripletMergeTree>;
 
     private:
         VertexNeighborMap& nodes()                      { return nodes_; }
 
-        template<class MT, class T, class F>
+        template<class Vert, class Val, class T, class F>
         friend void
-        compute_merge_tree(MT& mt, const T& t, const F& f);
+        compute_merge_tree(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f);
 
-        template<class MT, class T, class F>
+        template<class Vert, class Val, class T, class F>
         friend void
-        compute_merge_tree2(MT& mt, const T& t, const F& f);
+        compute_merge_tree2(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f);
 
-        template<class MT, class F>
+        template<class Vert, class Val, class F>
         friend void
-        traverse_persistence(const MT& mt, const F& f);
+        traverse_persistence(const TripletMergeTree<Vert, Val>& mt, const F& f);
 
-        template<class MT, class S>
+        template<class Vert, class Val, class S>
         friend void
-        sparsify(MT& out, const MT& in, const S& special);
+        sparsify(TripletMergeTree<Vert, Val>& out, const TripletMergeTree<Vert, Val>& in, const S& special);
 
-        template<class MT>
+        template<class Vert, class Val, class S>
         friend void
-        merge(MT& mt, typename MT::Neighbor u, typename MT::Neighbor s, typename MT::Neighbor v);
+        sparsify(TripletMergeTree<Vert, Val>& mt, const S& s);
 
-        template<class MT, class E>
+        template<class Vert, class Val>
         friend void
-        merge(MT& mt1, const MT& mt2, const E& edges);
+        merge(TripletMergeTree<Vert, Val>& mt, typename TripletMergeTree<Vert, Val>::Neighbor u, typename TripletMergeTree<Vert, Val>::Neighbor s, typename TripletMergeTree<Vert, Val>::Neighbor v);
+
+        template<class Vert, class Val, class E>
+        friend void
+        merge(TripletMergeTree<Vert, Val>& mt1, const TripletMergeTree<Vert, Val>& mt2, const E& edges);
 
     private:
         bool                        negate_;
@@ -115,23 +119,26 @@ class MergeTree
  * Topology defines a range vertices() and a link(v) function;
  *          vertices should be allowed to repeat (will simplify uniting multiple trees).
  */
-template<class MergeTree, class Topology, class Function>
-void compute_merge_tree(MergeTree& mt, const Topology& topology, const Function& f);
+template<class Vertex, class Value, class Topology, class Function>
+void compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f);
 
-template<class MergeTree, class Topology, class Function>
-void compute_merge_tree2(MergeTree& mt, const Topology& topology, const Function& f);
+template<class Vertex, class Value, class Topology, class Function>
+void compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f);
 
-template<class MergeTree, class Functor>
-void traverse_persistence(const MergeTree& mt, const Functor& f);
+template<class Vertex, class Value, class Functor>
+void traverse_persistence(const TripletMergeTree<Vertex, Value>& mt, const Functor& f);
 
-template<class MergeTree, class Special>
-void sparsify(MergeTree& out, const MergeTree& in, const Special& special);
+template<class Vertex, class Value, class Special>
+void sparsify(TripletMergeTree<Vertex, Value>& out, const TripletMergeTree<Vertex, Value>& in, const Special& special);
 
-template<class MergeTree>
-void merge(MergeTree& mt, typename MergeTree::Neighbor u, typename MergeTree::Neighbor s, typename MergeTree::Neighbor v);
+template<class Vertex, class Value, class Special>
+void sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special);
 
-template<class MergeTree, class Edges>
-void merge(MergeTree& mt1, const MergeTree& mt2, const Edges& edges);
+template<class Vertex, class Value>
+void merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Vertex, Value>::Neighbor u, typename TripletMergeTree<Vertex, Value>::Neighbor s, typename TripletMergeTree<Vertex, Value>::Neighbor v);
+
+template<class Vertex, class Value, class Edges>
+void merge(TripletMergeTree<Vertex, Value>& mt1, const TripletMergeTree<Vertex, Value>& mt2, const Edges& edges);
 
 }
 
