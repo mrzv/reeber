@@ -32,14 +32,14 @@ struct OutputPairs
             OutputPairs(std::ostream& out_, TripletMergeTree &mt_):
                 out(out_), negate(mt_.negate()), mt(mt_)           {}
 
-    void    operator()(const Index from, const Index through, const Index to) const
+    typedef       TripletMergeTree::Neighbor    Neighbor;
+
+    void    operator()(const Neighbor from, const Neighbor through, const Neighbor to) const
     {
         if (from != to)
-            fmt::print(out, "{} {} {} {} {} {}\n", from, mt.node(from)->value, through, mt.node(through)->value, to, mt.node(to)->value);
-            // fmt::print(out, "{} {} {} {} {} {}\n", from, mt.value(from), through, mt.value(through), to, mt.value(to));
+            fmt::print(out, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
         else
-            fmt::print(out, "{} {} {} --\n",    from, mt.node(from)->value, (negate ? "-inf" : "inf"));
-            // fmt::print(out, "{} {} {} --\n",    from, mt.value(from), (negate ? "-inf" : "inf"));
+            fmt::print(out, "{} {} {} --\n",    from->vertex, from->value, (negate ? "-inf" : "inf"));
     }
 
     std::ostream&       out;
@@ -107,13 +107,13 @@ int main(int argc, char** argv)
     fmt::print("Grid shape: {}\n", g.shape());
 
     Vertex v = g.shape() - Vertex::one();
-    v[2] /= 2;
+    v[0] /= 2;
     Vertex u = Vertex::zero();
-    u[2] = v[2] + 1;
+    u[0] = v[0] + 1;
     Vertex w = Vertex::zero();
-    w[2] = v[2];
+    w[0] = v[0];
     Vertex x = g.shape() - Vertex::one();
-    x[2] = u[2];
+    x[0] = u[0];
 
     Box domain(g.shape()),
         domain1(g.shape(), Vertex::zero(), v),
@@ -130,7 +130,10 @@ int main(int argc, char** argv)
         {
             for (const Index& v : edges_domain.link(u))
             {
-                if (domain2.contains(v)) edges.push_back(std::make_tuple(domain.position_to_vertex()(u), v));
+                if (domain2.contains(v))
+                {
+                    edges.push_back(std::make_tuple(domain.position_to_vertex()(u), v));
+                }
             }
         }
         ++it;
@@ -155,18 +158,20 @@ int main(int argc, char** argv)
     }
 
     TripletMergeTree mt1(negate);
-    // TripletMergeTree mt2(negate);
+    TripletMergeTree mt2(negate);
 
-    // r::compute_merge_tree(mt1, domain1, g1);
-    // r::compute_merge_tree(mt2, domain2, g2);
-    // dlog::Timer t;
-    // r::merge(mt1, mt2, edges);
-    // fmt::print("Time: {}\n", t.elapsed());
-
+    r::compute_merge_tree(mt1, domain1, g1);
+    r::compute_merge_tree(mt2, domain2, g2);
+    it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to()),
+    end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
     dlog::Timer t;
-    r::compute_merge_tree2(mt1, domain, g);
+    r::merge(mt1, mt2, edges);
     fmt::print("Time: {}\n", t.elapsed());
-    fmt::print("Tree constructed: {}\n", mt1.size());
+
+    // dlog::Timer t;
+    // r::compute_merge_tree2(mt1, domain, g);
+    // fmt::print("Time: {}\n", t.elapsed());
+    // fmt::print("Tree constructed: {}\n", mt1.size());
 
     std::ofstream ofs(outfn.c_str());
     r::traverse_persistence(mt1, OutputPairs(ofs, mt1));

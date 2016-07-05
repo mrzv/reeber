@@ -51,9 +51,11 @@ class TripletMergeTree
     public:
                     TripletMergeTree(bool negate = false):
                         negate_(negate)                 {}
+                    ~TripletMergeTree()                 { for (auto n : nodes_) delete n.second; }
 
         void        repair(const Neighbor u);
         Neighbor    add(const Vertex& x, Value v);
+        Neighbor    find_or_add(const Vertex& x, Value v);
         void        link(const Neighbor u, const Neighbor s, const Neighbor v)
                                                         { u->parent = std::make_tuple(s, v); }
 
@@ -96,7 +98,7 @@ class TripletMergeTree
 
         template<class Vert, class Val, class S>
         friend void
-        sparsify(TripletMergeTree<Vert, Val>& out, const TripletMergeTree<Vert, Val>& in, const S& special);
+        sparsify(TripletMergeTree<Vert, Val>& out, TripletMergeTree<Vert, Val>& in, const S& special);
 
         template<class Vert, class Val, class S>
         friend void
@@ -108,7 +110,7 @@ class TripletMergeTree
 
         template<class Vert, class Val, class E>
         friend void
-        merge(TripletMergeTree<Vert, Val>& mt1, const TripletMergeTree<Vert, Val>& mt2, const E& edges);
+        merge(TripletMergeTree<Vert, Val>& mt1, TripletMergeTree<Vert, Val>& mt2, const E& edges);
 
     private:
         bool                        negate_;
@@ -129,7 +131,7 @@ template<class Vertex, class Value, class Functor>
 void traverse_persistence(const TripletMergeTree<Vertex, Value>& mt, const Functor& f);
 
 template<class Vertex, class Value, class Special>
-void sparsify(TripletMergeTree<Vertex, Value>& out, const TripletMergeTree<Vertex, Value>& in, const Special& special);
+void sparsify(TripletMergeTree<Vertex, Value>& out, TripletMergeTree<Vertex, Value>& in, const Special& special);
 
 template<class Vertex, class Value, class Special>
 void sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special);
@@ -138,7 +140,7 @@ template<class Vertex, class Value>
 void merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Vertex, Value>::Neighbor u, typename TripletMergeTree<Vertex, Value>::Neighbor s, typename TripletMergeTree<Vertex, Value>::Neighbor v);
 
 template<class Vertex, class Value, class Edges>
-void merge(TripletMergeTree<Vertex, Value>& mt1, const TripletMergeTree<Vertex, Value>& mt2, const Edges& edges);
+void merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Value>& mt2, const Edges& edges);
 
 }
 

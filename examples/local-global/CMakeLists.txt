@@ -10,9 +10,17 @@ add_executable              (mt-lg-ghosts-${real}     mt-lg-ghosts.cpp ${DEBUG_S
 target_link_libraries       (mt-lg-ghosts-${real}     ${libraries})
 set_target_properties       (mt-lg-ghosts-${real}     PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
 
+add_executable              (tmt-lg-ghosts-${real}     tmt-lg-ghosts.cpp ${DEBUG_SOURCES} ${SOURCES})
+target_link_libraries       (tmt-lg-ghosts-${real}     ${libraries})
+set_target_properties       (tmt-lg-ghosts-${real}     PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
+
 add_executable              (persistence-lg-${real}   persistence-lg.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (persistence-lg-${real}   ${libraries})
 set_target_properties       (persistence-lg-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
+
+add_executable              (triplet-persistence-lg-${real}   triplet-persistence-lg.cpp ${DEBUG_SOURCES} ${SOURCES})
+target_link_libraries       (triplet-persistence-lg-${real}   ${libraries})
+set_target_properties       (triplet-persistence-lg-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
 
 add_executable              (persistent-integral-lg-${real}   persistent-integral-lg.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (persistent-integral-lg-${real}   ${libraries})
@@ -45,6 +53,9 @@ set_target_properties       (mt-local-global-${CCSE_PRECISION_LC}   PROPERTIES C
 
 target_link_libraries       (mt-lg-ghosts-${CCSE_PRECISION_LC}      ${libraries} ${CCSE_LIBRARIES})
 set_target_properties       (mt-lg-ghosts-${CCSE_PRECISION_LC}      PROPERTIES COMPILE_FLAGS "-DREEBER_USE_BOXLIB_READER")
+
+target_link_libraries       (tmt-lg-ghosts-${CCSE_PRECISION_LC}      ${libraries} ${CCSE_LIBRARIES})
+set_target_properties       (tmt-lg-ghosts-${CCSE_PRECISION_LC}      PROPERTIES COMPILE_FLAGS "-DREEBER_USE_BOXLIB_READER")
 
 target_link_libraries       (persistent-integral-lg-${CCSE_PRECISION_LC}  ${libraries} ${CCSE_LIBRARIES})
 
