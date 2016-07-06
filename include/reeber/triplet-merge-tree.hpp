@@ -76,9 +76,9 @@ find_deepest(const Neighbor u)
 }
 
 
-template<class Vertex, class Value, class Topology, class Function>
+template<class Vertex, class Value, class Topology, class Function, class Collapsible>
 void
-reeber::compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f)
+reeber::compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f, const Collapsible& collapsible)
 {
     dlog::prof << "compute-merge-tree";
     typedef     std::pair<Value, Vertex>                           ValueVertexPair;
@@ -120,6 +120,34 @@ reeber::compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& 
                 for (const Neighbor v : leaves) if (v != oldest) mt.link(v, u, oldest);
             }
         }
+    }
+
+    std::unordered_set<Vertex> discard;
+
+    for (auto n: mt.nodes()) discard.insert(n.first);
+
+    Neighbor u, s, v;
+    for (auto n : mt.nodes())
+    {
+        u = n.second;
+        std::tie(s, v) = u->parent;
+        if (!collapsible(n.first) || u != s)
+        {
+            while (1)
+            {
+                discard.erase(u->vertex);
+                discard.erase(s->vertex);
+                if (discard.find(v->vertex) == discard.end()) break;
+                discard.erase(v->vertex);
+                u = v;
+            }
+        }
+    }
+
+    for (Vertex x : discard)
+    {
+        delete mt.node(x);
+        mt.nodes().erase(x);
     }
 
     dlog::prof >> "compute-merge-tree";
@@ -235,21 +263,21 @@ reeber::merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Ver
     typedef     typename TripletMergeTree<Vertex, Value>::Neighbor          Neighbor;
 
     Neighbor s_u, u_, s_v, v_;
-    // mt.repair(u);
+    mt.repair(u);
     std::tie(s_u, u_) = u->parent;
-    // mt.repair(v);
+    mt.repair(v);
     std::tie(s_v, v_) = v->parent;
 
     while (!mt.cmp(s, s_u) && s_u != u_)
     {
         u = u_;
-        // mt.repair(u);
+        mt.repair(u);
         std::tie(s_u, u_) = u->parent;
     }
     while (!mt.cmp(s, s_v) && s_v != v_)
     {
         v = v_;
-        // mt.repair(v);
+        mt.repair(v);
         std::tie(s_v, v_) = v->parent;
     }
 

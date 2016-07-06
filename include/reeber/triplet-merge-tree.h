@@ -84,9 +84,9 @@ class TripletMergeTree
     private:
         VertexNeighborMap& nodes()                      { return nodes_; }
 
-        template<class Vert, class Val, class T, class F>
+        template<class Vert, class Val, class T, class F, class C>
         friend void
-        compute_merge_tree(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f);
+        compute_merge_tree(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f, const C& c);
 
         template<class Vert, class Val, class T, class F>
         friend void
@@ -121,8 +121,8 @@ class TripletMergeTree
  * Topology defines a range vertices() and a link(v) function;
  *          vertices should be allowed to repeat (will simplify uniting multiple trees).
  */
-template<class Vertex, class Value, class Topology, class Function>
-void compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f);
+template<class Vertex, class Value, class Topology, class Function, class Collapsible>
+void compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f, const Collapsible& collapsible);
 
 template<class Vertex, class Value, class Topology, class Function>
 void compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f);
