@@ -84,6 +84,10 @@ class TripletMergeTree
     private:
         VertexNeighborMap& nodes()                      { return nodes_; }
 
+        template<class Vert, class Val, class T, class F>
+        friend void
+        compute_merge_tree(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f);
+
         template<class Vert, class Val, class T, class F, class C>
         friend void
         compute_merge_tree(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f, const C& c);
@@ -123,6 +127,12 @@ class TripletMergeTree
  */
 template<class Vertex, class Value, class Topology, class Function, class Collapsible>
 void compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f, const Collapsible& collapsible);
+
+template<class Vertex, class Value, class Topology, class Function>
+void compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f)
+{
+    compute_merge_tree(mt, topology, f, [](Vertex v) { return true; });
+}
 
 template<class Vertex, class Value, class Topology, class Function>
 void compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f);
