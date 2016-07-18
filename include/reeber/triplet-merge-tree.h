@@ -22,8 +22,10 @@ struct TripletMergeTreeNode
     typedef                     Vertex_                         Vertex;
     typedef                     Value_                          Value;
 
-    typedef                     TripletMergeTreeNode*           Neighbor;
+    typedef                     std::pair<Value, Vertex>        ValueVertex;
+    typedef                     std::vector<ValueVertex>        VerticesVector;
 
+    typedef                     TripletMergeTreeNode*           Neighbor;
     typedef                     std::tuple<Neighbor, Neighbor> Parent;
 
     bool                        operator<(const TripletMergeTreeNode& other) const     { return value < other.value || (value == other.value && vertex < other.vertex); }
@@ -33,6 +35,7 @@ struct TripletMergeTreeNode
     Value                       value;
     Parent                      parent;
     Neighbor                    cur_deepest;
+    VerticesVector              vertices;
 };
 
 template<class Vertex_, class Value_>
@@ -56,6 +59,7 @@ class TripletMergeTree
         void        repair(const Neighbor u);
         Neighbor    add(const Vertex& x, Value v);
         Neighbor    find_or_add(const Vertex& x, Value v);
+        Neighbor    add_or_update(const Vertex& x, Value v);
         void        link(const Neighbor u, const Neighbor s, const Neighbor v)
                                                         { u->parent = std::make_tuple(s, v); }
 
@@ -88,9 +92,13 @@ class TripletMergeTree
         friend void
         compute_merge_tree(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f);
 
-        template<class Vert, class Val, class T, class F, class C>
+        template<class Vert, class Val, class T, class F>
         friend void
-        compute_merge_tree(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f, const C& c);
+        compute_merge_tree(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f);
+        
+        template<class Vert, class Val, class S>
+        friend void
+        remove_degree_two(TripletMergeTree<Vert, Val>& mt, const S& s);
 
         template<class Vert, class Val, class T, class F>
         friend void
@@ -102,7 +110,7 @@ class TripletMergeTree
 
         template<class Vert, class Val, class S>
         friend void
-        sparsify(TripletMergeTree<Vert, Val>& out, TripletMergeTree<Vert, Val>& in, const S& special);
+        sparsify(TripletMergeTree<Vert, Val>& out, TripletMergeTree<Vert, Val>& in, const S& s);
 
         template<class Vert, class Val, class S>
         friend void
@@ -125,14 +133,11 @@ class TripletMergeTree
  * Topology defines a range vertices() and a link(v) function;
  *          vertices should be allowed to repeat (will simplify uniting multiple trees).
  */
-template<class Vertex, class Value, class Topology, class Function, class Collapsible>
-void compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f, const Collapsible& collapsible);
-
 template<class Vertex, class Value, class Topology, class Function>
-void compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f)
-{
-    compute_merge_tree(mt, topology, f, [](Vertex v) { return true; });
-}
+void compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f);
+
+template<class Vertex, class Value, class Special>
+void remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& special);
 
 template<class Vertex, class Value, class Topology, class Function>
 void compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f);

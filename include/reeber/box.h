@@ -33,11 +33,11 @@ class Box
 
         // Topology interface
         typedef             typename GridProxy::Index                               Vertex;
-        typedef             boost::transformed_range
-                                <PositionToVertex,
-                                 const boost::filtered_range
+        typedef             const boost::filtered_range
                                      <BoundsTest,
-                                      const FreudenthalLinkRange> >                 Link;
+                                      const FreudenthalLinkRange>                   PositionLink;
+        typedef             boost::transformed_range
+                                <PositionToVertex, PositionLink>                    Link;
 
 
                             Box(): g_(0, Position())                                {}
@@ -61,10 +61,12 @@ class Box
 
         VertexRange         vertices() const                                        { return boost::iterator_range<VI>(VI::begin(from_, to_), VI::end(from_, to_))
                                                                                                 | ba::transformed(position_to_vertex()); }
-        Link                link(const Position& p) const                           { return FreudenthalLinkRange(FreudenthalLinkIterator::begin(p), FreudenthalLinkIterator::end(p))
-                                                                                                | ba::filtered(bounds_test())
+        Link                link(const Position& p) const                           { return position_link(p)
                                                                                                 | ba::transformed(position_to_vertex()); }
         Link                link(const Vertex& v) const                             { return link(position(v)); }
+        PositionLink        position_link(const Position& p) const                  { return FreudenthalLinkRange(FreudenthalLinkIterator::begin(p), FreudenthalLinkIterator::end(p))
+                                                                                                | ba::filtered(bounds_test()); }
+        PositionLink        position_link(const Vertex& v) const                    { return position_link(position(v)); }
 
         Box                 intersect(const Box& other) const;
         bool                intersects(const Box& other) const;
@@ -123,6 +125,8 @@ class Box
 
         // computes position inside the box (adjusted for the wrap-around, if need be)
         Position            position(const Vertex& v) const                         { Position p = g_.vertex(v); for (unsigned i = 0; i < D; ++i) if (p[i] < from()[i]) p[i] += grid_shape()[i]; return p; }
+        
+        Position            positive_position(Position p) const                     { for (unsigned i = 0; i < D; ++i) if (p[i] < 0) p[i] += grid_shape()[i]; return p; }
 
     private:
         GridProxy           g_;

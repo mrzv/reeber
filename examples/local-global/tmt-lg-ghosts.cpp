@@ -17,7 +17,7 @@
 #include "memory.h"
 
 #include "reader-interfaces.h"
-#include "ghosts.h"
+#include "edges.h"
 #include "triplet-merge-tree-block.h"
 
 // Load the specified chunk of data, compute local merge tree, add block to diy::Master
@@ -51,8 +51,7 @@ struct LoadAdd
         b->gid = gid;
         b->cell_size = reader.cell_size();
         b->mt.set_negate(negate);
-        b->core  = Box(full_shape, core.min, core.max);
-        b->local = b->global = Box(full_shape, bounds.min, bounds.max);
+        b->local = b->global = Box(full_shape, core.min, core.max);
         LOG_SEV(debug) << "[" << b->gid << "] Local box:  " << b->local.from()  << " - " << b->local.to();
         LOG_SEV(debug) << "[" << b->gid << "] Global box: " << b->global.from() << " - " << b->global.to();
         LOG_SEV(debug) << "[" << b->gid << "] Grid shape: " << b->grid.shape();
@@ -83,12 +82,26 @@ void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void* aux)
     TripletMergeTreeBlock* b = static_cast<TripletMergeTreeBlock*>(b_);
 
     record_stats("Local box:", "{}", b->local);
-    r::compute_merge_tree(b->mt, b->local, b->grid, b->local.internal_test());
+    r::compute_merge_tree(b->mt, b->local, b->grid);
 
     LOG_SEV(debug) << "[" << b->gid << "] " << "Initial tree size: " << b->mt.size();
     record_stats("Initial tree size:", "{}", b->mt.size());
 
     TripletMergeTreeBlock::OffsetGrid().swap(b->grid);     // clear out the grid, we don't need it anymore
+}
+
+void remove_degree_two(void* b_, const diy::Master::ProxyWithLink& cp, void* aux)
+{
+    typedef              TripletMergeTreeBlock::Index               Index;
+    TripletMergeTreeBlock* b = static_cast<TripletMergeTreeBlock*>(b_);
+
+    std::unordered_set<Index> special;
+    for (auto &kv : b->edges)
+    {
+        Index s = std::get<1>(kv.second);
+        if (b->mt.contains(s)) special.insert(s);
+    }
+    r::remove_degree_two(b->mt, [&special](Index u) { return special.find(u) != special.end(); });
 }
 
 void save_no_vertices(diy::BinaryBuffer& bb, const TripletMergeTreeBlock::TripletMergeTree& mt)
@@ -98,7 +111,7 @@ void save_no_vertices(diy::BinaryBuffer& bb, const TripletMergeTreeBlock::Triple
 
 struct GlobalBoundary
 {
-    typedef     TripletMergeTreeBlock::Box             Box;
+    typedef     TripletMergeTreeBlock::Box         Box;
 
                 GlobalBoundary(const Box& global_, bool wrap_):
                     global(global_), wrap(wrap_)                                    {}
@@ -133,7 +146,7 @@ struct LocalOrGlobalBoundary
                 LocalOrGlobalBoundary(const Box& local_, const Box& global_, bool wrap):
                     local_test(local_), global_test(global_, wrap)                  {}
 
-    bool        operator()(TripletMergeTreeBlock::Index v) const                    { return local_test(v) || global_test(v); }
+    bool        operator()(TripletMergeTreeBlock::Index v) const                           { return local_test(v) || global_test(v); }
 
     Box::BoundsTest         local_test;
     GlobalBoundary          global_test;
@@ -148,12 +161,13 @@ struct MergeSparsify
     {
         typedef              TripletMergeTreeBlock::TripletMergeTree    TripletMergeTree;
         typedef              TripletMergeTreeBlock::Box                 Box;
-        typedef              TripletMergeTreeBlock::Vertex              Vertex;
+        typedef              TripletMergeTreeBlock::EdgeMap             EdgeMap;
+        typedef              TripletMergeTreeBlock::Edge                Edge;
         typedef              TripletMergeTreeBlock::Index               Index;
 
         LOG_SEV(debug) << "Entered merge_sparsify()";
 
-        TripletMergeTreeBlock*             b        = static_cast<TripletMergeTreeBlock*>(b_);
+        TripletMergeTreeBlock*      b        = static_cast<TripletMergeTreeBlock*>(b_);
         unsigned                    round    = srp.round();
         LOG_SEV(debug) << "Round: " << round;
         LOG_SEV_IF(srp.master()->communicator().rank() == 0, info) << "round = " << srp.round();
@@ -163,8 +177,10 @@ struct MergeSparsify
         LOG_SEV(debug) << "  incoming link size: " << in_size;
         if (in_size)
         {
-            std::vector<Box>        bounds(in_size, b->global.grid_shape());
+            std::vector<Box>               bounds(in_size, b->global.grid_shape());
             std::vector<TripletMergeTree>  trees(in_size, b->mt.negate());
+            EdgeMap                        out_edges;
+            int out_pos = -1;
             for (int i = 0; i < in_size; ++i)
             {
               int nbr_gid = srp.in_link().target(i).gid;
@@ -175,10 +191,11 @@ struct MergeSparsify
                   LOG_SEV(debug) << "  swapped in tree of size: " << trees[i].size();
               } else
               {
+                  out_pos = i;
                   srp.dequeue(nbr_gid, bounds[i]);
                   srp.dequeue(nbr_gid, trees[i]);
+                  srp.dequeue(nbr_gid, out_edges);
                   LOG_SEV(debug) << "  received tree of size: " << trees[i].size();
-                  srp.incoming(nbr_gid).wipe();
               }
             }
             LOG_SEV(debug) << "  trees and bounds received";
@@ -191,60 +208,21 @@ struct MergeSparsify
             // merge trees and move vertices
             record_stats("Merging trees:", "{} and {}", trees[0].size(), trees[1].size());
 
-            int d = -1;
-            for (int i = 0; i < Box::dimension(); ++i) if (bounds.front().from()[i] != bounds.back().from()[i]) d = i;
-
-            Vertex u, v;
-            u = bounds.front().from();
-            u[d] = bounds.front().to()[d];
-            v = bounds.back().to();
-            v[d] = bounds.back().from()[d];
-            Box edges_domain(b->global.grid_shape(), u, v);
-
-            Box side = edges_domain.side(d, false);
-            std::vector<std::tuple<Index, Index>> edges;
-            r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin(side.from(), side.to()),
-                                        end = r::VerticesIterator<Vertex>::end(side.from(), side.to());
-
-            while (it != end)
+            EdgeMap edges;
+            std::vector<Edge> discard;
+            for (auto& kv : b->edges)
             {
-                Vertex u = *it;
-                for (const Index& v : edges_domain.link(u))
+                Index u, v;
+                std::tie(u,v) = kv.first;
+                if (bounds[out_pos].contains(v))
                 {
-                    edges.push_back(std::make_tuple(b->global.position_to_vertex()(u), v));
-                }
-                ++it;
-            }
-
-            if (wrap)
-            {
-                for (int i = 0; i < Box::dimension(); ++i)
-                {
-                    if (bounds.front().from()[i] == 0 && bounds.back().to()[i] == b->global.grid_shape()[i] - 1 && bounds.front().to()[i] + 1 == bounds.back().from()[i])
-                    {
-                        Box side = bounds.back().side(i, true);
-                        Vertex side_to = side.to();
-                        for (int j = 0; j < Box::dimension(); ++j)
-                        {
-                            if (side.to()[j] == b->global.grid_shape()[j] - 1) side.to()[j]++;
-                        }
-
-                        it = r::VerticesIterator<Vertex>::begin(side.from(), side_to);
-                        end = r::VerticesIterator<Vertex>::end(side.from(), side_to);
-                        while (it != end)
-                        {
-                            Vertex u = *it;
-                            if (bounds.back().contains(u)) {
-                                for (const Index& v : side.link(u))
-                                {
-                                    if (bounds.front().contains(v)) edges.push_back(std::make_tuple(b->global.position_to_vertex()(u), v));
-                                }
-                            }
-                            ++it;
-                        }
-                    }
+                    out_edges.erase(std::make_tuple(v, u));
+                    edges[kv.first] = kv.second;
+                    discard.push_back(kv.first);
                 }
             }
+            for (Edge e : discard) b->edges.erase(e);
+            b->edges.insert(out_edges.begin(), out_edges.end());
 
             trees[0].swap(b->mt);
             r::merge(b->mt, trees[1], edges);
@@ -252,10 +230,20 @@ struct MergeSparsify
             trees.clear();
             LOG_SEV(debug) << "  trees merged: " << b->mt.size();
             record_stats("Trees merged:", "{}", b->mt.size());
-
-            // sparsify
-            r::sparsify(b->mt, LocalOrGlobalBoundary(b->local, b->global, wrap));
+        }
+        std::unordered_set<Index> edge_vertices;
+        for (auto& kv : b->edges)
+        {
+            Index u_ = std::get<0>(kv.first);
+            edge_vertices.insert(u_);
+            Index s = std::get<1>(kv.second);
+            if (b->global.contains(s)) edge_vertices.insert(s);
+        }
+        if (in_size)
+        {
+            r::sparsify(b->mt, [b, &edge_vertices](Index u) { return b->local.contains(u) || edge_vertices.find(u) != edge_vertices.end(); });
             record_stats("Trees sparsified:", "{}", b->mt.size());
+            record_stats("Degree-2 removed:", "{}", b->mt.size());
         }
 
         // send (without the vertices) to the neighbors
@@ -265,12 +253,13 @@ struct MergeSparsify
             LOG_SEV(debug) << "Sparsifying final tree of size: " << b->mt.size();
             r::sparsify(b->mt, b->local.bounds_test());
             record_stats("Final sparsified:", "{}", b->mt.size());
+            record_stats("Final degree-2 removed:", "{}", b->mt.size());
             LOG_SEV(debug) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
             return;
         }
 
-        TripletMergeTree mt_out(b->mt.negate());       // tree sparsified w.r.t. global boundary (dropping internal nodes)
-        r::sparsify(mt_out, b->mt, GlobalBoundary(b->global, wrap));
+        TripletMergeTree mt_out(b->mt.negate());
+        r::sparsify(mt_out, b->mt, [&edge_vertices](Index u) { return edge_vertices.find(u) != edge_vertices.end(); });
         record_stats("Outgoing tree:", "{}", mt_out.size());
 
         for (int i = 0; i < out_size; ++i)
@@ -280,6 +269,7 @@ struct MergeSparsify
           {
             srp.enqueue(nbr_bid, b->global);
             srp.enqueue(nbr_bid, mt_out, &save_no_vertices);
+            srp.enqueue(nbr_bid, b->edges);
           }
         }
     }
@@ -428,6 +418,7 @@ int main(int argc, char** argv)
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
+
     // debug only
     //master.foreach(&save_grids);
     //master.foreach(&test_link);
@@ -436,6 +427,20 @@ int main(int argc, char** argv)
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute tree:    " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
+
+    master.foreach(EnqueueEdges<TripletMergeTreeBlock>(&TripletMergeTreeBlock::grid, &TripletMergeTreeBlock::local, &TripletMergeTreeBlock::mt, &TripletMergeTreeBlock::edges, wrap_));
+    master.exchange();
+    master.foreach(DequeueEdges<TripletMergeTreeBlock>(&TripletMergeTreeBlock::grid, &TripletMergeTreeBlock::local, &TripletMergeTreeBlock::mt, &TripletMergeTreeBlock::edges));
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to exchange edges:  " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
+
+    master.foreach(&remove_degree_two);
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to remove degree-2: " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
     // perform the global swap-reduce

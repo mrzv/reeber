@@ -14,11 +14,13 @@ struct Serialization< TripletMergeTree<Vertex, Value> >
     typedef     ::reeber::TripletMergeTree<Vertex, Value>          TripletMergeTree;
     typedef     typename TripletMergeTree::Neighbor                Neighbor;
 
-    static void save(::diy::BinaryBuffer& bb, const TripletMergeTree& mt)
+    static void save(::diy::BinaryBuffer& bb, const TripletMergeTree& mt, bool save_vertices = true)
     {
         namespace ba = boost::adaptors;
+        diy::save(bb, save_vertices);
         diy::save(bb, mt.negate_);
-        diy::save(bb, mt.nodes_.size());
+        size_t sz = mt.nodes_.size();
+        diy::save(bb, sz);
         BOOST_FOREACH(Neighbor n, mt.nodes_ | ba::map_values)
         {
             diy::save(bb, n->vertex);
@@ -27,16 +29,20 @@ struct Serialization< TripletMergeTree<Vertex, Value> >
             std::tie(s, v) = n->parent;
             diy::save(bb, s->vertex);
             diy::save(bb, v->vertex);
+            if (save_vertices)
+                diy::save(bb, n->vertices);
         }
     }
 
     static void load(::diy::BinaryBuffer& bb, TripletMergeTree& mt)
     {
         namespace ba = boost::adaptors;
+        bool load_vertices;
+        diy::load(bb, load_vertices);
         diy::load(bb, mt.negate_);
-        size_t s;
-        diy::load(bb, s);
-        for (size_t i = 0; i < s; ++i)
+        size_t sz;
+        diy::load(bb, sz);
+        for (size_t i = 0; i < sz; ++i)
         {
             Vertex u, s, v; Value val;
             diy::load(bb, u);
@@ -45,23 +51,14 @@ struct Serialization< TripletMergeTree<Vertex, Value> >
             diy::load(bb, v);
 
             Neighbor n_u, n_s, n_v;
-            auto it = mt.nodes().find(u);
-            if (it != mt.nodes().end())
-            {
-                n_u = it->second;
-                n_u->value = val;
-            }
-            else n_u = mt.add(u, val);
-
-            it = mt.nodes().find(s);
-            if (it != mt.nodes().end()) n_s = it->second;
-            else n_s = mt.add(s, 0);
-
-            it = mt.nodes().find(v);
-            if (it != mt.nodes().end()) n_v = it->second;
-            else n_v = mt.add(v, 0);
+            n_u = mt.add_or_update(u,val);
+            n_s = mt.find_or_add(s,0);
+            n_v = mt.find_or_add(v,0);
 
             mt.link(n_u, n_s, n_v);
+
+            if (load_vertices)
+                diy::load(bb, n_u->vertices);
         }
     }
 };
@@ -77,7 +74,7 @@ struct Serialization< ::reeber::TripletMergeTree<Vertex, Value> >
 {
     typedef     ::reeber::TripletMergeTree<Vertex, Value>              TripletMergeTree;
 
-    static void save(BinaryBuffer& bb, const TripletMergeTree& mt)     { ::reeber::Serialization<TripletMergeTree>::save(bb, mt); }
+    static void save(BinaryBuffer& bb, const TripletMergeTree& mt)     { ::reeber::Serialization<TripletMergeTree>::save(bb, mt, true); }
     static void load(BinaryBuffer& bb, TripletMergeTree& mt)           { ::reeber::Serialization<TripletMergeTree>::load(bb, mt); }
 };
 

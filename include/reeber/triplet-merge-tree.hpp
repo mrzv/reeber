@@ -12,7 +12,7 @@ add(const Vertex& x, Value v)
     n->vertex = x;
     n->value = v;
     n->cur_deepest = n;
-    link(n, n, n);
+    n->parent = std::make_tuple(n, n);
     return n;
 }
 
@@ -21,11 +21,26 @@ typename reeber::TripletMergeTree<Vertex, Value>::Neighbor
 reeber::TripletMergeTree<Vertex, Value>::
 find_or_add(const Vertex& x, Value v)
 {
-    Neighbor n;
     auto it = nodes().find(x);
-    if (it != nodes().end()) n = it->second;
-    else n = add(x, v);
-    return n;
+    if (it != nodes().end())
+        return it->second;
+    else
+        return add(x, v);
+}
+
+template<class Vertex, class Value>
+typename reeber::TripletMergeTree<Vertex, Value>::Neighbor
+reeber::TripletMergeTree<Vertex, Value>::
+add_or_update(const Vertex& x, Value v)
+{
+    auto it = nodes().find(x);
+    if (it != nodes().end())
+    {
+        it->second->value = v;
+        return it->second;
+    }
+    else
+        return add(x, v);
 }
 
 template<class Vertex, class Value>
@@ -76,15 +91,15 @@ find_deepest(const Neighbor u)
 }
 
 
-template<class Vertex, class Value, class Topology, class Function, class Collapsible>
+template<class Vertex, class Value, class Topology, class Function>
 void
-reeber::compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f, const Collapsible& collapsible)
+reeber::compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f)
 {
     dlog::prof << "compute-merge-tree";
-    typedef     std::pair<Value, Vertex>                           ValueVertexPair;
     typedef     typename TripletMergeTree<Vertex, Value>::Neighbor Neighbor;
+    typedef     typename TripletMergeTree<Vertex, Value>::Node::ValueVertex ValueVertex;
 
-    std::vector<ValueVertexPair>     vertices;
+    std::vector<ValueVertex>     vertices;
     vertices.reserve(topology.size());
     for (Vertex v : topology.vertices())
     {
@@ -92,13 +107,13 @@ reeber::compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& 
     }
 
     if (mt.negate())
-        std::sort(vertices.begin(), vertices.end(), std::greater<ValueVertexPair>());
+        std::sort(vertices.begin(), vertices.end(), std::greater<ValueVertex>());
     else
-        std::sort(vertices.begin(), vertices.end(), std::less<ValueVertexPair>());
+        std::sort(vertices.begin(), vertices.end(), std::less<ValueVertex>());
 
     LOG_SEV(debug) << "Computing merge tree out of " << vertices.size() << " vertices";
 
-    for (const ValueVertexPair& fx : vertices)
+    for (const ValueVertex& fx : vertices)
     {
         Value val; Vertex x;
         std::tie(val, x) = fx;
@@ -121,6 +136,14 @@ reeber::compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& 
             }
         }
     }
+}
+
+template<class Vertex, class Value, class Special>
+void
+reeber::remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& special)
+{
+    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor          Neighbor;
+    typedef     typename TripletMergeTree<Vertex, Value>::Node::ValueVertex ValueVertex;
 
     std::unordered_set<Vertex> discard;
 
@@ -131,7 +154,7 @@ reeber::compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& 
     {
         u = n.second;
         std::tie(s, v) = u->parent;
-        if (!collapsible(n.first) || u != s)
+        if (u != s || special(u->vertex))
         {
             while (1)
             {
@@ -146,11 +169,12 @@ reeber::compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& 
 
     for (Vertex x : discard)
     {
+        Neighbor u = mt.node(x);
+        Neighbor v = std::get<1>(u->parent);
+        v->vertices.push_back(ValueVertex(u->value, u->vertex));
         delete mt.node(x);
         mt.nodes().erase(x);
     }
-
-    dlog::prof >> "compute-merge-tree";
 }
 
 template<class Vertex, class Value, class Topology, class Function>
@@ -243,7 +267,6 @@ reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
                 discard.erase(u->vertex);
                 discard.erase(s->vertex);
                 if (discard.find(v->vertex) == discard.end()) break;
-                discard.erase(v->vertex);
                 u = v;
             }
         }
@@ -305,15 +328,17 @@ reeber::merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Val
     mt1.nodes_.insert(mt2.nodes().begin(), mt2.nodes().end());
     mt2.nodes_.clear();
 
-    Vertex a, b;
-    Neighbor u, v;
-    for (std::tuple<Vertex, Vertex> edge : edges)
+    Vertex a, b, c;
+    Neighbor u, s, v;
+    for (auto& kv : edges)
     {
-        std::tie(a, b) = edge;
+        std::tie(a, c) = kv.first;
+        b = std::get<1>(kv.second);
         u = mt1.node(a);
-        v = mt1.node(b);
-        if (mt1.cmp(v, u)) merge(mt1, u, u, v);
-        else merge(mt1, v, v, u);
+        s = mt1.node(b);
+        v = mt1.node(c);
+        if (mt1.cmp(v, u)) merge(mt1, u, s, v);
+        else merge(mt1, v, s, u);
     }
 
     for (auto n : mt1.nodes()) mt1.repair(n.second);

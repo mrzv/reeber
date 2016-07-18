@@ -27,6 +27,29 @@ struct TripletMergeTreeBlock
     typedef     r::TripletMergeTree<Index, Value> TripletMergeTree;
     typedef     std::vector<Real>                 Size;
 
+    typedef     std::tuple<Index, Index>          Edge;
+
+    struct edge_hash : public std::unary_function<Edge, std::size_t>
+    {
+        std::size_t operator()(const Edge& k) const
+        {
+            size_t x = std::hash<Index>()(std::get<0>(k));
+            size_t y = std::hash<Index>()(std::get<1>(k));
+            return x ^ (y + 0x9e3779b9 + (x<<6) + (x>>2));
+        }
+    };
+
+    struct edge_equal : public std::binary_function<Edge, Edge, bool>
+    {
+        bool operator()(const Edge& v0, const Edge& v1) const
+        {
+            return std::get<0>(v0) == std::get<0>(v1) && std::get<1>(v0) == std::get<1>(v1);
+        }
+    };
+   
+    typedef     std::unordered_map<Edge, std::tuple<Value, Index>, edge_hash, edge_equal>
+                                                  EdgeMap;
+
     static void*            create()                                        { return new TripletMergeTreeBlock; }
     static void             destroy(void* b)                                { delete static_cast<TripletMergeTreeBlock*>(b); }
     static void             save(const void* b, diy::BinaryBuffer& bb)      { diy::save(bb, *static_cast<const TripletMergeTreeBlock*>(b)); }
@@ -35,12 +58,12 @@ struct TripletMergeTreeBlock
     inline void             compute_average(const diy::Master::ProxyWithLink& cp, void*);
 
     int                     gid;
-    Box                     core;
     Box                     local;
     Box                     global;
     TripletMergeTree        mt;
     OffsetGrid              grid;
     Size                    cell_size;
+    EdgeMap                 edges;
 };
 
 namespace diy
@@ -51,44 +74,24 @@ namespace diy
         static void             save(diy::BinaryBuffer& bb, const TripletMergeTreeBlock& b)
         {
             diy::save(bb, b.gid);
-            diy::save(bb, b.core);
             diy::save(bb, b.local);
             diy::save(bb, b.global);
             diy::save(bb, b.mt);
             diy::save(bb, b.grid);
             diy::save(bb, b.cell_size);
+            diy::save(bb, b.edges);
         }
         static void             load(diy::BinaryBuffer& bb, TripletMergeTreeBlock& b)
         {
             diy::load(bb, b.gid);
-            diy::load(bb, b.core);
             diy::load(bb, b.local);
             diy::load(bb, b.global);
             diy::load(bb, b.mt);
             diy::load(bb, b.grid);
             diy::load(bb, b.cell_size);
+            diy::load(bb, b.edges);
         }
     };
-}
-
-void
-TripletMergeTreeBlock::
-compute_average(const diy::Master::ProxyWithLink& cp, void*)
-{
-    double                value = 0;
-    size_t                count = 0;
-
-    BOOST_FOREACH(const TripletMergeTree::Neighbor node, const_cast<const TripletMergeTree&>(mt).nodes() | ba::map_values)
-    {
-        if (core.contains(node->vertex))
-        {
-            value += node->value;
-            count += 1;
-        }
-    }
-
-    cp.all_reduce(value, std::plus<double>());
-    cp.all_reduce(count, std::plus<size_t>());
 }
 
 #endif
