@@ -109,49 +109,6 @@ void save_no_vertices(diy::BinaryBuffer& bb, const TripletMergeTreeBlock::Triple
     reeber::Serialization<TripletMergeTreeBlock::TripletMergeTree>::save(bb, mt);
 }
 
-struct GlobalBoundary
-{
-    typedef     TripletMergeTreeBlock::Box         Box;
-
-                GlobalBoundary(const Box& global_, bool wrap_):
-                    global(global_), wrap(wrap_)                                    {}
-
-    bool        operator()(TripletMergeTreeBlock::Index v) const
-    {
-        Box::Position       vp          = global.position(v);
-        const Box::Position full_shape  = global.grid_shape();
-        for (size_t i = 0; i < global.dimension(); ++i)
-        {
-            if      ( wrap &&  global.from()[i] == 0 && global.to()[i] == full_shape[i])
-                continue;
-            else if (!wrap && (   (global.from()[i] == 0               && vp[i] == global.from()[i])
-                               || (global.to()[i] == full_shape[i] - 1 && vp[i] == global.to()[i])))
-                continue;
-
-            if (vp[i] == global.from()[i] || vp[i] == global.to()[i])
-                return true;
-        }
-
-        return false;
-    }
-
-    const Box&      global;
-    bool            wrap;
-};
-
-struct LocalOrGlobalBoundary
-{
-    typedef     TripletMergeTreeBlock::Box             Box;
-
-                LocalOrGlobalBoundary(const Box& local_, const Box& global_, bool wrap):
-                    local_test(local_), global_test(global_, wrap)                  {}
-
-    bool        operator()(TripletMergeTreeBlock::Index v) const                           { return local_test(v) || global_test(v); }
-
-    Box::BoundsTest         local_test;
-    GlobalBoundary          global_test;
-};
-
 struct MergeSparsify
 {
             MergeSparsify(bool wrap_):
@@ -243,7 +200,6 @@ struct MergeSparsify
         {
             r::sparsify(b->mt, [b, &edge_vertices](Index u) { return b->local.contains(u) || edge_vertices.find(u) != edge_vertices.end(); });
             record_stats("Trees sparsified:", "{}", b->mt.size());
-            record_stats("Degree-2 removed:", "{}", b->mt.size());
         }
 
         // send (without the vertices) to the neighbors
@@ -253,7 +209,6 @@ struct MergeSparsify
             LOG_SEV(debug) << "Sparsifying final tree of size: " << b->mt.size();
             r::sparsify(b->mt, b->local.bounds_test());
             record_stats("Final sparsified:", "{}", b->mt.size());
-            record_stats("Final degree-2 removed:", "{}", b->mt.size());
             LOG_SEV(debug) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
             return;
         }

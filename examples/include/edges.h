@@ -38,7 +38,7 @@ struct EnqueueEdges
             Box expanded(b->*local);
             if (!wrap)
             {
-                for (int i = 0; i < Box::dimension(); ++i)
+                for (unsigned i = 0; i < Box::dimension(); ++i)
                 {
                     if (expanded.from()[i] > 0) expanded.from()[i]--;
                     if (expanded.to()[i] < (b->*local).grid_shape()[i] - 1) expanded.to()[i]++;
@@ -52,35 +52,39 @@ struct EnqueueEdges
 
             std::unordered_map<Index, std::tuple<Value, Index>> relabel;
 
-            r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin((b->*local).from(), (b->*local).to()),
-                                        end = r::VerticesIterator<Vertex>::end((b->*local).from(), (b->*local).to());
-            while (it != end)
+            for (unsigned axis = 0; axis < Box::dimension(); ++axis)
             {
-                Index u = (b->*local).position_to_vertex()(*it);
-                if ((b->*local).boundary(u))
+                for (bool upper : {false, true})
                 {
-                    Neighbor u_node = (b->*mt).node(u);
-                    Index s = std::get<0>(u_node->parent)->vertex;
-                    Index u_ = std::get<1>(u_node->parent)->vertex;
-                    if (u != s) u_ = u;
-                    relabel[u] = std::make_tuple(u_node->value, u_);
-                    for (Vertex vp : expanded.position_link(u))
+                    Box side = (b->*local).side(axis, upper);
+                    r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin(side.from(), side.to()),
+                                                end = r::VerticesIterator<Vertex>::end(side.from(), side.to());
+                    while (it != end)
                     {
-                        if (!(b->*local).contains(vp))
+                        Index u = (b->*local).position_to_vertex()(*it);
+                        Neighbor u_node = (b->*mt).node(u);
+                        Index s = std::get<0>(u_node->parent)->vertex;
+                        Index u_ = std::get<1>(u_node->parent)->vertex;
+                        if (u != s) u_ = u;
+                        relabel[u] = std::make_tuple(u_node->value, u_);
+                        for (Vertex vp : expanded.position_link(u))
                         {
-                            // ensure that vertex is inside of domain
-                            vp = (b->*local).positive_position(vp);
-                            Index v = (b->*local).position_to_vertex()(vp);
-                            if ((b->*edges).find(std::make_tuple(u_, v)) != (b->*edges).end())
+                            if (!(b->*local).contains(vp))
                             {
-                                Neighbor u_node_old = (b->*mt).node(std::get<1>((b->*edges)[std::make_tuple(u_, v)]));
-                                if ((b->*mt).cmp(u_node, u_node_old)) (b->*edges)[std::make_tuple(u_, v)] = std::make_tuple(u_node->value, u);
+                                // ensure that vertex is inside of domain
+                                vp = (b->*local).positive_position(vp);
+                                Index v = (b->*local).position_to_vertex()(vp);
+                                if ((b->*edges).find(std::make_tuple(u_, v)) != (b->*edges).end())
+                                {
+                                    Neighbor u_node_old = (b->*mt).node(std::get<1>((b->*edges)[std::make_tuple(u_, v)]));
+                                    if ((b->*mt).cmp(u_node, u_node_old)) (b->*edges)[std::make_tuple(u_, v)] = std::make_tuple(u_node->value, u);
+                                }
+                                else (b->*edges)[std::make_tuple(u_, v)] = std::make_tuple(u_node->value, u);
                             }
-                            else (b->*edges)[std::make_tuple(u_, v)] = std::make_tuple(u_node->value, u);
                         }
+                        ++it;
                     }
                 }
-                ++it;
             }
 
             for (int i = 0; i < l->size(); i++) cp.enqueue(l->target(i), relabel);
