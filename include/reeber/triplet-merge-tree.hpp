@@ -187,7 +187,6 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
 {
     typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
 
-    // TODO: not sure that do_foreach is the most efficient way to do this
     vector<Vertex> vertices(std::begin(topology.vertices()), std::end(topology.vertices()));
 
     for_each(0, vertices.size(), [&](size_t i) { Vertex a = vertices[i]; mt.add(a, f(a)); });
