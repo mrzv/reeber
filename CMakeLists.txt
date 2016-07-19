@@ -8,6 +8,7 @@ option                      (optimize           "Build Reeber with optimization"
 option                      (profile            "Build Reeber with profiling"                   ON)
 option                      (counters           "Build Reeber with counters"                    OFF)
 option                      (slow-tests         "Enable slow tests"                             ON)
+option                      (use-tbb            "Thread using TBB"                              OFF)
 
 add_definitions             (-Wall -fPIC)
 
@@ -15,6 +16,20 @@ add_definitions             (-Wall -fPIC)
 find_package                (Boost)
 find_package                (MPI REQUIRED)
 find_package                (Threads)
+
+# TBB
+if                          (use-tbb)
+find_path                   (TBB_INCLUDE_DIRS tbb/tbb.h)
+find_library                (TBB_LIBRARY NAMES tbb)
+find_library                (TBB_MALLOC_LIBRARY NAMES tbbmalloc)
+
+   if                       (TBB_INCLUDE_DIRS AND TBB_LIBRARY AND TBB_MALLOC_LIBRARY)
+      add_definitions       (-DREEBER_USE_TBB)
+      include_directories   (${TBB_INCLUDE_DIRS})
+   else                     (TBB_FOUND)
+      message               ("TBB not found; disabling")
+   endif                    (TBB_INCLUDE_DIRS AND TBB_LIBRARY AND TBB_MALLOC_LIBRARY)
+endif                       (use-tbb)
 
 # Debugging
 if                          (debug)
@@ -78,6 +93,8 @@ include_directories         (${CMAKE_CURRENT_SOURCE_DIR}/include
 # Set libraries
 set                         (libraries
                              ${CMAKE_THREAD_LIBS_INIT}
+                             ${TBB_LIBRARY}
+                             ${TBB_MALLOC_LIBRARY}
                              ${MPI_C_LIBRARIES}
                              ${MPI_CXX_LIBRARIES})
 

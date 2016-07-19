@@ -8,6 +8,8 @@
 #include <boost/range/adaptor/map.hpp>
 #include <boost/range/algorithm.hpp>
 
+#include "parallel-tbb.h"
+
 #include "serialization.h"
 #include "format.h"
 
@@ -48,8 +50,7 @@ class TripletMergeTree
         typedef     TripletMergeTreeNode<Vertex,Value>  Node;
         typedef     typename Node::Neighbor             Neighbor;
 
-        typedef     std::unordered_map<Vertex, Neighbor>
-                                                        VertexNeighborMap;
+        typedef     map<Vertex, Neighbor>               VertexNeighborMap;
 
     public:
                     TripletMergeTree(bool negate = false):

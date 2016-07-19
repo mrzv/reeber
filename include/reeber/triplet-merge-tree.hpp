@@ -173,7 +173,7 @@ reeber::remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& sp
         Neighbor v = std::get<1>(u->parent);
         v->vertices.push_back(ValueVertex(u->value, u->vertex));
         delete mt.node(x);
-        mt.nodes().erase(x);
+        map_erase(mt.nodes(), x);
     }
 }
 
@@ -275,7 +275,7 @@ reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
     for (Vertex x : discard)
     {
         delete mt.node(x);
-        mt.nodes().erase(x);
+        map_erase(mt.nodes(), x);
     }
 }
 
