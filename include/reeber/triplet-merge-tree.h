@@ -28,14 +28,22 @@ struct TripletMergeTreeNode
     typedef                     std::vector<ValueVertex>        VerticesVector;
 
     typedef                     TripletMergeTreeNode*           Neighbor;
-    typedef                     std::tuple<Neighbor, Neighbor> Parent;
+    struct Parent
+    {
+        Neighbor    through;
+        Neighbor    to;
+    };
 
     bool                        operator<(const TripletMergeTreeNode& other) const     { return value < other.value || (value == other.value && vertex < other.vertex); }
     bool                        operator>(const TripletMergeTreeNode& other) const     { return value > other.value || (value == other.value && vertex > other.vertex); }
 
+    std::tuple<Neighbor, Neighbor>
+                                parent() const                                          { Parent p = parent_; return {p.through, p.to}; }
+    static Parent               make_parent(Neighbor s, Neighbor v)                     { return { s, v }; }
+
     Vertex                      vertex;
     Value                       value;
-    Parent                      parent;
+    atomic<Parent>              parent_;
     Neighbor                    cur_deepest;
     VerticesVector              vertices;
 };
@@ -62,7 +70,7 @@ class TripletMergeTree
         Neighbor    find_or_add(const Vertex& x, Value v);
         Neighbor    add_or_update(const Vertex& x, Value v);
         void        link(const Neighbor u, const Neighbor s, const Neighbor v)
-                                                        { u->parent = std::make_tuple(s, v); }
+                                                        { u->parent_ = Node::make_parent(s, v); }
 
         Neighbor    find_deepest(const Neighbor u);
 
@@ -93,10 +101,6 @@ class TripletMergeTree
         friend void
         compute_merge_tree(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f);
 
-        template<class Vert, class Val, class T, class F>
-        friend void
-        compute_merge_tree(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f);
-        
         template<class Vert, class Val, class S>
         friend void
         remove_degree_two(TripletMergeTree<Vert, Val>& mt, const S& s);

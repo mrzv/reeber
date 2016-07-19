@@ -64,8 +64,8 @@ struct EnqueueEdges
                     {
                         Index u = (b->*local).position_to_vertex()(*it);
                         Neighbor u_node = (b->*mt).node(u);
-                        Index s = std::get<0>(u_node->parent)->vertex;
-                        Index u_ = std::get<1>(u_node->parent)->vertex;
+                        Index s = std::get<0>(u_node->parent())->vertex;
+                        Index u_ = std::get<1>(u_node->parent())->vertex;
                         if (u != s) u_ = u;
                         for (Vertex vp : expanded.position_link(u))
                         {

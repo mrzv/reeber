@@ -12,7 +12,7 @@ add(const Vertex& x, Value v)
     n->vertex = x;
     n->value = v;
     n->cur_deepest = n;
-    n->parent = std::make_tuple(n, n);
+    link(n, n, n);
     return n;
 }
 
@@ -51,13 +51,13 @@ repair(const Neighbor u)
     typedef     typename TripletMergeTree::Neighbor         Neighbor;
 
     Neighbor s, v, s2, v2;
-    std::tie(s, v) = u->parent;
+    std::tie(s, v) = u->parent();
     if (u == v) return;
-    std::tie(s2, v2) = v->parent;
+    std::tie(s2, v2) = v->parent();
     while (!cmp(s, s2) && v != v2)
     {
         v = v2;
-        std::tie(s2, v2) = v->parent;
+        std::tie(s2, v2) = v->parent();
     }
     link(u, s, v);
 }
@@ -68,22 +68,22 @@ reeber::TripletMergeTree<Vertex, Value>::
 find_deepest(const Neighbor u)
 {
     Neighbor u_ = u->cur_deepest;
-    Neighbor v = std::get<1>(u_->parent);
+    Neighbor v = std::get<1>(u_->parent());
 
     while (u_ != v)
     {
         u_ = v->cur_deepest;
-        v = std::get<1>(u_->parent);
+        v = std::get<1>(u_->parent());
     }
     Neighbor d = u_;
 
     u_ = u->cur_deepest;
-    v = std::get<1>(u_->parent);
+    v = std::get<1>(u_->parent());
     while (u_ != v)
     {
         u_ = v->cur_deepest;
         v->cur_deepest = d;
-        v = std::get<1>(u_->parent);
+        v = std::get<1>(u_->parent());
     }
 
     u->cur_deepest = d;
@@ -153,7 +153,7 @@ reeber::remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& sp
     for (auto n : mt.nodes())
     {
         u = n.second;
-        std::tie(s, v) = u->parent;
+        std::tie(s, v) = u->parent();
         if (u != s || special(u->vertex))
         {
             while (1)
@@ -170,7 +170,7 @@ reeber::remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& sp
     for (Vertex x : discard)
     {
         Neighbor u = mt.node(x);
-        Neighbor v = std::get<1>(u->parent);
+        Neighbor v = std::get<1>(u->parent());
         v->vertices.push_back(ValueVertex(u->value, u->vertex));
         delete mt.node(x);
         map_erase(mt.nodes(), x);
@@ -220,7 +220,7 @@ reeber::sparsify(TripletMergeTree<Vertex, Value>& out, TripletMergeTree<Vertex, 
             u = n.second;
             while (1)
             {
-                std::tie(s, v) = u->parent;
+                std::tie(s, v) = u->parent();
                 u_ = out.find_or_add(u->vertex, u->value);
                 s_ = out.find_or_add(s->vertex, s->value);
                 auto it = out.nodes().find(v->vertex);
@@ -263,7 +263,7 @@ reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
             u = n.second;
             while (1)
             {
-                std::tie(s, v) = u->parent;
+                std::tie(s, v) = u->parent();
                 discard.erase(u->vertex);
                 discard.erase(s->vertex);
                 if (discard.find(v->vertex) == discard.end()) break;
@@ -287,21 +287,21 @@ reeber::merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Ver
 
     Neighbor s_u, u_, s_v, v_;
     mt.repair(u);
-    std::tie(s_u, u_) = u->parent;
+    std::tie(s_u, u_) = u->parent();
     mt.repair(v);
-    std::tie(s_v, v_) = v->parent;
+    std::tie(s_v, v_) = v->parent();
 
     while (!mt.cmp(s, s_u) && s_u != u_)
     {
         u = u_;
         mt.repair(u);
-        std::tie(s_u, u_) = u->parent;
+        std::tie(s_u, u_) = u->parent();
     }
     while (!mt.cmp(s, s_v) && s_v != v_)
     {
         v = v_;
         mt.repair(v);
-        std::tie(s_v, v_) = v->parent;
+        std::tie(s_v, v_) = v->parent();
     }
 
     if (u == v) return;
@@ -353,7 +353,7 @@ reeber::traverse_persistence(const TripletMergeTree<Vertex, Value>& mt, const Fu
     for (auto x : mt.nodes())
     {
         u = x.second;
-        std::tie(s, v) = u->parent;
+        std::tie(s, v) = u->parent();
         if (u != s || u == v) f(u, s, v);
     }
 }

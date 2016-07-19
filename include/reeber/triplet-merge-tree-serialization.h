@@ -26,7 +26,7 @@ struct Serialization< TripletMergeTree<Vertex, Value> >
             diy::save(bb, n->vertex);
             diy::save(bb, n->value);
             Neighbor s, v;
-            std::tie(s, v) = n->parent;
+            std::tie(s, v) = n->parent();
             diy::save(bb, s->vertex);
             diy::save(bb, v->vertex);
             if (save_vertices)
