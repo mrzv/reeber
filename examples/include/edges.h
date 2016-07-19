@@ -150,7 +150,7 @@ struct DequeueEdges
                     v_node.vertex = v;
                     v_node.value = v_val;
 
-                    if (new_edges.find(std::make_tuple(u_, v_)) != (b->*edges).end())
+                    if (new_edges.find(std::make_tuple(u_, v_)) != new_edges.end())
                     {
                         Node cur_node;
                         std::tie(cur_node.value, cur_node.vertex) = new_edges[std::make_tuple(u_, v_)];
