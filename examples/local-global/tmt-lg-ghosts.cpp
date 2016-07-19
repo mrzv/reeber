@@ -82,7 +82,7 @@ void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void* aux)
     TripletMergeTreeBlock* b = static_cast<TripletMergeTreeBlock*>(b_);
 
     record_stats("Local box:", "{}", b->local);
-    r::compute_merge_tree(b->mt, b->local, b->grid);
+    r::compute_merge_tree2(b->mt, b->local, b->grid);
 
     LOG_SEV(debug) << "[" << b->gid << "] " << "Initial tree size: " << b->mt.size();
     record_stats("Initial tree size:", "{}", b->mt.size());
