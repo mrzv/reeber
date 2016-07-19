@@ -120,31 +120,11 @@ int main(int argc, char** argv)
         domain2(g.shape(), u, g.shape() - Vertex::one()),
         edges_domain(g.shape(), w, x);
 
-    std::vector<std::tuple<Index, Index, Index>> edges;
-    r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin(edges_domain.from(), edges_domain.to()),
-                                end = r::VerticesIterator<Vertex>::end(edges_domain.from(), edges_domain.to());
-    while (it != end)
-    {
-        Vertex u = *it;
-        if (domain1.contains(u))
-        {
-            for (const Index& v : edges_domain.link(u))
-            {
-                if (domain2.contains(v))
-                {
-                    if (g(u) > g(v)) edges.push_back(std::make_tuple(domain.position_to_vertex()(u), domain.position_to_vertex()(u), v));
-                    else edges.push_back(std::make_tuple(v, v, domain.position_to_vertex()(u))); 
-                }
-            }
-        }
-        ++it;
-    }
-
     OffsetGrid g1(g.shape(), domain1.from(), domain1.to()),
                g2(g.shape(), domain2.from(), domain2.to());
 
-    it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to());
-    end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
+    r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to()),
+                                end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
     while (it != end)
     {
         g1(*it) = g(*it);
@@ -163,6 +143,29 @@ int main(int argc, char** argv)
 
     r::compute_merge_tree(mt1, domain1, g1);
     r::compute_merge_tree(mt2, domain2, g2);
+
+    std::vector<std::tuple<Index, Index, Index>> edges;
+    it = r::VerticesIterator<Vertex>::begin(edges_domain.from(), edges_domain.to());
+    end = r::VerticesIterator<Vertex>::end(edges_domain.from(), edges_domain.to());
+    while (it != end)
+    {
+        Index u = domain.position_to_vertex()(*it);
+        if (domain1.contains(u))
+        {
+            for (const Index& v : edges_domain.link(u))
+            {
+                if (domain2.contains(v))
+                {
+                    auto nu = mt1.node(u);
+                    auto nv = mt2.node(v);
+                    if (mt1.cmp(nv, nu)) edges.push_back(std::make_tuple(u, u, v));
+                    else edges.push_back(std::make_tuple(v, v, u)); 
+                }
+            }
+        }
+        ++it;
+    }
+
     it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to()),
     end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
     dlog::Timer t;
