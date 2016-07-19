@@ -135,7 +135,9 @@ struct MergeSparsify
         if (in_size)
         {
             std::vector<Box>               bounds(in_size, b->global.grid_shape());
-            std::vector<TripletMergeTree>  trees(in_size, b->mt.negate());
+            std::vector<TripletMergeTree>  trees;
+            for (int i = 0; i < in_size; ++i)
+                trees.emplace_back(b->mt.negate());
             EdgeMap                        out_edges;
             int out_pos = -1;
             for (int i = 0; i < in_size; ++i)

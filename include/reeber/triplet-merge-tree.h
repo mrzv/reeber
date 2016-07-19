@@ -65,6 +65,14 @@ class TripletMergeTree
                         negate_(negate)                 {}
                     ~TripletMergeTree()                 { for (auto n : nodes_) delete n.second; }
 
+        // It's Ok to move the tree; it's not Ok to copy it (because of the dynamically allocated nodes)
+                    TripletMergeTree(const TripletMergeTree&)   =delete;
+        TripletMergeTree&
+                    operator=(const TripletMergeTree&)          =delete;
+                    TripletMergeTree(TripletMergeTree&&)        =default;
+        TripletMergeTree&
+                    operator=(TripletMergeTree&&)               =default;
+
         void        repair(const Neighbor u);
         Neighbor    add(const Vertex& x, Value v);
         Neighbor    find_or_add(const Vertex& x, Value v);
