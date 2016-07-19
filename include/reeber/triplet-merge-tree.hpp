@@ -328,15 +328,13 @@ reeber::merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Val
     mt1.nodes_.insert(mt2.nodes().begin(), mt2.nodes().end());
     mt2.nodes_.clear();
 
-    Vertex a, b, c;
-    Neighbor u, s, v;
-    for (auto& kv : edges)
+    for (auto& edge : edges)
     {
-        std::tie(a, c) = kv.first;
-        b = std::get<1>(kv.second);
-        u = mt1.node(a);
-        s = mt1.node(b);
-        v = mt1.node(c);
+        Vertex a, b, c;
+        std::tie(a, b, c) = edge;
+        Neighbor u = mt1.node(a);
+        Neighbor s = mt1.node(b);
+        Neighbor v = mt1.node(c);
         if (mt1.cmp(v, u)) merge(mt1, u, s, v);
         else merge(mt1, v, s, u);
     }

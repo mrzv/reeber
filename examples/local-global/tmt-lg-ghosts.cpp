@@ -165,7 +165,7 @@ struct MergeSparsify
             // merge trees and move vertices
             record_stats("Merging trees:", "{} and {}", trees[0].size(), trees[1].size());
 
-            EdgeMap edges;
+            std::vector<std::tuple<Index, Index, Index>> edges;
             std::vector<Edge> discard;
             for (auto& kv : b->edges)
             {
@@ -174,7 +174,7 @@ struct MergeSparsify
                 if (bounds[out_pos].contains(v))
                 {
                     out_edges.erase(std::make_tuple(v, u));
-                    edges[kv.first] = kv.second;
+                    edges.push_back(std::make_tuple(u, std::get<1>(kv.second), v));
                     discard.push_back(kv.first);
                 }
             }

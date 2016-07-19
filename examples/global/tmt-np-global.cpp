@@ -120,7 +120,7 @@ int main(int argc, char** argv)
         domain2(g.shape(), u, g.shape() - Vertex::one()),
         edges_domain(g.shape(), w, x);
 
-    std::vector<std::tuple<Index, Index>> edges;
+    std::vector<std::tuple<Index, Index, Index>> edges;
     r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin(edges_domain.from(), edges_domain.to()),
                                 end = r::VerticesIterator<Vertex>::end(edges_domain.from(), edges_domain.to());
     while (it != end)
@@ -132,7 +132,8 @@ int main(int argc, char** argv)
             {
                 if (domain2.contains(v))
                 {
-                    edges.push_back(std::make_tuple(domain.position_to_vertex()(u), v));
+                    if (g(u) > g(v)) edges.push_back(std::make_tuple(domain.position_to_vertex()(u), domain.position_to_vertex()(u), v));
+                    else edges.push_back(std::make_tuple(v, v, domain.position_to_vertex()(u))); 
                 }
             }
         }
