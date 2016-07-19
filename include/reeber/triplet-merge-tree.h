@@ -71,6 +71,8 @@ class TripletMergeTree
         Neighbor    add_or_update(const Vertex& x, Value v);
         void        link(const Neighbor u, const Neighbor s, const Neighbor v)
                                                         { u->parent_ = Node::make_parent(s, v); }
+        bool        cas_link(const Neighbor u, const Neighbor os, const Neighbor ov, const Neighbor s, const Neighbor v)
+                                                        { auto op = Node::make_parent(os,ov); auto p = Node::make_parent(s,v); return compare_exchange(u->parent_, op, p); }
 
         Neighbor    find_deepest(const Neighbor u);
 

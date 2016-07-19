@@ -55,6 +55,19 @@ namespace reeber
 
     template<class Key, class... Args>
     void map_erase(map<Key, Args...>& m, const Key& k)                              { m.unsafe_erase(k); }
+
+    // set
+    template<class Key,
+             class Hash = std::hash<Key>,
+             class KeyEqual = std::equal_to<Key>,
+             class Allocator = tbb::tbb_allocator<Key>>
+    using set = tbb::concurrent_unordered_set<Key, Hash, KeyEqual, Allocator>;
+
+    template<class... Args>
+    using set_range = typename set<Args...>::range_type;
+
+    template<class Key, class... Args>
+    void set_erase(set<Key, Args...>& s, const Key& k)                              { s.unsafe_erase(k); }
 }
 
 #else
@@ -107,6 +120,19 @@ namespace reeber
 
     template<class Key, class... Args>
     void map_erase(map<Key, Args...>& m, const Key& k)                              { m.erase(k); }
+
+    // set
+    template<class Key,
+             class Hash = std::hash<Key>,
+             class KeyEqual = std::equal_to<Key>,
+             class Allocator = std::allocator<Key>>
+    using set = std::unordered_set<Key, Hash, KeyEqual, Allocator>;
+
+    template<class... Args>
+    using set_range = set<Args...>;
+
+    template<class Key, class... Args>
+    void set_erase(map<Key, Args...>& s, const Key& k)                              { s.erase(k); }
 }
 
 #endif

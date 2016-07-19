@@ -51,15 +51,19 @@ repair(const Neighbor u)
     typedef     typename TripletMergeTree::Neighbor         Neighbor;
 
     Neighbor s, v, s2, v2;
-    std::tie(s, v) = u->parent();
-    if (u == v) return;
-    std::tie(s2, v2) = v->parent();
-    while (!cmp(s, s2) && v != v2)
+    Neighbor ov;
+    do
     {
-        v = v2;
+        std::tie(s, ov) = u->parent();
+        v = ov;
+        if (u == v) return;
         std::tie(s2, v2) = v->parent();
-    }
-    link(u, s, v);
+        while (!cmp(s, s2) && v != v2)
+        {
+            v = v2;
+            std::tie(s2, v2) = v->parent();
+        }
+    } while (!cas_link(u,s,ov,s,v));
 }
 
 template<class Vertex, class Value>
@@ -183,24 +187,27 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
 {
     typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
 
-    Neighbor u, v;
-    for (Vertex a : topology.vertices())
+    // TODO: not sure that do_foreach is the most efficient way to do this
+    vector<Vertex> vertices(std::begin(topology.vertices()), std::end(topology.vertices()));
+
+    for_each(0, vertices.size(), [&](size_t i) { Vertex a = vertices[i]; mt.add(a, f(a)); });
+
+    for_each(0, vertices.size(), [&](size_t i)
     {
-        u = mt.add(a, f(a));
+        Vertex a = vertices[i];
+        Neighbor u = mt[a];
 
         for (const Vertex& b : topology.link(a))
         {
+            if (b < a) continue;
             auto it = mt.nodes().find(b);
-            if (it != mt.nodes().end())
-            {
-                v = it->second;
-                if (mt.cmp(v, u)) merge(mt, u, u, v);
-                else merge(mt, v, v, u);
-            }
+            Neighbor v = it->second;
+            if (mt.cmp(v, u)) merge(mt, u, u, v);
+            else merge(mt, v, v, u);
         }
-    }
+    });
 
-    for (auto n : mt.nodes()) mt.repair(n.second);
+    for_each_range(mt.nodes(), [&](const std::pair<Vertex,Neighbor>& n) { mt.repair(n.second); });
 }
 
 template<class Vertex, class Value, class Special>
@@ -308,13 +315,19 @@ reeber::merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Ver
 
     if (mt.cmp(v, u))
     {
-        mt.link(u, s, v);
-        if (u != u_) merge(mt, v, s_u, u_);
+        bool success = mt.cas_link(u, s_u, u_, s, v);
+        if (!success)
+            merge(mt, u, s, v);     // rinse and repeat
+        else if (u != u_)
+            merge(mt, v, s_u, u_);
     }
     else
     {
-        mt.link(v, s, u);
-        if (v != v_) merge(mt, u, s_v, v_);
+        bool success = mt.cas_link(v, s_v, v_, s, u);
+        if (!success)
+            merge(mt, u, s, v);     // rinse and repeat
+        else if (v != v_)
+            merge(mt, u, s_v, v_);
     }
 }
 
@@ -328,18 +341,18 @@ reeber::merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Val
     mt1.nodes_.insert(mt2.nodes().begin(), mt2.nodes().end());
     mt2.nodes_.clear();
 
-    for (auto& edge : edges)
+    for_each(0, edges.size(), [&](size_t i)
     {
         Vertex a, b, c;
-        std::tie(a, b, c) = edge;
+        std::tie(a, b, c) = edges[i];
         Neighbor u = mt1.node(a);
         Neighbor s = mt1.node(b);
         Neighbor v = mt1.node(c);
         if (mt1.cmp(v, u)) merge(mt1, u, s, v);
         else merge(mt1, v, s, u);
-    }
+    });
 
-    for (auto n : mt1.nodes()) mt1.repair(n.second);
+    for_each_range(mt1.nodes(), [&](const std::pair<Vertex,Neighbor>& n) { mt1.repair(n.second); });
 }
 
 

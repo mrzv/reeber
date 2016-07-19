@@ -53,10 +53,12 @@ int main(int argc, char** argv)
 
     std::string profile_path;
     std::string log_level = "info";
+    int         jobs = r::task_scheduler_init::automatic;
     Options ops(argc, argv);
     ops
         >> Option('p', "profile", profile_path, "path to keep the execution profile")
         >> Option('l', "log",     log_level,    "log level")
+        >> Option('j', "jobs",    jobs,         "number of threads to use (with TBB)")
     ;
     bool        negate      = ops >> Present('n', "negate", "sweep superlevel sets");
 
@@ -67,6 +69,8 @@ int main(int argc, char** argv)
         fmt::print("Usage: {} IN.npy OUT.mt\n{}", argv[0], ops);
         return 1;
     }
+
+    r::task_scheduler_init init(jobs);
 
     dlog::add_stream(std::cerr, dlog::severity(log_level))
         << dlog::stamp() << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
@@ -141,6 +145,7 @@ int main(int argc, char** argv)
     TripletMergeTree mt1(negate);
     TripletMergeTree mt2(negate);
 
+#if 0
     r::compute_merge_tree(mt1, domain1, g1);
     r::compute_merge_tree(mt2, domain2, g2);
 
@@ -171,11 +176,12 @@ int main(int argc, char** argv)
     dlog::Timer t;
     r::merge(mt1, mt2, edges);
     fmt::print("Time: {}\n", t.elapsed());
-
-    // dlog::Timer t;
-    // r::compute_merge_tree2(mt1, domain, g);
-    // fmt::print("Time: {}\n", t.elapsed());
-    // fmt::print("Tree constructed: {}\n", mt1.size());
+#else
+    dlog::Timer t;
+    r::compute_merge_tree2(mt1, domain, g);
+    fmt::print("Time: {}\n", t.elapsed());
+    fmt::print("Tree constructed: {}\n", mt1.size());
+#endif
 
     std::ofstream ofs(outfn.c_str());
     r::traverse_persistence(mt1, OutputPairs(ofs, mt1));
