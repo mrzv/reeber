@@ -387,7 +387,7 @@ int main(int argc, char** argv)
     if (wrap_)
     {
         for (unsigned i = 0; i < 3; ++i)
-            if (decomposer.divisions[i] < 2)
+            if (decomposer.divisions[i] < 3)
             {
                 LOG_SEV(fatal) << "Can't have fewer than two divisions per side, when wrap is on";
                 return -1;
