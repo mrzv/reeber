@@ -56,6 +56,10 @@ namespace reeber
     template<class Key, class... Args>
     void map_erase(map<Key, Args...>& m, const Key& k)                              { m.unsafe_erase(k); }
 
+    template<class Key, class... Args>
+    typename map<Key, Args...>::iterator
+    map_erase(map<Key, Args...>& m, typename map<Key, Args...>::const_iterator it)  { return m.unsafe_erase(it); }
+
     // set
     template<class Key,
              class Hash = std::hash<Key>,
@@ -120,6 +124,10 @@ namespace reeber
 
     template<class Key, class... Args>
     void map_erase(map<Key, Args...>& m, const Key& k)                              { m.erase(k); }
+
+    template<class Key, class... Args>
+    typename map<Key, Args...>::iterator
+    map_erase(map<Key, Args...>& m, typename map<Key, Args...>::const_iterator it)  { return m.erase(it); }
 
     // set
     template<class Key,
