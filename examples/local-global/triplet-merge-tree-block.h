@@ -64,6 +64,7 @@ struct TripletMergeTreeBlock
     OffsetGrid              grid;
     Size                    cell_size;
     EdgeMap                 edges;
+    std::vector<EdgeMap>    edge_maps;
 };
 
 namespace diy
@@ -80,6 +81,7 @@ namespace diy
             diy::save(bb, b.grid);
             diy::save(bb, b.cell_size);
             diy::save(bb, b.edges);
+            diy::save(bb, b.edge_maps);
         }
         static void             load(diy::BinaryBuffer& bb, TripletMergeTreeBlock& b)
         {
@@ -90,6 +92,7 @@ namespace diy
             diy::load(bb, b.grid);
             diy::load(bb, b.cell_size);
             diy::load(bb, b.edges);
+            diy::load(bb, b.edge_maps);
         }
     };
 }

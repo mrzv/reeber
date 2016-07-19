@@ -356,9 +356,9 @@ int main(int argc, char** argv)
     if (wrap_)
     {
         for (unsigned i = 0; i < 3; ++i)
-            if (decomposer.divisions[i] < 2)
+            if (decomposer.divisions[i] < 3)
             {
-                LOG_SEV(fatal) << "Can't have fewer than two divisions per side, when wrap is on";
+                LOG_SEV(fatal) << "Can't have fewer than three divisions per side, when wrap is on";
                 return -1;
             }
     }
@@ -384,9 +384,9 @@ int main(int argc, char** argv)
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute tree:    " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
-    master.foreach(EnqueueEdges<TripletMergeTreeBlock>(&TripletMergeTreeBlock::grid, &TripletMergeTreeBlock::local, &TripletMergeTreeBlock::mt, &TripletMergeTreeBlock::edges, wrap_));
+    master.foreach(EnqueueEdges<TripletMergeTreeBlock>(&TripletMergeTreeBlock::grid, &TripletMergeTreeBlock::local, &TripletMergeTreeBlock::mt, &TripletMergeTreeBlock::edge_maps, wrap_));
     master.exchange();
-    master.foreach(DequeueEdges<TripletMergeTreeBlock>(&TripletMergeTreeBlock::grid, &TripletMergeTreeBlock::local, &TripletMergeTreeBlock::mt, &TripletMergeTreeBlock::edges));
+    master.foreach(DequeueEdges<TripletMergeTreeBlock>(&TripletMergeTreeBlock::grid, &TripletMergeTreeBlock::local, &TripletMergeTreeBlock::mt, &TripletMergeTreeBlock::edge_maps, &TripletMergeTreeBlock::edges));
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to exchange edges:  " << dlog::clock_to_string(timer.elapsed());
