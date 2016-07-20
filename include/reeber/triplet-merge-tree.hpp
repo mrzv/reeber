@@ -153,9 +153,9 @@ reeber::remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& sp
 
     set<Vertex> keep;
 
-    Neighbor u, s, v;
     for_each_range(mt.nodes(), [&](const std::pair<Vertex,Neighbor>& n)
     {
+        Neighbor u, s, v;
         u = n.second;
         std::tie(s, v) = u->parent();
         if (u != s || special(u->vertex))
@@ -174,35 +174,18 @@ reeber::remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& sp
     // Although the standard guarantees that this works only starting with
     // C++14, according to this issue, all compilers support it with C++11:
     // http://wg21.cmeerw.net/lwg/issue2356
-    //auto it = mt.nodes().begin();
-    //while (it != mt.nodes().end())
-    //{
-    //    if (keep.find(it->first) == keep.end())
-    //    {
-    //        Neighbor u = it->second;
-    //        Neighbor v = std::get<1>(u->parent());
-    //        v->vertices.push_back(ValueVertex(u->value, u->vertex));
-    //        delete it->second;
-    //        it = map_erase(mt.nodes(), it);
-    //    } else
-    //        ++it;
-    //}
-
-    set<Vertex> discard;
-    for_each_range(mt.nodes(), [&](const std::pair<Vertex,Neighbor>& n)
+    auto it = mt.nodes().begin();
+    while (it != mt.nodes().end())
     {
-        if (keep.find(n.first) == keep.end())
-            discard.insert(n.first);
-    });
-
-    for (Vertex x : discard)
-    {
-        auto it = mt.nodes().find(x);
-        Neighbor u = it->second;
-        Neighbor v = std::get<1>(u->parent());
-        v->vertices.push_back(ValueVertex(u->value, u->vertex));
-        delete it->second;
-        map_erase(mt.nodes(), it);
+        if (keep.find(it->first) == keep.end())
+        {
+            Neighbor u = it->second;
+            Neighbor v = std::get<1>(u->parent());
+            v->vertices.push_back(ValueVertex(u->value, u->vertex));
+            delete it->second;
+            it = map_erase(mt.nodes(), it);
+        } else
+            ++it;
     }
 }
 
@@ -283,10 +266,10 @@ reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
     typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
 
     set<Vertex> keep;
-    Neighbor u, s, v;
 
     for_each_range(mt.nodes(), [&](const std::pair<Vertex,Neighbor>& n)
     {
+        Neighbor u, s, v;
         if (special(n.first))
         {
             u = n.second;
@@ -304,29 +287,15 @@ reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
     // Although the standard guarantees that this works only starting with
     // C++14, according to this issue, all compilers support it with C++11:
     // http://wg21.cmeerw.net/lwg/issue2356
-    //auto it = mt.nodes().begin();
-    //while (it != mt.nodes().end())
-    //{
-    //    if (keep.find(it->first) == keep.end())
-    //    {
-    //        delete it->second;
-    //        it = map_erase(mt.nodes(), it);
-    //    } else
-    //        ++it;
-    //}
-
-    set<Vertex> discard;
-    for_each_range(mt.nodes(), [&](const std::pair<Vertex,Neighbor>& n)
+    auto it = mt.nodes().begin();
+    while (it != mt.nodes().end())
     {
-        if (keep.find(n.first) == keep.end())
-            discard.insert(n.first);
-    });
-
-    for (Vertex x : discard)
-    {
-        auto it = mt.nodes().find(x);
-        delete it->second;
-        map_erase(mt.nodes(), it);
+        if (keep.find(it->first) == keep.end())
+        {
+            delete it->second;
+            it = map_erase(mt.nodes(), it);
+        } else
+            ++it;
     }
 }
 
