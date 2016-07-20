@@ -38,7 +38,7 @@ struct TripletMergeTreeNode
     bool                        operator>(const TripletMergeTreeNode& other) const     { return value > other.value || (value == other.value && vertex > other.vertex); }
 
     std::tuple<Neighbor, Neighbor>
-                                parent() const                                          { Parent p = parent_; return {p.through, p.to}; }
+                                parent() const                                          { Parent p = parent_; return std::make_tuple(p.through, p.to); }
     static Parent               make_parent(Neighbor s, Neighbor v)                     { return { s, v }; }
 
     Vertex                      vertex;
