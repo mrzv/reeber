@@ -50,15 +50,15 @@ namespace reeber
              class Allocator = tbb::tbb_allocator<std::pair<Key, T>>>
     using map = tbb::concurrent_unordered_map<Key, T, Hash, KeyEqual, Allocator>;
 
-    template<class... Args>
-    using map_range = typename map<Args...>::range_type;
+    template<class Key, class T, class H, class KE, class A>
+    using map_range = typename map<Key, T, H, KE, A>::range_type;
 
-    template<class Key, class... Args>
-    void map_erase(map<Key, Args...>& m, const Key& k)                              { m.unsafe_erase(k); }
+    template<class Key, class T, class H, class KE, class A>
+    void map_erase(map<Key, T, H, KE, A>& m, const Key& k)                              { m.unsafe_erase(k); }
 
-    template<class Key, class... Args>
-    typename map<Key, Args...>::iterator
-    map_erase(map<Key, Args...>& m, typename map<Key, Args...>::const_iterator it)  { return m.unsafe_erase(it); }
+    template<class Key, class T, class H, class KE, class A>
+    typename map<Key, T, H, KE, A>::iterator
+    map_erase(map<Key, T, H, KE, A>& m, typename map<Key, T, H, KE, A>::const_iterator it)  { return m.unsafe_erase(it); }
 
     // set
     template<class Key,
@@ -67,11 +67,11 @@ namespace reeber
              class Allocator = tbb::tbb_allocator<Key>>
     using set = tbb::concurrent_unordered_set<Key, Hash, KeyEqual, Allocator>;
 
-    template<class... Args>
-    using set_range = typename set<Args...>::range_type;
+    template<class Key, class H, class KE, class A>
+    using set_range = typename set<Key, H, KE, A>::range_type;
 
-    template<class Key, class... Args>
-    void set_erase(set<Key, Args...>& s, const Key& k)                              { s.unsafe_erase(k); }
+    template<class Key, class H, class KE, class A>
+    void set_erase(set<Key, H, KE, A>& s, const Key& k)                              { s.unsafe_erase(k); }
 }
 
 #else
@@ -119,15 +119,15 @@ namespace reeber
              class Allocator = std::allocator<std::pair<const Key, T>>>
     using map = std::unordered_map<Key, T, Hash, KeyEqual, Allocator>;
 
-    template<class... Args>
-    using map_range = map<Args...>;
+    //template<class... Args>
+    //using map_range = map<Args...>;
 
-    template<class Key, class... Args>
-    void map_erase(map<Key, Args...>& m, const Key& k)                              { m.erase(k); }
+    template<class Key, class T, class H, class KE, class A>
+    void map_erase(map<Key, T, H, KE, A>& m, const Key& k)                             { m.erase(k); }
 
-    template<class Key, class... Args>
-    typename map<Key, Args...>::iterator
-    map_erase(map<Key, Args...>& m, typename map<Key, Args...>::const_iterator it)  { return m.erase(it); }
+    template<class Key, class T, class H, class KE, class A>
+    typename map<Key, T, H, KE, A>::iterator
+    map_erase(map<Key, T, H, KE, A>& m, typename map<Key, T, H, KE, A>::const_iterator it)  { return m.erase(it); }
 
     // set
     template<class Key,
@@ -136,11 +136,11 @@ namespace reeber
              class Allocator = std::allocator<Key>>
     using set = std::unordered_set<Key, Hash, KeyEqual, Allocator>;
 
-    template<class... Args>
-    using set_range = set<Args...>;
+    //template<class... Args>
+    //using set_range = set<Args...>;
 
-    template<class Key, class... Args>
-    void set_erase(map<Key, Args...>& s, const Key& k)                              { s.erase(k); }
+    template<class Key, class H, class KE, class A>
+    void set_erase(map<Key, H, KE, A>& s, const Key& k)                             { s.erase(k); }
 }
 
 #endif
