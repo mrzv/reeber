@@ -106,7 +106,7 @@ void remove_degree_two(void* b_, const diy::Master::ProxyWithLink& cp, void* aux
 
 void save_no_vertices(diy::BinaryBuffer& bb, const TripletMergeTreeBlock::TripletMergeTree& mt)
 {
-    reeber::Serialization<TripletMergeTreeBlock::TripletMergeTree>::save(bb, mt);
+    reeber::Serialization<TripletMergeTreeBlock::TripletMergeTree>::save(bb, mt, false);
 }
 
 struct MergeSparsify
