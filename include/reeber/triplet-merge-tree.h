@@ -73,7 +73,8 @@ class TripletMergeTree
         TripletMergeTree&
                     operator=(TripletMergeTree&&)               =default;
 
-        void        repair(const Neighbor u);
+        std::tuple<Neighbor,Neighbor>
+                    repair(const Neighbor u);
         Neighbor    add(const Vertex& x, Value v);
         Neighbor    find_or_add(const Vertex& x, Value v);
         Neighbor    add_or_update(const Vertex& x, Value v);

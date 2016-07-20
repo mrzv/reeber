@@ -44,7 +44,7 @@ add_or_update(const Vertex& x, Value v)
 }
 
 template<class Vertex, class Value>
-void
+std::tuple<typename reeber::TripletMergeTree<Vertex, Value>::Neighbor, typename reeber::TripletMergeTree<Vertex, Value>::Neighbor>
 reeber::TripletMergeTree<Vertex, Value>::
 repair(const Neighbor u)
 {
@@ -56,7 +56,7 @@ repair(const Neighbor u)
     {
         std::tie(s, ov) = u->parent();
         v = ov;
-        if (u == v) return;
+        if (u == v) return std::make_tuple(s,v);
         std::tie(s2, v2) = v->parent();
         while (!cmp(s, s2) && v != v2)
         {
@@ -64,6 +64,8 @@ repair(const Neighbor u)
             std::tie(s2, v2) = v->parent();
         }
     } while (!cas_link(u,s,ov,s,v));
+
+    return std::make_tuple(s,v);
 }
 
 template<class Vertex, class Value>
@@ -172,18 +174,35 @@ reeber::remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& sp
     // Although the standard guarantees that this works only starting with
     // C++14, according to this issue, all compilers support it with C++11:
     // http://wg21.cmeerw.net/lwg/issue2356
-    auto it = mt.nodes().begin();
-    while (it != mt.nodes().end())
+    //auto it = mt.nodes().begin();
+    //while (it != mt.nodes().end())
+    //{
+    //    if (keep.find(it->first) == keep.end())
+    //    {
+    //        Neighbor u = it->second;
+    //        Neighbor v = std::get<1>(u->parent());
+    //        v->vertices.push_back(ValueVertex(u->value, u->vertex));
+    //        delete it->second;
+    //        it = map_erase(mt.nodes(), it);
+    //    } else
+    //        ++it;
+    //}
+
+    set<Vertex> discard;
+    for_each_range(mt.nodes(), [&](const std::pair<Vertex,Neighbor>& n)
     {
-        if (keep.find(it->first) == keep.end())
-        {
-            Neighbor u = it->second;
-            Neighbor v = std::get<1>(u->parent());
-            v->vertices.push_back(ValueVertex(u->value, u->vertex));
-            delete it->second;
-            it = map_erase(mt.nodes(), it);
-        } else
-            ++it;
+        if (keep.find(n.first) == keep.end())
+            discard.insert(n.first);
+    });
+
+    for (Vertex x : discard)
+    {
+        auto it = mt.nodes().find(x);
+        Neighbor u = it->second;
+        Neighbor v = std::get<1>(u->parent());
+        v->vertices.push_back(ValueVertex(u->value, u->vertex));
+        delete it->second;
+        map_erase(mt.nodes(), it);
     }
 }
 
@@ -285,15 +304,29 @@ reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
     // Although the standard guarantees that this works only starting with
     // C++14, according to this issue, all compilers support it with C++11:
     // http://wg21.cmeerw.net/lwg/issue2356
-    auto it = mt.nodes().begin();
-    while (it != mt.nodes().end())
+    //auto it = mt.nodes().begin();
+    //while (it != mt.nodes().end())
+    //{
+    //    if (keep.find(it->first) == keep.end())
+    //    {
+    //        delete it->second;
+    //        it = map_erase(mt.nodes(), it);
+    //    } else
+    //        ++it;
+    //}
+
+    set<Vertex> discard;
+    for_each_range(mt.nodes(), [&](const std::pair<Vertex,Neighbor>& n)
     {
-        if (keep.find(it->first) == keep.end())
-        {
-            delete it->second;
-            it = map_erase(mt.nodes(), it);
-        } else
-            ++it;
+        if (keep.find(n.first) == keep.end())
+            discard.insert(n.first);
+    });
+
+    for (Vertex x : discard)
+    {
+        auto it = mt.nodes().find(x);
+        delete it->second;
+        map_erase(mt.nodes(), it);
     }
 }
 
@@ -304,22 +337,18 @@ reeber::merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Ver
     typedef     typename TripletMergeTree<Vertex, Value>::Neighbor          Neighbor;
 
     Neighbor s_u, u_, s_v, v_;
-    mt.repair(u);
-    std::tie(s_u, u_) = u->parent();
-    mt.repair(v);
-    std::tie(s_v, v_) = v->parent();
+    std::tie(s_u, u_) = mt.repair(u);
+    std::tie(s_v, v_) = mt.repair(v);
 
     while (!mt.cmp(s, s_u) && s_u != u_)
     {
         u = u_;
-        mt.repair(u);
-        std::tie(s_u, u_) = u->parent();
+        std::tie(s_u, u_) = mt.repair(u);
     }
     while (!mt.cmp(s, s_v) && s_v != v_)
     {
         v = v_;
-        mt.repair(v);
-        std::tie(s_v, v_) = v->parent();
+        std::tie(s_v, v_) = mt.repair(v);
     }
 
     if (u == v) return;
