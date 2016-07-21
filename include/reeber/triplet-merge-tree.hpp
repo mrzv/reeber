@@ -229,57 +229,12 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
 }
 
 template<class Vertex, class Value, class Special>
-void
-reeber::sparsify(TripletMergeTree<Vertex, Value>& out, TripletMergeTree<Vertex, Value>& in, const Special& special)
+reeber::set<Vertex>
+reeber::sparsify_keep(TripletMergeTree<Vertex, Value>& mt, const Special& special)
 {
-    dlog::prof << "sparsify";
-
-    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
-
-    Neighbor u, s, v, u_, s_, v_;
-
-    for (auto n : in.nodes())
-    {
-        if (special(n.first))
-        {
-            u = n.second;
-            while (1)
-            {
-                std::tie(s, v) = u->parent();
-                u_ = out.find_or_add(u->vertex, u->value);
-                s_ = out.find_or_add(s->vertex, s->value);
-                auto it = out.nodes().find(v->vertex);
-                if (it != out.nodes().end())
-                {
-                    v_ = it->second;
-                    out.link(u_, s_, v_);
-                    out.link(s_, s_, v_);
-                    break;
-                }
-                else
-                {
-                    v_ = out.add(v->vertex, v->value);
-                    out.link(u_, s_, v_);
-                    out.link(s_, s_, v_);
-                    u = v;
-                }
-            }
-        }
-    }
-
-    dlog::prof >> "sparsify";
-}
-
-template<class Vertex, class Value, class Special>
-void
-reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
-{
-    dlog::prof << "sparsify";
-
     typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
 
     set<Vertex> keep;
-
     for_each_range(mt.nodes(), [&](const std::pair<Vertex,Neighbor>& n)
     {
         Neighbor u, s, v;
@@ -296,6 +251,41 @@ reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
             }
         }
     });
+    return keep;
+}
+
+template<class Vertex, class Value, class Special>
+void
+reeber::sparsify(TripletMergeTree<Vertex, Value>& out, TripletMergeTree<Vertex, Value>& in, const Special& special)
+{
+    dlog::prof << "sparsify";
+
+    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
+
+    set<Vertex> keep = sparsify_keep(in, special);
+
+    for_each_range(keep, [&](Vertex x) { out.add(x, in[x]->value); });
+
+    for_each_range(out.nodes(), [&](const std::pair<Vertex,Neighbor>& n)
+    {
+        Neighbor s,v;
+        std::tie(s,v) = in[n.first]->parent();
+        Neighbor ou = n.second;
+        Neighbor os = out[s->vertex];
+        Neighbor ov = out[v->vertex];
+        out.link(ou, os, ov);
+    });
+
+    dlog::prof >> "sparsify";
+}
+
+template<class Vertex, class Value, class Special>
+void
+reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
+{
+    dlog::prof << "sparsify";
+
+    set<Vertex> keep = sparsify_keep(mt, special);
 
     // Although the standard guarantees that this works only starting with
     // C++14, according to this issue, all compilers support it with C++11:

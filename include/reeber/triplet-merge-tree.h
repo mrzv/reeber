@@ -15,7 +15,6 @@
 
 namespace reeber
 {
-
 namespace ba = boost::adaptors;
 
 template<class Vertex_, class Value_>
@@ -125,6 +124,10 @@ class TripletMergeTree
         traverse_persistence(const TripletMergeTree<Vert, Val>& mt, const F& f);
 
         template<class Vert, class Val, class S>
+        friend set<Vert>
+        sparsify_keep(TripletMergeTree<Vert, Val>& mt, const S& s);
+
+        template<class Vert, class Val, class S>
         friend void
         sparsify(TripletMergeTree<Vert, Val>& out, TripletMergeTree<Vert, Val>& in, const S& s);
 
@@ -172,6 +175,10 @@ void merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Vertex
 
 template<class Vertex, class Value, class Edges>
 void merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Value>& mt2, const Edges& edges);
+
+template<class Vertex, class Value, class Special>
+set<Vertex>
+sparsify_keep(TripletMergeTree<Vertex, Value>& mt, const Special& special);
 
 }
 
