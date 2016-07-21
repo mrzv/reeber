@@ -1,4 +1,5 @@
 #include <dlog/log.h>
+#include <dlog/stats.h>
 
 #include "format.h"
 
