@@ -203,8 +203,9 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
     dlog::prof << "compute-merge-tree2";
 
     typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
-
-    vector<Vertex> vertices(std::begin(topology.vertices()), std::end(topology.vertices()));
+    
+    auto vertices_ = topology.vertices();
+    vector<Vertex> vertices(std::begin(vertices_), std::end(vertices_));
 
     for_each(0, vertices.size(), [&](size_t i) { Vertex a = vertices[i]; mt.add(a, f(a)); });
 
