@@ -31,6 +31,12 @@ class Topology
 
 int main(int argc, char** argv)
 {
+    using namespace opts;
+    int threads;
+    Options ops(argc, argv);
+    ops >> Option('t', "threads",   threads,      "number of threads to use (with TBB)");
+    r::task_scheduler_init init(threads);
+
     std::ifstream graph(argv[1]);
     if (graph.is_open())
     {
