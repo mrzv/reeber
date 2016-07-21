@@ -138,6 +138,8 @@ struct MergeSparsify
         LOG_SEV(debug) << "  incoming link size: " << in_size;
         if (in_size)
         {
+            dlog::prof << "dequeue";
+
             std::vector<Box>               bounds(in_size, b->global.grid_shape());
             std::vector<TripletMergeTree>  trees;
             for (int i = 0; i < in_size; ++i)
@@ -163,6 +165,8 @@ struct MergeSparsify
             }
             LOG_SEV(debug) << "  trees and bounds received";
 
+            dlog::prof >> "dequeue";
+
             // merge boxes
             b->global.from() = bounds.front().from();
             b->global.to()   = bounds.back().to();
@@ -170,6 +174,8 @@ struct MergeSparsify
 
             // merge trees and move vertices
             record_stats("Merging trees:", "{} and {}", trees[0].size(), trees[1].size());
+
+            dlog::prof << "compute edges";
 
             std::vector<std::tuple<Index, Index, Index>> edges;
             std::vector<Edge> discard;
@@ -187,6 +193,8 @@ struct MergeSparsify
             for (Edge e : discard) b->edges.erase(e);
             b->edges.insert(out_edges.begin(), out_edges.end());
 
+            dlog::prof >> "compute edges";
+
             trees[0].swap(b->mt);
             r::merge(b->mt, trees[1], edges);
 
@@ -194,6 +202,9 @@ struct MergeSparsify
             LOG_SEV(debug) << "  trees merged: " << b->mt.size();
             record_stats("Trees merged:", "{}", b->mt.size());
         }
+
+        dlog::prof << "compute edge_vertices";
+
         std::unordered_set<Index> edge_vertices;
         for (auto& kv : b->edges)
         {
@@ -202,6 +213,9 @@ struct MergeSparsify
             Index s = std::get<1>(kv.second);
             if (b->global.contains(s)) edge_vertices.insert(s);
         }
+
+        dlog::prof >> "compute edge_vertices";
+
         if (in_size)
         {
             r::sparsify(b->mt, [b, &edge_vertices](Index u) { return b->local.contains(u) || edge_vertices.find(u) != edge_vertices.end(); });
@@ -223,6 +237,8 @@ struct MergeSparsify
         r::sparsify(mt_out, b->mt, [&edge_vertices](Index u) { return edge_vertices.find(u) != edge_vertices.end(); });
         record_stats("Outgoing tree:", "{}", mt_out.size());
 
+        dlog::prof << "enqueue";
+
         for (int i = 0; i < out_size; ++i)
         {
           diy::BlockID nbr_bid = srp.out_link().target(i);
@@ -233,6 +249,8 @@ struct MergeSparsify
             srp.enqueue(nbr_bid, b->edges);
           }
         }
+
+        dlog::prof >> "enqueue";
     }
 
     bool                    wrap;
