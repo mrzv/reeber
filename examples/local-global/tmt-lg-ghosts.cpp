@@ -1,3 +1,7 @@
+#ifdef REEBER_USE_TBB
+#define DIY_NO_THREADS
+#endif
+
 #include <iostream>
 #include <string>
 
@@ -275,19 +279,21 @@ int main(int argc, char** argv)
     int         nblocks    = world.size();
     std::string prefix     = "./DIY.XXXXXX";
     int         in_memory  = -1;
-    int         threads    = 1;
+    int         jobs       = 1;
 
     std::string profile_path;
     std::string log_level = "info";
+    int         threads = r::task_scheduler_init::automatic;
 
     Options ops(argc, argv);
     ops
         >> Option('b', "blocks",    nblocks,      "number of blocks to use")
         >> Option('m', "memory",    in_memory,    "maximum blocks to store in memory")
-        >> Option('j', "jobs",      threads,      "threads to use during the computation")
+        >> Option('j', "jobs",      jobs,         "threads to use during the computation")
         >> Option('s', "storage",   prefix,       "storage prefix")
         >> Option('p', "profile",   profile_path, "path to keep the execution profile")
         >> Option('l', "log",       log_level,    "log level")
+        >> Option('t', "threads",   threads,      "number of threads to use (with TBB)")
     ;
     bool        negate      = ops >> Present('n', "negate", "sweep superlevel sets");
     bool        wrap_       = ops >> Present('w', "wrap",   "periodic boundary conditions");
@@ -309,6 +315,8 @@ int main(int argc, char** argv)
         }
         return 1;
     }
+
+    r::task_scheduler_init init(threads);
 
     dlog::add_stream(std::cerr, dlog::severity(log_level))
         << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
@@ -333,7 +341,7 @@ int main(int argc, char** argv)
     diy::FileStorage            storage(prefix);
 
     diy::Master                 master(world,
-                                       threads,
+                                       jobs,
                                        in_memory,
                                        &TripletMergeTreeBlock::create,
                                        &TripletMergeTreeBlock::destroy,
