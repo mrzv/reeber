@@ -111,11 +111,27 @@ int main(int argc, char** argv)
         box.min[i] = 0;
         box.max[i] = reader.shape()[i] - 1;
     }
-    Grid    g(Vertex(reader.shape()));
-    reader.read(box, g.data());
-    fmt::print("Grid shape: {}\n", g.shape());
+    Grid    g_(Vertex(reader.shape()));
+    reader.read(box, g_.data());
+    fmt::print("Grid shape: {}\n", g_.shape());
 
     delete reader_ptr;
+
+    Vertex shape = g_.shape();
+    shape /= 2;
+    Grid g(shape);
+    r::Box<3> domain(shape);
+    r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin(domain.from(), domain.to()),
+                                end = r::VerticesIterator<Vertex>::end(domain.from(), domain.to());
+    while (it != end)
+    {
+        Vertex v = *it;
+        v *= 2;
+        g(*it) = g_(v);
+        ++it;
+    }
+
+    Grid().swap(g_);
 
     Vertex v = g.shape() - Vertex::one();
     v[0] /= 2;
@@ -127,7 +143,6 @@ int main(int argc, char** argv)
     x[0] = u[0];
 
     r::Box<3>
-        domain(g.shape()),
         domain1(g.shape(), Vertex::zero(), v),
         domain2(g.shape(), u, g.shape() - Vertex::one()),
         edges_domain(g.shape(), w, x);
@@ -135,8 +150,8 @@ int main(int argc, char** argv)
     OffsetGrid g1(g.shape(), domain1.from(), domain1.to()),
                g2(g.shape(), domain2.from(), domain2.to());
 
-    r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to()),
-                                end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
+    it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to());
+    end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
     while (it != end)
     {
         g1(*it) = g(*it);
