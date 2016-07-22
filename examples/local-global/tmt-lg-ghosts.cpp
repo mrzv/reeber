@@ -336,7 +336,8 @@ int main(int argc, char** argv)
 
     r::task_scheduler_init init(threads);
 
-    dlog::add_stream(std::cerr, dlog::severity(log_level))
+    std::ofstream outlog(fmt::format("{}-log-{}.txt", profile_path, world.rank()));
+    dlog::add_stream(outlog, dlog::severity(log_level))
         << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
 
     std::ofstream   profile_stream;
@@ -436,10 +437,13 @@ int main(int argc, char** argv)
     timer.restart();
 
     // save the result
+    if (outfn != "none")
+    {
     if (!split)
         diy::io::write_blocks(outfn, world, master);
     else
         diy::io::split::write_blocks(outfn, world, master);
+    }
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to output trees:    " << dlog::clock_to_string(timer.elapsed());

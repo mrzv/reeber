@@ -26,7 +26,7 @@ typedef     r::OffsetGrid<Real, 3>            OffsetGrid;
 typedef     Grid::Index                       Index;
 typedef     Grid::Vertex                      Vertex;
 typedef     Grid::Value                       Value;
-typedef     r::Box<3>                         Box;
+//typedef     r::Box<3>                         Box;
 typedef     r::TripletMergeTree<Index, Value> TripletMergeTree;
 
 struct OutputPairs
@@ -51,6 +51,10 @@ struct OutputPairs
 
 int main(int argc, char** argv)
 {
+    // need some basic MPI to use for file IO
+    diy::mpi::environment   env(argc, argv);
+    diy::mpi::communicator  world;
+
 #ifdef REEBER_USE_BOXLIB_READER
     reeber::io::BoxLib::environment boxlib_env(argc, argv, world);
 #endif
@@ -79,14 +83,12 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    fmt::print("File: {}\nNumber of threads: {}\n", infn, jobs);
+
     r::task_scheduler_init init(jobs);
 
     dlog::add_stream(std::cerr, dlog::severity(log_level))
         << dlog::stamp() << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
-
-    // need some basic MPI to use for file IO
-    diy::mpi::environment   env(argc, argv);
-    diy::mpi::communicator  world;
 
     std::ofstream   profile_stream;
     if (profile_path == "-")
@@ -124,7 +126,8 @@ int main(int argc, char** argv)
     Vertex x = g.shape() - Vertex::one();
     x[0] = u[0];
 
-    Box domain(g.shape()),
+    r::Box<3>
+        domain(g.shape()),
         domain1(g.shape(), Vertex::zero(), v),
         domain2(g.shape(), u, g.shape() - Vertex::one()),
         edges_domain(g.shape(), w, x);
@@ -191,8 +194,11 @@ int main(int argc, char** argv)
         fmt::print("Time for compute_merge_tree{}: {}\n", cmt, t.elapsed());
     }
 
+    if (outfn != "none")
+    {
     std::ofstream ofs(outfn.c_str());
     r::traverse_persistence(mt1, OutputPairs(ofs, mt1));
+    }
 
 
     dlog::prof.flush();     // TODO: this is necessary because the profile file will close before
