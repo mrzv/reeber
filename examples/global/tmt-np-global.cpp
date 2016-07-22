@@ -17,6 +17,8 @@ namespace r = reeber;
 
 #include "format.h"
 
+#include "reader-interfaces.h"
+
 typedef     REEBER_REAL                       Real;
 
 typedef     r::Grid<Real, 3>                  Grid;
@@ -49,24 +51,32 @@ struct OutputPairs
 
 int main(int argc, char** argv)
 {
+#ifdef REEBER_USE_BOXLIB_READER
+    reeber::io::BoxLib::environment boxlib_env(argc, argv, world);
+#endif
+
     using namespace opts;
 
     std::string profile_path;
     std::string log_level = "info";
     int         jobs = r::task_scheduler_init::automatic;
+    int         cmt= 1;
     Options ops(argc, argv);
     ops
         >> Option('p', "profile", profile_path, "path to keep the execution profile")
         >> Option('l', "log",     log_level,    "log level")
         >> Option('j', "jobs",    jobs,         "number of threads to use (with TBB)")
+        >> Option('m', "merge",   jobs,         "number of threads to use (with TBB)")
+        >> Option('c', "cmt",     cmt,          "compute_merge_tree version")
     ;
     bool        negate      = ops >> Present('n', "negate", "sweep superlevel sets");
+    bool        split       = ops >> Present('s', "split",  "split domain and merge");
 
     std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
         !(ops >> PosOption(infn) >> PosOption(outfn)))
     {
-        fmt::print("Usage: {} IN.npy OUT.mt\n{}", argv[0], ops);
+        fmt::print("Usage: {} IN.npy OUT.dgm\n{}", argv[0], ops);
         return 1;
     }
 
@@ -89,16 +99,10 @@ int main(int argc, char** argv)
         dlog::prof.add_stream(profile_stream);
     }
 
-    // read the full infn
-    diy::mpi::io::file      in(world, infn, diy::mpi::io::file::rdonly);
-    diy::io::NumPy          reader(in);
-    reader.read_header();
 
-    if (reader.word_size() != sizeof(Grid::Value))
-    {
-        fmt::print("Incompatible value types: {} {}\n", reader.word_size(), sizeof(Grid::Value));
-        return 1;
-    }
+    // set up the reader
+    Reader* reader_ptr = Reader::create(infn, world);
+    Reader& reader  = *reader_ptr;
 
     diy::DiscreteBounds box;
     for (unsigned i = 0; i < 3; ++i)
@@ -109,6 +113,8 @@ int main(int argc, char** argv)
     Grid    g(Vertex(reader.shape()));
     reader.read(box, g.data());
     fmt::print("Grid shape: {}\n", g.shape());
+
+    delete reader_ptr;
 
     Vertex v = g.shape() - Vertex::one();
     v[0] /= 2;
@@ -145,43 +151,46 @@ int main(int argc, char** argv)
     TripletMergeTree mt1(negate);
     TripletMergeTree mt2(negate);
 
-#if 0
-    r::compute_merge_tree(mt1, domain1, g1);
-    r::compute_merge_tree(mt2, domain2, g2);
-
-    std::vector<std::tuple<Index, Index, Index>> edges;
-    it = r::VerticesIterator<Vertex>::begin(edges_domain.from(), edges_domain.to());
-    end = r::VerticesIterator<Vertex>::end(edges_domain.from(), edges_domain.to());
-    while (it != end)
+    if (split)
     {
-        Index u = domain.position_to_vertex()(*it);
-        if (domain1.contains(u))
+        r::compute_merge_tree2(mt1, domain1, g1);
+        r::compute_merge_tree2(mt2, domain2, g2);
+
+        std::vector<std::tuple<Index, Index, Index>> edges;
+        it = r::VerticesIterator<Vertex>::begin(edges_domain.from(), edges_domain.to());
+        end = r::VerticesIterator<Vertex>::end(edges_domain.from(), edges_domain.to());
+        while (it != end)
         {
-            for (const Index& v : edges_domain.link(u))
+            Index u = domain.position_to_vertex()(*it);
+            if (domain1.contains(u))
             {
-                if (domain2.contains(v))
+                for (const Index& v : edges_domain.link(u))
                 {
-                    auto nu = mt1.node(u);
-                    auto nv = mt2.node(v);
-                    if (mt1.cmp(nv, nu)) edges.push_back(std::make_tuple(u, u, v));
-                    else edges.push_back(std::make_tuple(v, v, u)); 
+                    if (domain2.contains(v))
+                    {
+                        auto nu = mt1.node(u);
+                        auto nv = mt2.node(v);
+                        if (mt1.cmp(nv, nu)) edges.push_back(std::make_tuple(u, u, v));
+                        else edges.push_back(std::make_tuple(v, v, u)); 
+                    }
                 }
             }
+            ++it;
         }
-        ++it;
-    }
 
-    it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to()),
-    end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
-    dlog::Timer t;
-    r::merge(mt1, mt2, edges);
-    fmt::print("Time: {}\n", t.elapsed());
-#else
-    dlog::Timer t;
-    r::compute_merge_tree2(mt1, domain, g);
-    fmt::print("Time: {}\n", t.elapsed());
-    fmt::print("Tree constructed: {}\n", mt1.size());
-#endif
+        it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to()),
+        end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
+        dlog::Timer t;
+        r::merge(mt1, mt2, edges);
+        fmt::print("Time to merge: {}\n", t.elapsed());
+    }
+    else
+    {
+        dlog::Timer t;
+        if (cmt == 1) r::compute_merge_tree(mt1, domain, g);
+        else r::compute_merge_tree2(mt1, domain, g);
+        fmt::print("Time for compute_merge_tree{}: {}\n", cmt, t.elapsed());
+    }
 
     std::ofstream ofs(outfn.c_str());
     r::traverse_persistence(mt1, OutputPairs(ofs, mt1));
