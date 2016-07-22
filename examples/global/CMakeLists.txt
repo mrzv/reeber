@@ -18,7 +18,7 @@ if                          (boxlib)
 
 string                      (TOLOWER ${CCSE_PRECISION} CCSE_PRECISION_LC)
 
-target_link_libraries       (tmt-lg-global-${CCSE_PRECISION_LC}      ${libraries} ${CCSE_LIBRARIES})
-set_target_properties       (tmt-lg-global-${CCSE_PRECISION_LC}      PROPERTIES COMPILE_FLAGS "-DREEBER_USE_BOXLIB_READER")
+target_link_libraries       (tmt-np-global-${CCSE_PRECISION_LC}      ${libraries} ${CCSE_LIBRARIES})
+set_target_properties       (tmt-np-global-${CCSE_PRECISION_LC}      PROPERTIES COMPILE_FLAGS "-DREEBER_USE_BOXLIB_READER")
 
 endif                       (boxlib)
