@@ -72,6 +72,10 @@ namespace reeber
 
     template<class Key, class H, class KE, class A>
     void set_erase(set<Key, H, KE, A>& s, const Key& k)                              { s.unsafe_erase(k); }
+
+    // allocator
+    template<class T>
+    using allocator = tbb::scalable_allocator<T>;
 }
 
 #else
@@ -142,6 +146,10 @@ namespace reeber
 
     template<class Key, class H, class KE, class A>
     void set_erase(map<Key, H, KE, A>& s, const Key& k)                             { s.erase(k); }
+
+    // allocator
+    template<class T>
+    using allocator = std::allocator<T>;
 }
 
 #endif

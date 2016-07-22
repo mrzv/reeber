@@ -8,7 +8,7 @@ typename reeber::TripletMergeTree<Vertex, Value>::Neighbor
 reeber::TripletMergeTree<Vertex, Value>::
 add(const Vertex& x, Value v)
 {
-    Neighbor n = new Node;
+    Neighbor n = new_node();
     nodes_[x] = n;
     n->vertex = x;
     n->value = v;
@@ -188,7 +188,7 @@ reeber::remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& sp
             Neighbor u = it->second;
             Neighbor v = std::get<1>(u->parent());
             v->vertices.push_back(ValueVertex(u->value, u->vertex));
-            delete it->second;
+            mt.delete_node(it->second);
             it = map_erase(mt.nodes(), it);
         } else
             ++it;
@@ -204,7 +204,7 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
     dlog::prof << "compute-merge-tree2";
 
     typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
-    
+
     auto vertices_ = topology.vertices();
     vector<Vertex> vertices(std::begin(vertices_), std::end(vertices_));
 
@@ -297,7 +297,7 @@ reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
     {
         if (keep.find(it->first) == keep.end())
         {
-            delete it->second;
+            mt.delete_node(it->second);
             it = map_erase(mt.nodes(), it);
         } else
             ++it;

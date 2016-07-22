@@ -62,7 +62,7 @@ class TripletMergeTree
     public:
                     TripletMergeTree(bool negate = false):
                         negate_(negate)                 {}
-                    ~TripletMergeTree()                 { for (auto n : nodes_) delete n.second; }
+                    ~TripletMergeTree()                 { for (auto n : nodes_) delete_node(n.second); }
 
         // It's Ok to move the tree; it's not Ok to copy it (because of the dynamically allocated nodes)
                     TripletMergeTree(const TripletMergeTree&)   =delete;
@@ -103,6 +103,9 @@ class TripletMergeTree
         const VertexNeighborMap& nodes() const          { return nodes_; }
 
         friend struct ::reeber::Serialization<TripletMergeTree>;
+
+        Neighbor    new_node()                          { Neighbor p = alloc_.allocate(1); alloc_.construct(p); return p; }
+        void        delete_node(Neighbor p)             { alloc_.destroy(p); alloc_.deallocate(p,1); }
 
     private:
         VertexNeighborMap& nodes()                      { return nodes_; }
@@ -146,6 +149,7 @@ class TripletMergeTree
     private:
         bool                        negate_;
         VertexNeighborMap           nodes_;
+        allocator<Node>             alloc_;
 };
 
 /**
