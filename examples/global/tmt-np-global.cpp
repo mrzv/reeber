@@ -66,7 +66,6 @@ int main(int argc, char** argv)
         >> Option('p', "profile", profile_path, "path to keep the execution profile")
         >> Option('l', "log",     log_level,    "log level")
         >> Option('j', "jobs",    jobs,         "number of threads to use (with TBB)")
-        >> Option('m', "merge",   jobs,         "number of threads to use (with TBB)")
         >> Option('c', "cmt",     cmt,          "compute_merge_tree version")
     ;
     bool        negate      = ops >> Present('n', "negate", "sweep superlevel sets");
