@@ -64,7 +64,7 @@ int main(int argc, char** argv)
     std::string profile_path;
     std::string log_level = "info";
     int         jobs = r::task_scheduler_init::automatic;
-    int         cmt= 1;
+    int         cmt = 2;
     Options ops(argc, argv);
     ops
         >> Option('p', "profile", profile_path, "path to keep the execution profile")
