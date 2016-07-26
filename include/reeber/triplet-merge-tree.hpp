@@ -173,6 +173,7 @@ reeber::remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& sp
                 if (keep.find(v->vertex) != keep.end()) break;
                 keep.insert(v->vertex);
                 u = v;
+                std::tie(s, v) = u->parent();
             }
         }
     });
