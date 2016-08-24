@@ -389,7 +389,7 @@ int main(int argc, char** argv)
         for (unsigned i = 0; i < 3; ++i)
             if (decomposer.divisions[i] < 3)
             {
-                LOG_SEV(fatal) << "Can't have fewer than two divisions per side, when wrap is on";
+                LOG_SEV(fatal) << "Can't have fewer than three divisions per side, when wrap is on";
                 return -1;
             }
     }

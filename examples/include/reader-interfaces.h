@@ -1,6 +1,7 @@
 #ifndef REEBER_READER_INTERFACES_H
 #define REEBER_READER_INTERFACES_H
 
+#include <stdexcept>
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <diy/io/numpy.hpp>
@@ -49,7 +50,12 @@ struct NumPyReader: public Reader
                             NumPyReader(std::string             infn,
                                         diy::mpi::communicator  world):
                                 in(world, infn, diy::mpi::io::file::rdonly),
-                                numpy_reader(in), dx(3, 1.0)        { numpy_reader.read_header(); }
+                                numpy_reader(in), dx(3, 1.0)
+    {
+        unsigned word_size = numpy_reader.read_header();
+        if (word_size != sizeof(Real))
+            throw std::runtime_error("Data type does not match");
+    }
 
     virtual const Shape&    shape() const                           { return numpy_reader.shape(); }
     virtual const Size&     cell_size() const                       { return dx; }
