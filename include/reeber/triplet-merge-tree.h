@@ -97,7 +97,6 @@ class TripletMergeTree
         bool        cmp(const T& x, const T& y) const   { return negate_ ? x > y : x < y; }
         bool        cmp(Neighbor x, Neighbor y) const   { return cmp(*x, *y); }
 
-        Neighbor    node(const Vertex& x) const         { return nodes_.find(x)->second; }
         Neighbor    operator[](const Vertex& x) const   { return nodes_.find(x)->second; }
 
         const VertexNeighborMap& nodes() const          { return nodes_; }
@@ -139,6 +138,14 @@ class TripletMergeTree
         sparsify(TripletMergeTree<Vert, Val>& mt, const S& s);
 
         template<class Vert, class Val>
+        friend typename TripletMergeTree<Vert, Val>::Neighbor
+        representative(TripletMergeTree<Vert, Val>& mt, typename TripletMergeTree<Vert, Val>::Neighbor u, typename TripletMergeTree<Vert, Val>::Neighbor a);
+
+        template<class Vert, class Val>
+        friend void
+        merge(TripletMergeTree<Vert, Val>& mt, typename TripletMergeTree<Vert, Val>::Neighbor u, typename TripletMergeTree<Vert, Val>::Neighbor v);
+
+        template<class Vert, class Val>
         friend void
         merge(TripletMergeTree<Vert, Val>& mt, typename TripletMergeTree<Vert, Val>::Neighbor u, typename TripletMergeTree<Vert, Val>::Neighbor s, typename TripletMergeTree<Vert, Val>::Neighbor v);
 
@@ -175,7 +182,14 @@ template<class Vertex, class Value, class Special>
 void sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special);
 
 template<class Vertex, class Value>
+typename TripletMergeTree<Vertex, Value>::Neighbor
+representative(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Vertex, Value>::Neighbor u, typename TripletMergeTree<Vertex, Value>::Neighbor a);
+
+template<class Vertex, class Value>
 void merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Vertex, Value>::Neighbor u, typename TripletMergeTree<Vertex, Value>::Neighbor s, typename TripletMergeTree<Vertex, Value>::Neighbor v);
+
+template<class Vertex, class Value>
+void merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Vertex, Value>::Neighbor u, typename TripletMergeTree<Vertex, Value>::Neighbor v);
 
 template<class Vertex, class Value, class Edges>
 void merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Value>& mt2, const Edges& edges);

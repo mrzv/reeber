@@ -177,7 +177,7 @@ struct MergeSparsify
 
             dlog::prof << "compute edges";
 
-            std::vector<std::tuple<Index, Index, Index>> edges;
+            std::vector<std::tuple<Index, Index>> edges;
             std::vector<Edge> discard;
             for (auto& kv : b->edges)
             {
@@ -186,7 +186,9 @@ struct MergeSparsify
                 if (bounds[out_pos].contains(v))
                 {
                     out_edges.erase(std::make_tuple(v, u));
-                    edges.push_back(std::make_tuple(u, std::get<1>(kv.second), v));
+                    Index s = std::get<1>(kv.second);
+                    if (bounds[out_pos].contains(s)) edges.push_back(std::make_tuple(u, s));
+                    else edges.push_back(std::make_tuple(s,v));
                     discard.push_back(kv.first);
                 }
             }
@@ -336,8 +338,7 @@ int main(int argc, char** argv)
 
     r::task_scheduler_init init(threads);
 
-    std::ofstream outlog(fmt::format("{}-log-{}.txt", profile_path, world.rank()));
-    dlog::add_stream(outlog, dlog::severity(log_level))
+    dlog::add_stream(std::cerr, dlog::severity(log_level))
         << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
 
     std::ofstream   profile_stream;
@@ -416,6 +417,18 @@ int main(int argc, char** argv)
     master.foreach(EnqueueEdges<TripletMergeTreeBlock>(&TripletMergeTreeBlock::grid, &TripletMergeTreeBlock::local, &TripletMergeTreeBlock::mt, &TripletMergeTreeBlock::edge_maps, wrap_));
     master.exchange();
     master.foreach(DequeueEdges<TripletMergeTreeBlock>(&TripletMergeTreeBlock::grid, &TripletMergeTreeBlock::local, &TripletMergeTreeBlock::mt, &TripletMergeTreeBlock::edge_maps, &TripletMergeTreeBlock::edges));
+
+    master.exchange();
+
+    if (world.rank() == 0)
+    {
+        size_t total_edge_count = master.proxy(0).get<size_t>();
+        size_t total_new_edges  = master.proxy(0).get<size_t>();
+        LOG_SEV(info) << "Total edges: " << total_edge_count;
+        LOG_SEV(info) << "New edges: " << total_new_edges;
+    }
+    for (int i = 0; i < master.size(); ++i)
+        master.proxy(i).collectives()->clear();
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to exchange edges:  " << dlog::clock_to_string(timer.elapsed());

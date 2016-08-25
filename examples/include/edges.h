@@ -53,6 +53,8 @@ struct EnqueueEdges
             std::vector<std::unordered_map<Index, std::tuple<Value, Index>>> relabel(l->size());
             (b->*edge_maps).resize(l->size());
 
+            size_t edge_count = 0;
+
             for (unsigned axis = 0; axis < Box::dimension(); ++axis)
             {
                 for (bool upper : {false, true})
@@ -63,10 +65,8 @@ struct EnqueueEdges
                     while (it != end)
                     {
                         Index u = (b->*local).position_to_vertex()(*it);
-                        Neighbor u_node = (b->*mt).node(u);
-                        Index s = std::get<0>(u_node->parent())->vertex;
-                        Index u_ = std::get<1>(u_node->parent())->vertex;
-                        if (u != s) u_ = u;
+                        Neighbor u_node = (b->*mt)[u];
+                        Index u_ = representative(b->*mt, u_node, u_node)->vertex;
                         for (Vertex vp : expanded.position_link(u))
                         {
                             // ensure that vertex is inside of domain
@@ -74,6 +74,7 @@ struct EnqueueEdges
                             Index v = (b->*local).position_to_vertex()(vp);
                             if ((b->*local).contains(vp)) continue;
                             int neighbor = -1;
+                            edge_count++;
                             for (int i = 0; i < l->size(); i++)
                             {
                                 auto bounds = l->bounds(i);
@@ -91,7 +92,7 @@ struct EnqueueEdges
                             {
                                 if ((b->*edge_maps)[neighbor].find(std::make_tuple(u_, v)) != (b->*edge_maps)[neighbor].end())
                                 {
-                                    Neighbor u_node_old = (b->*mt).node(std::get<1>((b->*edge_maps)[neighbor][std::make_tuple(u_, v)]));
+                                    Neighbor u_node_old = (b->*mt)[std::get<1>((b->*edge_maps)[neighbor][std::make_tuple(u_, v)])];
                                     if ((b->*mt).cmp(u_node, u_node_old)) (b->*edge_maps)[neighbor][std::make_tuple(u_, v)] = std::make_tuple(u_node->value, u);
                                 }
                                 else (b->*edge_maps)[neighbor][std::make_tuple(u_, v)] = std::make_tuple(u_node->value, u);
@@ -104,6 +105,8 @@ struct EnqueueEdges
             }
 
             for (int i = 0; i < l->size(); i++) cp.enqueue(l->target(i), relabel[i]);
+
+            cp.all_reduce(edge_count, std::plus<size_t>());
         }
     }
 
@@ -144,6 +147,10 @@ struct DequeueEdges
         Block*          b = static_cast<Block*>(b_);
         RGLink*         l = static_cast<RGLink*>(cp.link());
 
+        size_t edge_count = cp.get<size_t>();
+        cp.scratch(edge_count);
+        size_t new_edge_count = 0;
+
         std::unordered_map<Index, std::tuple<Value, Index>> relabel;
         for (int i = 0; i < l->size(); i++)
         {
@@ -180,7 +187,10 @@ struct DequeueEdges
             }
             (b->*edge_maps)[i].clear();
             (b->*edges).insert(new_edges.begin(), new_edges.end());
+            new_edge_count += new_edges.size();
         }
+
+        cp.all_reduce(new_edge_count, std::plus<size_t>());
     }
 
     GridPtr grid;

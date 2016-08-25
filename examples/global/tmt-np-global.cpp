@@ -111,27 +111,13 @@ int main(int argc, char** argv)
         box.min[i] = 0;
         box.max[i] = reader.shape()[i] - 1;
     }
-    Grid    g_(Vertex(reader.shape()));
-    reader.read(box, g_.data());
-    fmt::print("Grid shape: {}\n", g_.shape());
+    Grid    g(Vertex(reader.shape()));
+    reader.read(box, g.data());
+    fmt::print("Grid shape: {}\n", g.shape());
 
     delete reader_ptr;
 
-    Vertex shape = g_.shape();
-    shape /= 2;
-    Grid g(shape);
-    r::Box<3> domain(shape);
-    r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin(domain.from(), domain.to()),
-                                end = r::VerticesIterator<Vertex>::end(domain.from(), domain.to());
-    while (it != end)
-    {
-        Vertex v = *it;
-        v *= 2;
-        g(*it) = g_(v);
-        ++it;
-    }
-
-    Grid().swap(g_);
+    r::Box<3> domain(g.shape());
 
     Vertex v = g.shape() - Vertex::one();
     v[0] /= 2;
@@ -150,8 +136,8 @@ int main(int argc, char** argv)
     OffsetGrid g1(g.shape(), domain1.from(), domain1.to()),
                g2(g.shape(), domain2.from(), domain2.to());
 
-    it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to());
-    end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
+    r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to()),
+                                end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
     while (it != end)
     {
         g1(*it) = g(*it);
@@ -173,7 +159,7 @@ int main(int argc, char** argv)
         r::compute_merge_tree2(mt1, domain1, g1);
         r::compute_merge_tree2(mt2, domain2, g2);
 
-        std::vector<std::tuple<Index, Index, Index>> edges;
+        std::vector<std::tuple<Index, Index>> edges;
         it = r::VerticesIterator<Vertex>::begin(edges_domain.from(), edges_domain.to());
         end = r::VerticesIterator<Vertex>::end(edges_domain.from(), edges_domain.to());
         while (it != end)
@@ -183,13 +169,7 @@ int main(int argc, char** argv)
             {
                 for (const Index& v : edges_domain.link(u))
                 {
-                    if (domain2.contains(v))
-                    {
-                        auto nu = mt1.node(u);
-                        auto nv = mt2.node(v);
-                        if (mt1.cmp(nv, nu)) edges.push_back(std::make_tuple(u, u, v));
-                        else edges.push_back(std::make_tuple(v, v, u)); 
-                    }
+                    if (domain2.contains(v)) edges.push_back(std::make_tuple(u, v)); 
                 }
             }
             ++it;
