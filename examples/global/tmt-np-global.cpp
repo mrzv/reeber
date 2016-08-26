@@ -65,12 +65,15 @@ int main(int argc, char** argv)
     std::string log_level = "info";
     int         jobs = r::task_scheduler_init::automatic;
     int         cmt = 2;
+    int         d = 1;
+
     Options ops(argc, argv);
     ops
         >> Option('p', "profile", profile_path, "path to keep the execution profile")
         >> Option('l', "log",     log_level,    "log level")
         >> Option('j', "jobs",    jobs,         "number of threads to use (with TBB)")
         >> Option('c', "cmt",     cmt,          "compute_merge_tree version")
+        >> Option('d', "scale",   d,            "downsampling factor")
     ;
     bool        negate      = ops >> Present('n', "negate", "sweep superlevel sets");
     bool        split       = ops >> Present('s', "split",  "split domain and merge");
@@ -83,7 +86,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    fmt::print("File: {}\nNumber of threads: {}\n", infn, jobs);
+    fmt::print(std::cerr, "File: {}\nNumber of threads: {}\n", infn, jobs);
 
     r::task_scheduler_init init(jobs);
 
@@ -111,13 +114,29 @@ int main(int argc, char** argv)
         box.min[i] = 0;
         box.max[i] = reader.shape()[i] - 1;
     }
-    Grid    g(Vertex(reader.shape()));
-    reader.read(box, g.data());
-    fmt::print("Grid shape: {}\n", g.shape());
+    Grid    g_(Vertex(reader.shape()));
+    reader.read(box, g_.data());
+    fmt::print(std::cerr, "Grid shape: {}\n", g_.shape());
 
     delete reader_ptr;
 
-    r::Box<3> domain(g.shape());
+    Vertex shape = g_.shape();
+    shape /= d;
+    r::Box<3> domain(shape);
+    Grid g(shape);
+    r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin(domain.from(), domain.to()),
+              			end = r::VerticesIterator<Vertex>::end(domain.from(), domain.to());
+    while (it != end)
+    {
+        Vertex a = *it;
+        a *= d;
+        g(*it) = g_(a);
+        ++it;
+    }
+
+    Grid().swap(g_);
+
+    fmt::print(std::cerr, "Downsampled grid shape: {}\n", g.shape());
 
     Vertex v = g.shape() - Vertex::one();
     v[0] /= 2;
@@ -136,8 +155,8 @@ int main(int argc, char** argv)
     OffsetGrid g1(g.shape(), domain1.from(), domain1.to()),
                g2(g.shape(), domain2.from(), domain2.to());
 
-    r::VerticesIterator<Vertex> it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to()),
-                                end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
+    it = r::VerticesIterator<Vertex>::begin(domain1.from(), domain1.to());
+    end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
     while (it != end)
     {
         g1(*it) = g(*it);
@@ -179,14 +198,14 @@ int main(int argc, char** argv)
         end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
         dlog::Timer t;
         r::merge(mt1, mt2, edges);
-        fmt::print("Time to merge: {}\n", t.elapsed());
+        fmt::print(std::cerr, "Time to merge: {}\n", t.elapsed());
     }
     else
     {
         dlog::Timer t;
         if (cmt == 1) r::compute_merge_tree(mt1, domain, g);
         else r::compute_merge_tree2(mt1, domain, g);
-        fmt::print("Time for compute_merge_tree{}: {}\n", cmt, t.elapsed());
+        fmt::print(std::cerr, "Time for compute_merge_tree{}: {}\n", cmt, t.elapsed());
     }
 
     if (outfn != "none")
