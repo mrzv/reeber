@@ -2,6 +2,7 @@
 #define REEBER_TRIPLET_MERGE_TREE_SERIALIZATION_H
 
 #include <boost/range/adaptor/map.hpp>
+#include <boost/foreach.hpp>
 #include <diy/serialization.hpp>
 #include "parallel-tbb.h"
 #include "triplet-merge-tree.h"
