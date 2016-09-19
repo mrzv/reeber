@@ -12,7 +12,7 @@
 #include <reeber/triplet-merge-tree.h>
 #include <reeber/grid.h>
 #include <reeber/box.h>
-#include <reeber/merge-tree-serialization.h>
+#include <reeber/triplet-merge-tree-serialization.h>
 namespace r = reeber;
 
 #include "format.h"
@@ -66,6 +66,7 @@ int main(int argc, char** argv)
     int         jobs = r::task_scheduler_init::automatic;
     int         cmt = 2;
     int         d = 1;
+    std::string tree_fn;
 
     Options ops(argc, argv);
     ops
@@ -74,6 +75,7 @@ int main(int argc, char** argv)
         >> Option('j', "jobs",    jobs,         "number of threads to use (with TBB)")
         >> Option('c', "cmt",     cmt,          "compute_merge_tree version")
         >> Option('d', "scale",   d,            "downsampling factor")
+        >> Option('t', "tree",    tree_fn,      "file to save the tree");
     ;
     bool        negate      = ops >> Present('n', "negate", "sweep superlevel sets");
     bool        split       = ops >> Present('s', "split",  "split domain and merge");
@@ -210,10 +212,16 @@ int main(int argc, char** argv)
 
     if (outfn != "none")
     {
-    std::ofstream ofs(outfn.c_str());
-    r::traverse_persistence(mt1, OutputPairs(ofs, mt1));
+        std::ofstream ofs(outfn.c_str());
+        r::traverse_persistence(mt1, OutputPairs(ofs, mt1));
     }
 
+    if (!tree_fn.empty())
+    {
+        diy::MemoryBuffer bb;
+        diy::save(bb, mt1);
+        bb.write(tree_fn);
+    }
 
     dlog::prof.flush();     // TODO: this is necessary because the profile file will close before
                             //       the global dlog::prof goes out of scope and flushes the events.

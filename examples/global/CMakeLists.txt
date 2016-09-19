@@ -22,6 +22,10 @@ else                        ()
   set_target_properties     (tmt-np-global-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
 endif                       ()
 
+add_executable              (tmt-depth-${real}     tmt-depth.cpp ${DEBUG_SOURCES} ${SOURCES})
+target_link_libraries       (tmt-depth-${real}     ${libraries})
+set_target_properties       (tmt-depth-${real}     PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
+
 add_executable              (persistence-${real}   persistence.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (persistence-${real}   ${libraries})
 set_target_properties       (persistence-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})
