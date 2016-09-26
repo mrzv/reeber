@@ -9,11 +9,11 @@ reeber::TripletMergeTree<Vertex, Value>::
 add(const Vertex& x, Value v)
 {
     Neighbor n = new_node();
-    nodes_[x] = n;
     n->vertex = x;
     n->value = v;
     n->cur_deepest = n;
     link(n, n, n);
+    nodes_.emplace(x,n);
     return n;
 }
 
