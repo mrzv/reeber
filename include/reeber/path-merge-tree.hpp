@@ -19,21 +19,16 @@ void
 reeber::PathMergeTree<Vertex, Value>::
 merge(Neighbor u, Neighbor v)
 {
-    if (u == v)
-        return;
-
-    if (cmp(v,u))
-        std::swap(u,v);
-
-    Neighbor up = u->parent;
-    if (u != up && !cmp(v, up))     // this handles special case when v == up
-        merge(up, v);
-    else
+    while (u != v)
     {
-        if (compare_exchange(u->parent, up, v))
-            merge(v, up);
-        else
-            merge(u, v);
+        if (cmp(v,u))
+            std::swap(u,v);
+
+        Neighbor up = u->parent;
+        if (u != up && !cmp(v, up))     // this handles special case when v == up
+            u = up;
+        else if (compare_exchange(u->parent, up, v))
+            u = up;
     }
 }
 
