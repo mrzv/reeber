@@ -88,7 +88,9 @@ int main(int argc, char** argv)
     MergeTree mt(negate);
 
     Box domain(g.shape());
+    dlog::Timer t;
     r::compute_merge_tree(mt, domain, g);
+    fmt::print(std::cerr, "Time for compute_merge_tree: {}\n", t.elapsed());
     fmt::print("Tree constructed: {}\n", mt.size());
 
 #ifdef COUNTERS
