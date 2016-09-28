@@ -64,8 +64,6 @@ std::tuple<typename reeber::TripletMergeTree<Vertex, Value>::Neighbor, typename 
 reeber::TripletMergeTree<Vertex, Value>::
 repair(const Neighbor u)
 {
-    typedef     typename TripletMergeTree::Neighbor         Neighbor;
-
     Neighbor s, v, ov;
     do
     {
@@ -319,8 +317,6 @@ void
 reeber::TripletMergeTree<Vertex, Value>::
 merge(Neighbor u, Neighbor s, Neighbor v)
 {
-    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor          Neighbor;
-
     while(true)
     {
         u = representative(u, s);
@@ -332,6 +328,12 @@ merge(Neighbor u, Neighbor s, Neighbor v)
         Neighbor s_v, v_;
         std::tie(s_u, u_) = u->parent();
         std::tie(s_v, v_) = v->parent();
+
+        // check that s_u and s_v haven't changed since running representative
+        if (s_u != u_ && !cmp(s, s_u))
+            continue;
+        if (s_v != v_ && !cmp(s, s_v))
+            continue;
 
         if (cmp(v, u))
         {
