@@ -100,7 +100,8 @@ set                         (libraries
                              ${MPI_CXX_LIBRARIES})
 
 # Sources
-set                         (SOURCES ${CMAKE_SOURCE_DIR}/src/format.cpp)
+add_library                 (format ${CMAKE_SOURCE_DIR}/src/format.cpp)
+set                         (libraries ${libraries} format)
 
 
 # backwards.hpp

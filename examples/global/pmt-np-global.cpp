@@ -9,10 +9,11 @@
 
 #include <diy/io/numpy.hpp>
 
-#include <reeber/triplet-merge-tree.h>
+#include <reeber/path-merge-tree.h>
+#include <reeber/merge-tree.h>
 #include <reeber/grid.h>
 #include <reeber/box.h>
-#include <reeber/triplet-merge-tree-serialization.h>
+#include <reeber/path-merge-tree-serialization.h>
 namespace r = reeber;
 
 #include "format.h"
@@ -27,14 +28,15 @@ typedef     Grid::Index                       Index;
 typedef     Grid::Vertex                      Vertex;
 typedef     Grid::Value                       Value;
 //typedef     r::Box<3>                         Box;
-typedef     r::TripletMergeTree<Index, Value> TripletMergeTree;
+typedef     r::PathMergeTree<Index, Value>    PathMergeTree;
+typedef     r::MergeTree<Index, Value>        MergeTree;
 
 struct OutputPairs
 {
-            OutputPairs(std::ostream& out_, TripletMergeTree &mt_):
+            OutputPairs(std::ostream& out_, MergeTree &mt_):
                 out(out_), negate(mt_.negate()), mt(mt_)           {}
 
-    typedef       TripletMergeTree::Neighbor    Neighbor;
+    typedef       MergeTree::Neighbor    Neighbor;
 
     void    operator()(const Neighbor from, const Neighbor through, const Neighbor to) const
     {
@@ -46,7 +48,7 @@ struct OutputPairs
 
     std::ostream&       out;
     bool                negate;
-    TripletMergeTree&          mt;
+    MergeTree&          mt;
 };
 
 int main(int argc, char** argv)
@@ -64,7 +66,6 @@ int main(int argc, char** argv)
     std::string profile_path;
     std::string log_level = "info";
     int         jobs = r::task_scheduler_init::automatic;
-    int         cmt = 2;
     int         d = 1;
     std::string tree_fn;
 
@@ -73,7 +74,6 @@ int main(int argc, char** argv)
         >> Option('p', "profile", profile_path, "path to keep the execution profile")
         >> Option('l', "log",     log_level,    "log level")
         >> Option('j', "jobs",    jobs,         "number of threads to use (with TBB)")
-        >> Option('c', "cmt",     cmt,          "compute_merge_tree version")
         >> Option('d', "scale",   d,            "downsampling factor")
         >> Option('t', "tree",    tree_fn,      "file to save the tree");
     ;
@@ -172,8 +172,8 @@ int main(int argc, char** argv)
         ++it;
     }
 
-    TripletMergeTree mt1(negate);
-    TripletMergeTree mt2(negate);
+    PathMergeTree mt1(negate);
+    PathMergeTree mt2(negate);
 
     if (split)
     {
@@ -205,15 +205,36 @@ int main(int argc, char** argv)
     else
     {
         dlog::Timer t;
-        if (cmt == 1) r::compute_merge_tree(mt1, domain, g);
-        else r::compute_merge_tree2(mt1, domain, g);
-        fmt::print(std::cerr, "Time for compute_merge_tree{}: {}\n", cmt, t.elapsed());
+        r::compute_merge_tree2(mt1, domain, g);
+        fmt::print(std::cerr, "Time for compute_merge_tree2: {}\n", t.elapsed());
     }
 
     if (outfn != "none")
     {
         std::ofstream ofs(outfn.c_str());
-        r::traverse_persistence(mt1, OutputPairs(ofs, mt1));
+
+        // Lazy way out: copy mt1 into ordinary merge tree and traverse persistence there
+        size_t roots = 0;
+        MergeTree mt(negate);
+        const auto& mt1_ = mt1;
+        for (auto& x : mt1_.nodes())
+        {
+            auto n  = x.second;
+            PathMergeTree::Neighbor np = n->parent;
+
+            auto on = mt.find_or_add(n->vertex, n->value);
+            auto op = mt.find_or_add(np->vertex, np->value);
+            if (on != op)       // mt uses parent == 0 to signify root
+            {
+                on->parent = op;
+                op->children.push_back(on);
+            } else
+                ++roots;
+        }
+        fmt::print(std::cerr, "Found {} roots\n", roots);
+        fmt::print(std::cerr, "Transferred {} roots\n", mt.count_roots());
+        r::remove_degree2(mt, boost::lambda::constant(false));
+        r::traverse_persistence(mt, OutputPairs(ofs, mt));
     }
 
     if (!tree_fn.empty())
