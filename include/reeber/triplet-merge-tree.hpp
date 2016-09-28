@@ -46,13 +46,12 @@ add_or_update(const Vertex& x, Value v)
 
 template<class Vertex, class Value>
 typename reeber::TripletMergeTree<Vertex, Value>::Neighbor
-reeber::representative(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Vertex, Value>::Neighbor u, typename TripletMergeTree<Vertex, Value>::Neighbor a)
+reeber::TripletMergeTree<Vertex, Value>::
+representative(Neighbor u, Neighbor a) const
 {
-    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor          Neighbor;
-
     Neighbor s, v;
     std::tie(s, v) = u->parent();
-    while (!mt.cmp(a, s) && s != v)
+    while (!cmp(a, s) && s != v)
     {
         u = v;
         std::tie(s, v) = u->parent();
@@ -71,7 +70,7 @@ repair(const Neighbor u)
     do
     {
         std::tie(s, ov) = u->parent();
-        v = representative(*this, u, s);
+        v = representative(u, s);
         if (u == v) return std::make_tuple(s,v);
     } while (!cas_link(u,s,ov,s,v));
 
@@ -230,7 +229,7 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
         {
             if (b < a) continue;
             Neighbor v = mt[b];
-            merge(mt, u, v);
+            mt.merge(u, v);
         }
     });
 
@@ -317,39 +316,51 @@ reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
 
 template<class Vertex, class Value>
 void
-reeber::merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Vertex, Value>::Neighbor u, typename TripletMergeTree<Vertex, Value>::Neighbor s, typename TripletMergeTree<Vertex, Value>::Neighbor v)
+reeber::TripletMergeTree<Vertex, Value>::
+merge(Neighbor u, Neighbor s, Neighbor v)
 {
     typedef     typename TripletMergeTree<Vertex, Value>::Neighbor          Neighbor;
 
-    u = representative(mt, u, s);
-    v = representative(mt, v, s);
-    if (u == v) return;
-
-    Neighbor s_u, u_;
-    Neighbor s_v, v_;
-    std::tie(s_u, u_) = u->parent();
-    std::tie(s_v, v_) = v->parent();
-
-    if (mt.cmp(v, u))
+    while(true)
     {
-        std::swap(u, v);
-        std::swap(s_u, s_v);
-        std::swap(u_, v_);
-    }
+        u = representative(u, s);
+        v = representative(v, s);
+        if (u == v)
+            break;
 
-    bool success = mt.cas_link(v, s_v, v_, s, u);
-    if (!success)
-        merge(mt, u, s, v);     // rinse and repeat
-    else if (v != v_)
-        merge(mt, u, s_v, v_);
+        Neighbor s_u, u_;
+        Neighbor s_v, v_;
+        std::tie(s_u, u_) = u->parent();
+        std::tie(s_v, v_) = v->parent();
+
+        if (cmp(v, u))
+        {
+            std::swap(u, v);
+            std::swap(s_u, s_v);
+            std::swap(u_, v_);
+        }
+
+        bool success = cas_link(v, s_v, v_, s, u);
+        if (success)
+        {
+            if (v == v_)
+                break;
+
+            s = s_v;
+            v = v_;
+        } // else: rinse and repeat
+    }
 }
 
 template<class Vertex, class Value>
 void
-reeber::merge(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Vertex, Value>::Neighbor u, typename TripletMergeTree<Vertex, Value>::Neighbor v)
+reeber::TripletMergeTree<Vertex, Value>::
+merge(Neighbor u, Neighbor v)
 {
-    if (mt.cmp(u, v)) merge(mt, v, v, u);
-    else merge(mt, u, u, v);
+    if (cmp(u, v))
+        merge(v, v, u);
+    else
+        merge(u, u, v);
 }
 
 template<class Vertex, class Value, class Edges>
@@ -367,7 +378,7 @@ reeber::merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Val
     {
         Vertex a, b;
         std::tie(a, b) = edges[i];
-        merge(mt1, mt1[a], mt1[b]);
+        mt1.merge(mt1[a], mt1[b]);
     });
 
     for_each_range(mt1.nodes(), [&](const std::pair<Vertex,Neighbor>& n) { mt1.repair(n.second); });
