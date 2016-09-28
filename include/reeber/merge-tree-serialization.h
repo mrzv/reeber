@@ -49,27 +49,14 @@ struct Serialization< MergeTree<Vertex, Value> >
             diy::load(bb, val);
             diy::load(bb, parent);
 
-            Neighbor n;
-            if (mt.contains(vert))      // added as somebody else's parent
-            {
-                n = mt[vert];
-                n->value = val;
-            }
-            else
-                n = mt.add(vert, val);
+            Neighbor n = mt.add_or_update(vert, val);
 
             if (vert != parent)
             {
-                if (mt.contains(parent))
-                {
-                    n->parent = mt[parent];
-                    n->parent->children.push_back(n);
-                } else
-                {
-                    n->parent = mt.add(parent, 0);
-                    n->parent->children.push_back(n);
-                }
+                n->parent = mt.find_or_add(parent, 0);
+                n->parent->children.push_back(n);
             }
+
             if (load_vertices)
                 diy::load(bb, n->vertices);
         }

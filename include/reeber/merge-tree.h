@@ -82,6 +82,9 @@ class MergeTree
         Neighbor    find(Neighbor xn) const;            // finds root of the subtree containing x
         static void link(Neighbor xn, Neighbor yn);     // links yn as a child of xn
 
+        Neighbor    find_or_add(const Vertex& x, Value v);
+        Neighbor    add_or_update(const Vertex& x, Value v);
+
         void        swap(MergeTree& other)              { std::swap(negate_, other.negate_); nodes_.swap(other.nodes_); }
 
         bool        negate() const                      { return negate_; }

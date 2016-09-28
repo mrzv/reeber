@@ -60,6 +60,33 @@ link(Neighbor xn, Neighbor yn)
     xn->children.push_back(yn);
 }
 
+template<class Vertex, class Value>
+typename reeber::MergeTree<Vertex, Value>::Neighbor
+reeber::MergeTree<Vertex, Value>::
+find_or_add(const Vertex& x, Value v)
+{
+    auto it = nodes().find(x);
+    if (it != nodes().end())
+        return it->second;
+    else
+        return add(x, v);
+}
+
+template<class Vertex, class Value>
+typename reeber::MergeTree<Vertex, Value>::Neighbor
+reeber::MergeTree<Vertex, Value>::
+add_or_update(const Vertex& x, Value v)
+{
+    auto it = nodes_.find(x);
+    if (it != nodes_.end())
+    {
+        it->second->value = v;
+        return it->second;
+    }
+    else
+        return add(x, v);
+}
+
 
 /* Compute merge tree */
 template<class MergeTree, class Topology, class Function, class Collapsible>
