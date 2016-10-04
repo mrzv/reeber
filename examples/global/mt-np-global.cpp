@@ -90,7 +90,9 @@ int main(int argc, char** argv)
     Box domain(g.shape());
     dlog::Timer t;
     r::compute_merge_tree(mt, domain, g);
-    fmt::print(std::cerr, "Time for compute_merge_tree: {}\n", t.elapsed());
+    dlog::Timer::duration elapsed = t.elapsed();
+    fmt::print(std::cerr, "Time for compute_merge_tree: {}\n", elapsed);
+    fmt::print("kruskal 1 {}\n", elapsed);
     fmt::print("Tree constructed: {}\n", mt.size());
 
 #ifdef COUNTERS

@@ -200,14 +200,18 @@ int main(int argc, char** argv)
         end = r::VerticesIterator<Vertex>::end(domain1.from(), domain1.to());
         dlog::Timer t;
         r::merge(mt1, mt2, edges);
+        dlog::Timer::duration elapsed = t.elapsed();
         fmt::print(std::cerr, "Time to merge: {}\n", t.elapsed());
+        fmt::print("tmt-merge {} {}\n", jobs, elapsed);
     }
     else
     {
         dlog::Timer t;
         if (cmt == 1) r::compute_merge_tree(mt1, domain, g);
         else r::compute_merge_tree2(mt1, domain, g);
-        fmt::print(std::cerr, "Time for compute_merge_tree{}: {}\n", cmt, t.elapsed());
+        dlog::Timer::duration elapsed = t.elapsed();
+        fmt::print(std::cerr, "Time for compute_merge_tree{}: {}\n", cmt, elapsed);
+        fmt::print("tmt-cmt{} {} {}\n", cmt, jobs, elapsed);
     }
 
     if (outfn != "none")
