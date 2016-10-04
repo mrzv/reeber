@@ -66,7 +66,7 @@ struct EnqueueEdges
                     {
                         Index u = (b->*local).position_to_vertex()(*it);
                         Neighbor u_node = (b->*mt)[u];
-                        Index u_ = representative(b->*mt, u_node, u_node)->vertex;
+                        Index u_ = (b->*mt).representative(u_node, u_node)->vertex;
                         for (Vertex vp : expanded.position_link(u))
                         {
                             // ensure that vertex is inside of domain
