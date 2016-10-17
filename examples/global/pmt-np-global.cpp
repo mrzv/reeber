@@ -224,6 +224,7 @@ int main(int argc, char** argv)
         for (auto& x : mt1_.nodes())
         {
             auto n  = x.second;
+            if (x.first != n->vertex) continue;
             PathMergeTree::Neighbor np = n->parent;
 
             auto on = mt.find_or_add(n->vertex, n->value);

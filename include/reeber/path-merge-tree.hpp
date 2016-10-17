@@ -28,7 +28,15 @@ merge(Neighbor u, Neighbor v)
         if (u != up && !cmp(v, up))     // this handles special case when v == up
             u = up;
         else if (compare_exchange(u->parent, up, v))
+        {
+#ifndef REEBER_USE_TBB
+            auto it = std::find(up->children.begin(), up->children.end(), u);
+            if (it != up->children.end())
+                up->children.erase(it);
+            v->children.push_back(u);
+#endif
             u = up;
+        }
     }
 }
 
@@ -84,6 +92,16 @@ compute_merge_tree2(PathMergeTree<Vertex, Value>& mt, const Topology& topology, 
             Neighbor v = mt[b];
             mt.merge(u, v);
         }
+#ifndef REEBER_USE_TBB
+        if (u->children.size() == 1)   // degree-2 node
+        {
+            // collapse node down
+            u->children[0]->parent = u->parent;
+            u->parent->children.push_back(u->children[0]);
+            mt.nodes()[a] = u->children[0];
+            mt.delete_node(u);
+        }
+#endif
     });
 
     dlog::prof >> "compute-merge-tree2";

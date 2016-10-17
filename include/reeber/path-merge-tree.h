@@ -26,6 +26,9 @@ struct PathMergeTreeNode
     Vertex                      vertex;
     Value                       value;
     atomic<Neighbor>            parent;
+#ifndef REEBER_USE_TBB
+    std::vector<Neighbor>       children;
+#endif
 };
 
 template<class Vertex_, class Value_>
@@ -43,7 +46,7 @@ class PathMergeTree
     public:
                     PathMergeTree(bool negate = false):
                         negate_(negate)                 {}
-                    ~PathMergeTree()                    { for (auto n : nodes_) delete_node(n.second); }
+                    ~PathMergeTree()                    { for (auto n : nodes_) if (n.first == n.second->vertex) delete_node(n.second); }
 
         // It's Ok to move the tree; it's not Ok to copy it (because of the dynamically allocated nodes)
                     PathMergeTree(const PathMergeTree&)     =delete;
