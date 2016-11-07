@@ -1,4 +1,5 @@
 #include <iostream>
+#include <memory>
 #include <string>
 
 #include <boost/algorithm/string/split.hpp>
@@ -41,17 +42,10 @@ class TreeTracer
             diy::mpi::communicator& world = pi_master_.communicator();
 
             BOOST_FOREACH(const std::string& fn, avg_fn_list_)
-                avg_var_readers.push_back(Reader::create(fn, world));
+                avg_var_readers.push_back(std::shared_ptr<Reader>(Reader::create(fn, world)));
 
             if (!density_fn_.empty())
-                density_reader = Reader::create(density_fn_, world);
-        }
-
-                    ~TreeTracer()
-        {
-            BOOST_FOREACH(Reader* reader, avg_var_readers)
-                delete reader;
-            delete density_reader;
+                density_reader = std::shared_ptr<Reader>(Reader::create(density_fn_, world));
         }
 
         void        operator()(void *b, const diy::ReduceProxy& rp, const diy::RegularSwapPartners& partners) const
@@ -62,7 +56,7 @@ class TreeTracer
             if (rp.in_link().size() == 0)
             {
                 std::vector<MergeTreeBlock::OffsetGrid*> add_data;
-                BOOST_FOREACH(Reader* reader, avg_var_readers)
+                BOOST_FOREACH(std::shared_ptr<Reader> reader, avg_var_readers)
                     add_data.push_back(reader->read(block.core));
 
                 MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
@@ -204,13 +198,13 @@ class TreeTracer
         }
 
     private:
-        const Decomposer&    decomposer;
-        diy::Master&         pi_master;
-        Real                 m;
-        Real                 t;
-        std::vector<Reader*> avg_var_readers;
-        Reader*              density_reader;
-        bool                 density_weighted;
+        const Decomposer&                      decomposer;
+        diy::Master&                           pi_master;
+        Real                                   m;
+        Real                                   t;
+        std::vector< std::shared_ptr<Reader> > avg_var_readers;
+        std::shared_ptr<Reader>                density_reader;
+        bool                                   density_weighted;
         std::vector<diy::DiscreteBounds>*  boxes;
 };
 
