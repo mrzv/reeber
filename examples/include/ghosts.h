@@ -28,12 +28,11 @@ struct EnqueueGhosts
                 EnqueueGhosts(GridPtr grid_, BoxPtr local_):
                     grid(grid_), local(local_)          {}
 
-    void        operator()(void* b_, const diy::Master::ProxyWithLink& cp, void*) const
+    void        operator()(Block* b, const diy::Master::ProxyWithLink& cp) const
     {
         typedef     diy::RegularGridLink                        RGLink;
         typedef     typename reeber::RestrictGrid<Grid>::type   GridRestriction;
 
-        Block*      b = static_cast<Block*>(b_);
         RGLink*     l = static_cast<RGLink*>(cp.link());
 
         // enqueue to lower side
@@ -72,12 +71,11 @@ struct DequeueGhosts
                 DequeueGhosts(GridPtr grid_, BoxPtr local_):
                     grid(grid_), local(local_)          {}
 
-    void        operator()(void* b_, const diy::Master::ProxyWithLink& cp, void*) const
+    void        operator()(Block* b, const diy::Master::ProxyWithLink& cp) const
     {
         typedef     diy::RegularGridLink                        RGLink;
         typedef     typename reeber::RestrictGrid<Grid>::type   GridRestriction;
 
-        Block*          b = static_cast<Block*>(b_);
         RGLink*         l = static_cast<RGLink*>(cp.link());
 
         // dequeue from upper sides

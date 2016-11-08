@@ -32,7 +32,7 @@ struct MergeTreeBlock
     static void             save(const void* b, diy::BinaryBuffer& bb)      { diy::save(bb, *static_cast<const MergeTreeBlock*>(b)); }
     static void             load(      void* b, diy::BinaryBuffer& bb)      { diy::load(bb, *static_cast<MergeTreeBlock*>(b)); }
 
-    inline void             compute_average(const diy::Master::ProxyWithLink& cp, void*);
+    inline void             compute_average(const diy::Master::ProxyWithLink& cp);
 
     int                     gid;
     Box                     core;
@@ -73,7 +73,7 @@ namespace diy
 
 void
 MergeTreeBlock::
-compute_average(const diy::Master::ProxyWithLink& cp, void*)
+compute_average(const diy::Master::ProxyWithLink& cp)
 {
     double                value = 0;
     size_t                count = 0;

@@ -57,13 +57,8 @@ struct OutputPairs
     mutable std::ofstream       ofs;
 };
 
-void output_persistence(void* b_, const diy::Master::ProxyWithLink& cp, void* aux)
+void output_persistence(MergeTreeBlock* b, const diy::Master::ProxyWithLink& cp, const OutputPairs::ExtraInfo& extra)
 {
-    typedef             OutputPairs::ExtraInfo              ExtraInfo;
-
-    MergeTreeBlock*     b       = static_cast<MergeTreeBlock*>(b_);
-    ExtraInfo&          extra   = *static_cast<ExtraInfo*>(aux);
-
     LOG_SEV(debug) << "Block:   " << cp.gid();
     LOG_SEV(debug) << " Tree:   " << b->mt.size() << " with " << b->mt.count_roots() << " roots";
     LOG_SEV(debug) << " Local:  " << b->local.from()  << " - " << b->local.to();
@@ -150,7 +145,7 @@ int main(int argc, char** argv)
 
     // output persistence
     OutputPairs::ExtraInfo extra(outfn, decomposer, verbose);
-    master.foreach(&output_persistence, &extra);
+    master.foreach([&extra](MergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) { output_persistence(b,cp,extra); });
 
     dlog::prof.flush();
 }

@@ -41,10 +41,10 @@ struct LoadAdd
         MergeTreeBlock*         b  = new MergeTreeBlock;
         diy::RegularGridLink*   l  = new diy::RegularGridLink(link);
 
-        Vertex                  full_shape = Vertex(domain.max) - Vertex(domain.min) + Vertex::one();
+        Vertex                  full_shape = Vertex(&domain.max[0]) - Vertex(&domain.min[0]) + Vertex::one();
 
-        LOG_SEV(debug) << "[" << b->gid << "] " << "Bounds: " << Vertex(bounds.min) << " - " << Vertex(bounds.max);
-        LOG_SEV(debug) << "[" << b->gid << "] " << "Core:   " << Vertex(core.min)   << " - " << Vertex(core.max);
+        LOG_SEV(debug) << "[" << b->gid << "] " << "Bounds: " << Vertex(&bounds.min[0]) << " - " << Vertex(&bounds.max[0]);
+        LOG_SEV(debug) << "[" << b->gid << "] " << "Core:   " << Vertex(&core.min[0])   << " - " << Vertex(&core.max[0]);
 
         diy::DiscreteBounds read_bounds = bounds;
         for (unsigned i = 0; i < 3; ++i)
@@ -52,12 +52,12 @@ struct LoadAdd
                 read_bounds.max[i]--;
             else if (wrap)
                 bounds.max[i]++;
-        OffsetGrid(full_shape, bounds.min, bounds.max).swap(b->grid);
+        OffsetGrid(full_shape, &bounds.min[0], &bounds.max[0]).swap(b->grid);
 
-        OffsetGrid tmp(full_shape, read_bounds.min, read_bounds.max);
+        OffsetGrid tmp(full_shape, &read_bounds.min[0], &read_bounds.max[0]);
         reader.read(read_bounds, tmp.data(), true);      // collective; implicitly assumes same number of blocks on every processor
-        r::VerticesIterator<Vertex> vi  = r::VerticesIterator<Vertex>::begin(read_bounds.min, read_bounds.max),
-                                    end = r::VerticesIterator<Vertex>::end(read_bounds.min,   read_bounds.max);
+        r::VerticesIterator<Vertex> vi  = r::VerticesIterator<Vertex>::begin(&read_bounds.min[0], &read_bounds.max[0]),
+                                    end = r::VerticesIterator<Vertex>::end  (&read_bounds.min[0], &read_bounds.max[0]);
         while (vi != end)
         {
             const Vertex& v = *vi;
@@ -68,11 +68,11 @@ struct LoadAdd
         b->gid = gid;
         b->cell_size = reader.cell_size();
         b->mt.set_negate(negate);
-        b->core  = Box(full_shape, core.min, core.max);
+        b->core  = Box(full_shape, &core.min[0], &core.max[0]);
         for (unsigned i = 0; i < 3; ++i)
             if (b->core.to()[i] != domain.max[i])
                 b->core.to()[i] -= 1;
-        b->local = b->global = Box(full_shape, bounds.min, bounds.max);
+        b->local = b->global = Box(full_shape, &bounds.min[0], &bounds.max[0]);
         LOG_SEV(debug) << "[" << b->gid << "] Local box:  " << b->local.from()  << " - " << b->local.to();
         LOG_SEV(debug) << "[" << b->gid << "] Global box: " << b->global.from() << " - " << b->global.to();
         LOG_SEV(debug) << "[" << b->gid << "] Grid shape: " << b->grid.shape();
@@ -98,11 +98,8 @@ void record_stats(const char* message, const char* format, fmt::ArgList args)
 }
 FMT_VARIADIC(void, record_stats, const char*, const char*)
 
-void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void* aux)
+void compute_tree(MergeTreeBlock* b, const diy::Master::ProxyWithLink& cp, bool compact)
 {
-    MergeTreeBlock* b = static_cast<MergeTreeBlock*>(b_);
-    bool compact = *static_cast<bool*>(aux);
-
     record_stats("Local box:", "{}", b->local);
     r::compute_merge_tree(b->mt, b->local, b->grid, PruneInitial(b, b->grid), !compact);
     if (compact)    // remove map entries that aren't nodes themselves
@@ -416,7 +413,7 @@ int main(int argc, char** argv)
     //master.foreach(&save_grids);
     //master.foreach(&test_link);
 
-    master.foreach(&compute_tree, &compact);
+    master.foreach([&compact](MergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) { compute_tree(b, cp, compact); });
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute tree:    " << dlog::clock_to_string(timer.elapsed());

@@ -75,39 +75,39 @@ int main(int argc, char** argv)
     LOG_SEV(info) << "Blocks read: " << master.size();
 
     std::ofstream out(outfn.c_str());
-    master.foreach<MergeTreeBlock>([&](MergeTreeBlock* b, const diy::Master::ProxyWithLink& cp, void*)
-                                   {
-                                    const MergeTreeBlock::MergeTree& mt = b->mt;
+    master.foreach([&](MergeTreeBlock* b, const diy::Master::ProxyWithLink& cp)
+                   {
+                    const MergeTreeBlock::MergeTree& mt = b->mt;
 
-                                    fmt::print(out, "Block {}", b->gid);
-                                    if (verbose)
-                                        fmt::print(out, " (local: {}, core: {})", b->local, b->core);
-                                    fmt::print(out, "\n");
-                                    BOOST_FOREACH(MergeTreeBlock::MergeTree::Neighbor n, mt.nodes() | reeber::ba::map_values)
-                                    {
-                                        fmt::print(out, "Node {}", n->vertex);
-                                        if (verbose)
-                                            fmt::print(out, " ({})", b->global.position(n->vertex));
-                                        if (n->parent)
-                                            fmt::print(out, " -> {}:\n", n->parent->vertex);
-                                        else
-                                            fmt::print(out, " (root):\n");
-                                        if (!n->vertices.empty())
-                                        {
-                                            std::sort(n->vertices.begin(), n->vertices.end(),
-                                                      [](const MergeTreeBlock::MergeTree::Node::ValueVertex& x,
-                                                         const MergeTreeBlock::MergeTree::Node::ValueVertex& y)
-                                                      { return x.second < y.second; });
-                                            BOOST_FOREACH(const MergeTreeBlock::MergeTree::Node::ValueVertex& vv, n->vertices)
-                                            {
-                                                fmt::print(out, " {}", vv.second);
-                                                if (verbose)
-                                                    fmt::print(out, " ({})", b->global.position(vv.second));
-                                            }
-                                            fmt::print(out, "\n");
-                                        }
-                                    }
-                                   });
+                    fmt::print(out, "Block {}", b->gid);
+                    if (verbose)
+                        fmt::print(out, " (local: {}, core: {})", b->local, b->core);
+                    fmt::print(out, "\n");
+                    BOOST_FOREACH(MergeTreeBlock::MergeTree::Neighbor n, mt.nodes() | reeber::ba::map_values)
+                    {
+                        fmt::print(out, "Node {}", n->vertex);
+                        if (verbose)
+                            fmt::print(out, " ({})", b->global.position(n->vertex));
+                        if (n->parent)
+                            fmt::print(out, " -> {}:\n", n->parent->vertex);
+                        else
+                            fmt::print(out, " (root):\n");
+                        if (!n->vertices.empty())
+                        {
+                            std::sort(n->vertices.begin(), n->vertices.end(),
+                                      [](const MergeTreeBlock::MergeTree::Node::ValueVertex& x,
+                                         const MergeTreeBlock::MergeTree::Node::ValueVertex& y)
+                                      { return x.second < y.second; });
+                            BOOST_FOREACH(const MergeTreeBlock::MergeTree::Node::ValueVertex& vv, n->vertices)
+                            {
+                                fmt::print(out, " {}", vv.second);
+                                if (verbose)
+                                    fmt::print(out, " ({})", b->global.position(vv.second));
+                            }
+                            fmt::print(out, "\n");
+                        }
+                    }
+                   });
 
     dlog::prof.flush();
 }

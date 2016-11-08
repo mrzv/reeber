@@ -44,18 +44,18 @@ struct LoadAdd
         TripletMergeTreeBlock*  b  = new TripletMergeTreeBlock;
         diy::RegularGridLink*   l  = new diy::RegularGridLink(link);
 
-        Vertex                  full_shape = Vertex(domain.max) - Vertex(domain.min) + Vertex::one();
+        Vertex                  full_shape = Vertex(&domain.max[0]) - Vertex(&domain.min[0]) + Vertex::one();
 
-        LOG_SEV(debug) << "[" << b->gid << "] " << "Bounds: " << Vertex(bounds.min) << " - " << Vertex(bounds.max);
-        LOG_SEV(debug) << "[" << b->gid << "] " << "Core:   " << Vertex(core.min)   << " - " << Vertex(core.max);
+        LOG_SEV(debug) << "[" << b->gid << "] " << "Bounds: " << Vertex(&bounds.min[0]) << " - " << Vertex(&bounds.max[0]);
+        LOG_SEV(debug) << "[" << b->gid << "] " << "Core:   " << Vertex(&core.min[0])   << " - " << Vertex(&core.max[0]);
 
-        OffsetGrid(full_shape, bounds.min, bounds.max).swap(b->grid);
+        OffsetGrid(full_shape, &bounds.min[0], &bounds.max[0]).swap(b->grid);
         reader.read(bounds, b->grid.data(), true);      // collective; implicitly assumes same number of blocks on every processor
 
         b->gid = gid;
         b->cell_size = reader.cell_size();
         b->mt.set_negate(negate);
-        b->local = b->global = Box(full_shape, core.min, core.max);
+        b->local = b->global = Box(full_shape, &core.min[0], &core.max[0]);
         LOG_SEV(debug) << "[" << b->gid << "] Local box:  " << b->local.from()  << " - " << b->local.to();
         LOG_SEV(debug) << "[" << b->gid << "] Global box: " << b->global.from() << " - " << b->global.to();
         LOG_SEV(debug) << "[" << b->gid << "] Grid shape: " << b->grid.shape();
@@ -81,10 +81,8 @@ void record_stats(const char* message, const char* format, fmt::ArgList args)
 }
 FMT_VARIADIC(void, record_stats, const char*, const char*)
 
-void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void* aux)
+void compute_tree(TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp)
 {
-    TripletMergeTreeBlock* b = static_cast<TripletMergeTreeBlock*>(b_);
-
     record_stats("Local box:", "{}", b->local);
     r::compute_merge_tree2(b->mt, b->local, b->grid);
 
@@ -94,10 +92,9 @@ void compute_tree(void* b_, const diy::Master::ProxyWithLink& cp, void* aux)
     TripletMergeTreeBlock::OffsetGrid().swap(b->grid);     // clear out the grid, we don't need it anymore
 }
 
-void remove_degree_two(void* b_, const diy::Master::ProxyWithLink& cp, void* aux)
+void remove_degree_two(TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp)
 {
     typedef              TripletMergeTreeBlock::Index               Index;
-    TripletMergeTreeBlock* b = static_cast<TripletMergeTreeBlock*>(b_);
 
     std::unordered_set<Index> special;
     for (auto &kv : b->edges)
@@ -427,7 +424,7 @@ int main(int argc, char** argv)
         LOG_SEV(info) << "Total edges: " << total_edge_count;
         LOG_SEV(info) << "New edges: " << total_new_edges;
     }
-    for (int i = 0; i < master.size(); ++i)
+    for (unsigned i = 0; i < master.size(); ++i)
         master.proxy(i).collectives()->clear();
 
     world.barrier();

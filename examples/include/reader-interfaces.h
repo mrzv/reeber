@@ -40,7 +40,7 @@ inline Reader::OffsetGrid* Reader::read(const r::Box<3> &bounds)
         read_bounds.min[d] = bounds.from()[d];
         read_bounds.max[d] = bounds.to()[d];
     }
-    OffsetGrid *og = new OffsetGrid(shape(), read_bounds.min, read_bounds.max);
+    OffsetGrid *og = new OffsetGrid(shape(), &read_bounds.min[0], &read_bounds.max[0]);
     read(read_bounds, og->data(), true);
     return og;
 }

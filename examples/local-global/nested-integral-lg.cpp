@@ -228,9 +228,9 @@ struct OutputIntegrals
                     OutputIntegrals(std::string outfn_, bool density_weighted_, bool verbose_):
                         outfn(outfn_), density_weighted(density_weighted_), verbose(verbose_)   {}
 
-       void         operator()(void *b, const diy::Master::ProxyWithLink& cp, void* aux) const
+       void         operator()(PersistentIntegralBlock* b, const diy::Master::ProxyWithLink& cp) const
        {
-           PersistentIntegralBlock&  block = *static_cast<PersistentIntegralBlock*>(b);
+           PersistentIntegralBlock&  block = *b;
 
            std::string   dgm_fn = fmt::format("{}-b{}.comp", outfn, block.gid);
            std::ofstream ofs(dgm_fn.c_str());

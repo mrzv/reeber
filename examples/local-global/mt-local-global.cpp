@@ -40,19 +40,19 @@ struct LoadComputeAdd
         MergeTreeBlock*         b  = new MergeTreeBlock;
         diy::RegularGridLink*   l  = new diy::RegularGridLink(link);
 
-        Vertex                  full_shape = Vertex(domain.max) - Vertex(domain.min) + Vertex::one();
+        Vertex                  full_shape = Vertex(&domain.max[0]) - Vertex(&domain.min[0]) + Vertex::one();
 
-        OffsetGrid g(full_shape, bounds.min, bounds.max);
+        OffsetGrid g(full_shape, &bounds.min[0], &bounds.max[0]);
         reader.read(bounds, g.data(), true);      // collective; implicitly assumes same number of blocks on every processor
 
         b->gid = gid;
         b->cell_size = reader.cell_size();
         b->mt.set_negate(negate);
-        b->core  = Box(full_shape, core.min, core.max);
+        b->core  = Box(full_shape, &core.min[0], &core.max[0]);
         for (unsigned i = 0; i < 3; ++i)
             if (b->core.to()[i] != domain.max[i])
                 b->core.to()[i] -= 1;
-        b->local = b->global = Box(full_shape, bounds.min, bounds.max);
+        b->local = b->global = Box(full_shape, &bounds.min[0], &bounds.max[0]);
         LOG_SEV(debug) << "Local box:  " << b->local.from()  << " - " << b->local.to();
         LOG_SEV(debug) << "Global box: " << b->global.from() << " - " << b->global.to();
 

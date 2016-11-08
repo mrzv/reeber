@@ -27,11 +27,10 @@ struct EnqueueEdges
                 EnqueueEdges(GridPtr grid_, BoxPtr local_, MtPtr mt_, EdgeMapsPtr edge_maps_, bool wrap_):
                     grid(grid_), local(local_), mt(mt_), edge_maps(edge_maps_), wrap(wrap_)          {}
 
-    void        operator()(void* b_, const diy::Master::ProxyWithLink& cp, void*) const
+    void        operator()(Block* b, const diy::Master::ProxyWithLink& cp) const
     {
         typedef     diy::RegularGridLink                        RGLink;
 
-        Block*      b = static_cast<Block*>(b_);
         RGLink*     l = static_cast<RGLink*>(cp.link());
 
         {
@@ -79,7 +78,7 @@ struct EnqueueEdges
                             {
                                 auto bounds = l->bounds(i);
                                 auto shape = (b->*local).grid_shape();
-                                Box box(shape, bounds.min, bounds.max);
+                                Box box(shape, &bounds.min[0], &bounds.max[0]);
                                 auto vp = box.position(v);
                                 if (box.contains(vp))
                                 {
@@ -140,11 +139,10 @@ struct DequeueEdges
                 DequeueEdges(GridPtr grid_, BoxPtr local_, MtPtr mt_, EdgeMapsPtr edge_maps_, EdgePtr edges_):
                     grid(grid_), local(local_), mt(mt_), edge_maps(edge_maps_), edges(edges_)          {}
 
-    void        operator()(void* b_, const diy::Master::ProxyWithLink& cp, void*) const
+    void        operator()(Block* b, const diy::Master::ProxyWithLink& cp) const
     {
         typedef     diy::RegularGridLink                        RGLink;
 
-        Block*          b = static_cast<Block*>(b_);
         RGLink*         l = static_cast<RGLink*>(cp.link());
 
         size_t edge_count = cp.get<size_t>();
