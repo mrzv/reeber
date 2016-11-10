@@ -1,3 +1,3 @@
-#!/bin/bash
+#!/bin/sh
 
-LC_ALL=C sort
+LC_ALL=C sort $@
