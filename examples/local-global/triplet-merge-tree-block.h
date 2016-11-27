@@ -8,6 +8,7 @@
 #include <reeber/grid-serialization.h>
 #include <reeber/box.h>
 #include <reeber/triplet-merge-tree-serialization.h>
+#include <reeber/edges.h>
 namespace r = reeber;
 
 #include "reeber-real.h"
@@ -26,26 +27,8 @@ struct TripletMergeTreeBlock
 
     typedef     std::tuple<Index, Index>          Edge;
 
-    struct edge_hash : public std::unary_function<Edge, std::size_t>
-    {
-        std::size_t operator()(const Edge& k) const
-        {
-            size_t x = std::hash<Index>()(std::get<0>(k));
-            size_t y = std::hash<Index>()(std::get<1>(k));
-            return x ^ (y + 0x9e3779b9 + (x<<6) + (x>>2));
-        }
-    };
-
-    struct edge_equal : public std::binary_function<Edge, Edge, bool>
-    {
-        bool operator()(const Edge& v0, const Edge& v1) const
-        {
-            return std::get<0>(v0) == std::get<0>(v1) && std::get<1>(v0) == std::get<1>(v1);
-        }
-    };
-
-    typedef     std::unordered_map<Edge, std::tuple<Value, Index>, edge_hash, edge_equal>
-                                                  EdgeMap;
+    using EdgeMap  = reeber::EdgeMap<Index, Value>;
+    using EdgeMaps = reeber::EdgeMaps<Index, Value>;
 
     static void*            create()                                        { return new TripletMergeTreeBlock; }
     static void             destroy(void* b)                                { delete static_cast<TripletMergeTreeBlock*>(b); }
@@ -61,7 +44,7 @@ struct TripletMergeTreeBlock
     OffsetGrid              grid;
     Size                    cell_size;
     EdgeMap                 edges;
-    std::vector<EdgeMap>    edge_maps;
+    EdgeMaps                edge_maps;
 };
 
 namespace diy

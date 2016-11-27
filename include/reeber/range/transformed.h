@@ -17,7 +17,7 @@ struct transformed_types
     using RangeIterator     = decltype(std::declval<Range>().begin());
     using RangeValue        = typename std::remove_reference<decltype(*std::declval<RangeIterator>())>::type;
     using value_type        = typename std::remove_reference<decltype(std::declval<Transform>()(std::declval<RangeValue>()))>::type;
-    using IteratorParent    = std::iterator<std::forward_iterator_tag, value_type>;
+    using IteratorParent    = std::iterator<std::forward_iterator_tag, value_type, std::ptrdiff_t, value_type*, value_type>;
 };
 
 template<class Range, class Transform>

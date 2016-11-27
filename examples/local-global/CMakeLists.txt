@@ -14,6 +14,10 @@ add_executable              (tmt-lg-ghosts-${real}     tmt-lg-ghosts.cpp ${DEBUG
 target_link_libraries       (tmt-lg-ghosts-${real}     ${libraries})
 set_target_properties       (tmt-lg-ghosts-${real}     PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
 
+add_executable              (tmt-distributed-${real}   tmt-distributed.cpp ${DEBUG_SOURCES} ${SOURCES})
+target_link_libraries       (tmt-distributed-${real}   ${libraries})
+set_target_properties       (tmt-distributed-${real}   PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
+
 add_executable              (persistence-lg-${real}   persistence-lg.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (persistence-lg-${real}   ${libraries})
 set_target_properties       (persistence-lg-${real}   PROPERTIES COMPILE_FLAGS -DREEBER_REAL=${real})

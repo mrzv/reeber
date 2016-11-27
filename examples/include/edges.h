@@ -17,12 +17,13 @@ struct EnqueueEdges
     typedef     typename Grid::Value                  Value;
     typedef     typename Block::TripletMergeTree      TripletMergeTree;
     typedef     typename Block::EdgeMap               EdgeMap;
+    typedef     typename Block::EdgeMaps              EdgeMaps;
     typedef     typename TripletMergeTree::Neighbor   Neighbor;
     typedef     typename TripletMergeTree::Node       Node;
     typedef     Grid                                  Block::*GridPtr;
     typedef     Box                                   Block::*BoxPtr;
     typedef     TripletMergeTree                      Block::*MtPtr;
-    typedef     std::vector<EdgeMap>                  Block::*EdgeMapsPtr;
+    typedef     EdgeMaps                              Block::*EdgeMapsPtr;
 
                 EnqueueEdges(GridPtr grid_, BoxPtr local_, MtPtr mt_, EdgeMapsPtr edge_maps_, bool wrap_):
                     grid(grid_), local(local_), mt(mt_), edge_maps(edge_maps_), wrap(wrap_)          {}
@@ -50,7 +51,7 @@ struct EnqueueEdges
             }
 
             std::vector<std::unordered_map<Index, std::tuple<Value, Index>>> relabel(l->size());
-            (b->*edge_maps).resize(l->size());
+            //(b->*edge_maps).resize(l->size());
 
             size_t edge_count = 0;
 
@@ -127,12 +128,13 @@ struct DequeueEdges
     typedef     typename Grid::Value                  Value;
     typedef     typename Block::TripletMergeTree      TripletMergeTree;
     typedef     typename Block::EdgeMap               EdgeMap;
+    typedef     typename Block::EdgeMaps              EdgeMaps;
     typedef     typename TripletMergeTree::Neighbor   Neighbor;
     typedef     typename TripletMergeTree::Node       Node;
     typedef     Grid                                  Block::*GridPtr;
     typedef     Box                                   Block::*BoxPtr;
     typedef     TripletMergeTree                      Block::*MtPtr;
-    typedef     std::vector<EdgeMap>                  Block::*EdgeMapsPtr;
+    typedef     EdgeMaps                              Block::*EdgeMapsPtr;
     typedef     EdgeMap                               Block::*EdgePtr;
 
 

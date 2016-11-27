@@ -16,20 +16,21 @@ struct filtered_types
     using RangeIterator     = decltype(std::declval<Range>().begin());
     using RangeValue        = typename std::remove_reference<decltype(*std::declval<RangeIterator>())>::type;
     using value_type        = RangeValue;
-    using IteratorParent    = std::iterator<std::forward_iterator_tag, value_type>;
+    using reference         = decltype(*std::declval<RangeIterator>());
+    using IteratorParent    = std::iterator<std::forward_iterator_tag, value_type, std::ptrdiff_t, value_type*, reference>;
 };
 
 template<class Range, class Filter>
 struct filtered_iterator: public filtered_types<Range, Filter>::IteratorParent
 {
     using iterator      = filtered_iterator;
-    using value_type    = typename filtered_types<Range, Filter>::value_type;
+    using reference     = typename filtered_types<Range, Filter>::reference;
     using RangeIterator = typename filtered_types<Range, Filter>::RangeIterator;
 
                         filtered_iterator(RangeIterator it, RangeIterator end, Filter f):
                             it_(it), end_(end), f_(f)           { if (!f_(*it_)) increment(); }
 
-    const value_type&   operator*() const                       { return *it_; }
+    reference           operator*() const                       { return *it_; }
 
     iterator&           operator++()                            { increment(); return *this; }
     iterator            operator++(int)                         { iterator it = *this; increment(); return it; }
