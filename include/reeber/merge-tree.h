@@ -3,19 +3,15 @@
 
 #include <vector>
 #include <map>
+#include <unordered_map>
 
-#include <boost/foreach.hpp>
 #include <boost/lambda/lambda.hpp>
-#include <boost/range/adaptor/map.hpp>
 
-#include <boost/unordered_map.hpp>
-
+#include "range/map.h"
 #include "serialization.h"
 
 namespace reeber
 {
-
-namespace ba = boost::adaptors;
 
 template<class Vertex, class Value>
 class MergeTree;
@@ -42,7 +38,7 @@ struct MergeTreeNode
     bool                        operator>(const MergeTreeNode& other) const     { return value > other.value || (value == other.value && vertex > other.vertex); }
 
     template<class F>
-    bool                        any_vertex(const F& f) const                    { if (f(vertex)) return true; BOOST_FOREACH(const ValueVertex& vv, vertices) if (f(vv.second)) return true; return false; }
+    bool                        any_vertex(const F& f) const                    { if (f(vertex)) return true; for(const ValueVertex& vv : vertices) if (f(vv.second)) return true; return false; }
 
     Neighbor                    parent;
     Neighbors                   children;
@@ -64,12 +60,12 @@ class MergeTree
         typedef     MergeTreeNode<Vertex,Value>         Node;
         typedef     typename Node::Neighbor             Neighbor;
 
-        typedef     boost::unordered_map<Vertex, Neighbor>  VertexNeighborMap;
+        typedef     std::unordered_map<Vertex, Neighbor>  VertexNeighborMap;
 
     public:
                     MergeTree(bool negate = false):
                         negate_(negate)                 {}
-                    ~MergeTree()                        { BOOST_FOREACH(typename VertexNeighborMap::value_type& x, nodes_) delete x.second; }
+                    ~MergeTree()                        { for(typename VertexNeighborMap::value_type& x : nodes_) delete x.second; }
 
         Neighbor    operator[](const Vertex& x) const   { return nodes_.find(x)->second; }
         Neighbor    add(const Vertex& x, Value v);
@@ -97,9 +93,9 @@ class MergeTree
         const VertexNeighborMap&
                     nodes() const                       { return nodes_; }
 
-        Neighbor    find_root() const                   { BOOST_FOREACH(Neighbor n, nodes() | ba::map_values) if (!n->parent) return n; return 0; }
-        size_t      count_roots() const                 { size_t s = 0; BOOST_FOREACH(Neighbor n, nodes() | ba::map_values) if (!n->parent) ++s; return s; }
-        void        reset_aux() const                   { BOOST_FOREACH(Neighbor n, nodes() | ba::map_values) aux_neighbor(n) = 0; }
+        Neighbor    find_root() const                   { for(Neighbor n : nodes() | range::map_values) if (!n->parent) return n; return 0; }
+        size_t      count_roots() const                 { size_t s = 0; for(Neighbor n : nodes() | range::map_values) if (!n->parent) ++s; return s; }
+        void        reset_aux() const                   { for(Neighbor n : nodes() | range::map_values) aux_neighbor(n) = 0; }
 
         // remove entries from the map where the key doesn't match the node's vertex
         void        prune_indirect()                    { typename VertexNeighborMap::iterator it = nodes_.begin(); while (it != nodes_.end()) { if (it->first != it->second->vertex) nodes_.erase(it++); else it++; } }

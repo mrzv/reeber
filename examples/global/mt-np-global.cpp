@@ -1,8 +1,6 @@
 #include <iostream>
 #include <string>
 
-#include <boost/range/adaptor/map.hpp>
-
 #include <dlog/stats.h>
 #include <dlog/log.h>
 #include <opts/opts.h>
@@ -13,6 +11,7 @@
 #include <reeber/grid.h>
 #include <reeber/box.h>
 #include <reeber/merge-tree-serialization.h>
+#include <reeber/range/map.h>
 namespace r = reeber;
 
 #include "format.h"
@@ -102,7 +101,7 @@ int main(int argc, char** argv)
 #endif
 
     size_t leaves = 0;
-    BOOST_FOREACH(MergeTree::Neighbor n, ((const MergeTree&) mt).nodes() | boost::adaptors::map_values)
+    for(MergeTree::Neighbor n : ((const MergeTree&) mt).nodes() | r::range::map_values)
     {
         if (n->parent && n->children.size() == 0)
             ++leaves;

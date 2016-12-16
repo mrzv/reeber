@@ -1,8 +1,6 @@
 #include <iostream>
 #include <string>
 
-#include <boost/range/adaptor/map.hpp>
-
 #include <dlog/stats.h>
 #include <dlog/log.h>
 #include <opts/opts.h>

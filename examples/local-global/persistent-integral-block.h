@@ -3,8 +3,6 @@
 
 #include <cassert>
 
-#include <boost/foreach.hpp>
-
 typedef MergeTreeBlock::MergeTree                                   MergeTree;
 typedef MergeTreeBlock::MergeTree::Neighbor                         Neighbor;
 typedef MergeTree::Node                                             MergeTreeNode;

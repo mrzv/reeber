@@ -1,12 +1,11 @@
 #ifndef REEBER_PATH_MERGE_TREE_SERIALIZATION_H
 #define REEBER_PATH_MERGE_TREE_SERIALIZATION_H
 
-#include <boost/range/adaptor/map.hpp>
-#include <boost/foreach.hpp>
 #include <diy/serialization.hpp>
 #include "parallel-tbb.h"
 #include "parallel-tbb-serialization.h"
 #include "path-merge-tree.h"
+#include "range/map.h"
 
 namespace reeber
 {
@@ -19,11 +18,10 @@ struct Serialization< PathMergeTree<Vertex, Value> >
 
     static void save(::diy::BinaryBuffer& bb, const PathMergeTree& mt)
     {
-        namespace ba = boost::adaptors;
         diy::save(bb, mt.negate_);
         size_t sz = mt.nodes_.size();
         diy::save(bb, sz);
-        BOOST_FOREACH(Neighbor n, mt.nodes_ | ba::map_values)
+        for(Neighbor n : mt.nodes_ | range::map_values)
         {
             diy::save(bb, n->vertex);
             diy::save(bb, n->value);
@@ -34,7 +32,6 @@ struct Serialization< PathMergeTree<Vertex, Value> >
 
     static void load(::diy::BinaryBuffer& bb, PathMergeTree& mt)
     {
-        namespace ba = boost::adaptors;
         diy::load(bb, mt.negate_);
         size_t sz;
         diy::load(bb, sz);

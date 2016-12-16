@@ -212,7 +212,7 @@ struct MergeSparsify
             // merge trees and move vertices
             record_stats("Merging trees:", "{} and {}", trees[0].size(), trees[1].size());
             r::merge(b->mt, trees);
-            BOOST_FOREACH(Neighbor n, static_cast<const MergeTree&>(trees[in_pos]).nodes() | r::ba::map_values)
+            for(Neighbor n : static_cast<const MergeTree&>(trees[in_pos]).nodes() | r::range::map_values)
                 if (!n->vertices.empty())
                     b->mt[n->vertex]->vertices.swap(n->vertices);
             trees.clear();
@@ -283,7 +283,7 @@ void test_link(void* b_, const diy::Master::ProxyWithLink& cp, void*)
 
     fmt::print("Block {}: {} - {}\n", b->gid, b->local.from(), b->local.to());
     fmt::print("Link of {} -> {}\n", 0, b->local.position(0));
-    BOOST_FOREACH(MergeTreeBlock::Index u, b->local.link(0))
+    for(MergeTreeBlock::Index u : b->local.link(0))
         fmt::print("  {} -> {}\n", u, b->local.position(u));
 }
 

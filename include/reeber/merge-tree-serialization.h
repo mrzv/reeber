@@ -1,9 +1,9 @@
 #ifndef REEBER_MERGE_TREE_SERIALIZATION_H
 #define REEBER_MERGE_TREE_SERIALIZATION_H
 
-#include <boost/range/adaptor/map.hpp>
 #include <diy/serialization.hpp>
 #include "merge-tree.h"
+#include "range/map.h"
 
 namespace reeber
 {
@@ -16,11 +16,10 @@ struct Serialization< MergeTree<Vertex, Value> >
 
     static void save(::diy::BinaryBuffer& bb, const MergeTree& mt, bool save_vertices = true)
     {
-        namespace ba = boost::adaptors;
         diy::save(bb, save_vertices);
         diy::save(bb, mt.negate_);
         diy::save(bb, mt.nodes_.size());
-        BOOST_FOREACH(Neighbor n, mt.nodes_ | ba::map_values)
+        for(Neighbor n : mt.nodes_ | range::map_values)
         {
             diy::save(bb, n->vertex);
             diy::save(bb, n->value);
@@ -36,7 +35,6 @@ struct Serialization< MergeTree<Vertex, Value> >
 
     static void load(::diy::BinaryBuffer& bb, MergeTree& mt)
     {
-        namespace ba = boost::adaptors;
         bool load_vertices;
         diy::load(bb, load_vertices);
         diy::load(bb, mt.negate_);

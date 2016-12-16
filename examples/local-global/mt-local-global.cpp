@@ -146,7 +146,7 @@ void merge_sparsify(void* b_, const diy::ReduceProxy& srp, const diy::RegularSwa
 
         // merge trees and move vertices
         r::merge(b->mt, trees);
-        BOOST_FOREACH(Neighbor n, static_cast<const MergeTree&>(trees[in_pos]).nodes() | r::ba::map_values)
+        for(Neighbor n : static_cast<const MergeTree&>(trees[in_pos]).nodes() | r::range::map_values)
             if (!n->vertices.empty())
                 b->mt[n->vertex]->vertices.swap(n->vertices);
         trees.clear();

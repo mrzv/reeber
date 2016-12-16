@@ -1,12 +1,11 @@
 #ifndef REEBER_TRIPLET_MERGE_TREE_SERIALIZATION_H
 #define REEBER_TRIPLET_MERGE_TREE_SERIALIZATION_H
 
-#include <boost/range/adaptor/map.hpp>
-#include <boost/foreach.hpp>
 #include <diy/serialization.hpp>
 #include "parallel-tbb.h"
 #include "parallel-tbb-serialization.h"
 #include "triplet-merge-tree.h"
+#include "range/map.h"
 
 namespace reeber
 {
@@ -19,12 +18,11 @@ struct Serialization< TripletMergeTree<Vertex, Value> >
 
     static void save(::diy::BinaryBuffer& bb, const TripletMergeTree& mt, bool save_vertices = true)
     {
-        namespace ba = boost::adaptors;
         diy::save(bb, save_vertices);
         diy::save(bb, mt.negate_);
         size_t sz = mt.nodes_.size();
         diy::save(bb, sz);
-        BOOST_FOREACH(Neighbor n, mt.nodes_ | ba::map_values)
+        for(Neighbor n : mt.nodes_ | range::map_values)
         {
             diy::save(bb, n->vertex);
             diy::save(bb, n->value);
@@ -39,7 +37,6 @@ struct Serialization< TripletMergeTree<Vertex, Value> >
 
     static void load(::diy::BinaryBuffer& bb, TripletMergeTree& mt)
     {
-        namespace ba = boost::adaptors;
         bool load_vertices;
         diy::load(bb, load_vertices);
         diy::load(bb, mt.negate_);

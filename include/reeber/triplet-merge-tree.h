@@ -5,9 +5,6 @@
 #include <unordered_map>
 #include <tuple>
 
-#include <boost/range/adaptor/map.hpp>
-#include <boost/range/algorithm.hpp>
-
 #include "parallel-tbb.h"
 
 #include "serialization.h"
@@ -15,8 +12,6 @@
 
 namespace reeber
 {
-namespace ba = boost::adaptors;
-
 template<class Vertex_, class Value_>
 struct TripletMergeTreeNode
 {

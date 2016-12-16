@@ -279,7 +279,7 @@ void test_link(void* b_, const diy::Master::ProxyWithLink& cp, void*)
 
     fmt::print("Block {}: {} - {}\n", b->gid, b->local.from(), b->local.to());
     fmt::print("Link of {} -> {}\n", 0, b->local.position(0));
-    BOOST_FOREACH(TripletMergeTreeBlock::Index u, b->local.link(0))
+    for(TripletMergeTreeBlock::Index u : b->local.link(0))
         fmt::print("  {} -> {}\n", u, b->local.position(u));
 }
 

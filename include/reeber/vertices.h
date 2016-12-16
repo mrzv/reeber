@@ -1,32 +1,23 @@
 #ifndef REEBER_VERTICES_H
 #define REEBER_VERTICES_H
 
-#include <boost/iterator/iterator_facade.hpp>
+#include <iterator>
 
 namespace reeber
 {
 
 template<class Vertex_>
 class VerticesIterator:
-    public boost::iterator_facade<VerticesIterator<Vertex_>,
-                                  Vertex_,
-                                  boost::forward_traversal_tag,
-                                  Vertex_,
-                                  std::ptrdiff_t>
+    public std::iterator<std::forward_iterator_tag, const Vertex_>
 {
-    typedef     boost::iterator_facade<VerticesIterator,
-                                       Vertex_,
-                                       boost::forward_traversal_tag,
-                                       Vertex_,
-                                       std::ptrdiff_t>              Parent;
-
+    typedef     std::iterator<std::forward_iterator_tag, const Vertex_>   Parent;
 
     public:
         typedef     typename Parent::value_type                     value_type;
         typedef     typename Parent::difference_type                difference_type;
         typedef     typename Parent::reference                      reference;
 
-        typedef     value_type                                      Vertex;
+        typedef     Vertex_                                         Vertex;
         typedef     typename Vertex::Coordinate                     Coordinate;
 
                     // upper bounds are non-inclusive
@@ -43,7 +34,6 @@ class VerticesIterator:
                         pos_(pos), from_(from),
                         to_(to)                                     {}
 
-
         static VerticesIterator
                     begin(const Vertex& bounds)                     { return VerticesIterator(bounds); }
         static VerticesIterator
@@ -54,18 +44,87 @@ class VerticesIterator:
         static VerticesIterator
                     end(const Vertex& from, const Vertex& to)       { Vertex e = from; e[0] = to[0] + 1; return VerticesIterator(e, from, to); }
 
+        const Vertex&       operator*() const                       { return pos_; }
+        const Vertex*       operator->() const                      { return &pos_; }
+
+        VerticesIterator&   operator++()                            { increment(); return *this; }
+        VerticesIterator    operator++(int)                         { VerticesIterator it = *this; increment(); return it; }
+
+        friend bool operator==(const VerticesIterator& x, const VerticesIterator& y)    { return x.pos_ == y.pos_; }
+        friend bool operator!=(const VerticesIterator& x, const VerticesIterator& y)    { return x.pos_ != y.pos_; }
+
     private:
         void        increment();
-        bool        equal(const VerticesIterator& other) const      { return pos_ == other.pos_; }
-        reference   dereference() const                             { return pos_; }
-
-        friend class ::boost::iterator_core_access;
 
     private:
         Vertex      pos_;
         Vertex      from_;
         Vertex      to_;
 };
+
+template<class Vertex_>
+class VertexRange
+{
+    public:
+        using       Vertex   = Vertex_;
+        using       iterator = VerticesIterator<Vertex>;
+
+                    VertexRange(const Vertex& from, const Vertex& to):
+                        from_(from), to_(to)                                    {}
+
+                    VertexRange(const Vertex& shape):
+                        VertexRange(Vertex::zero(), shape - Vertex::one())      {}
+
+        iterator    begin() const       { return iterator::begin(from_,to_); }
+        iterator    end()   const       { return iterator::end(from_,to_); }
+
+    private:
+        Vertex  from_;
+        Vertex  to_;
+};
+
+namespace detail
+{
+    template<class Vertex, size_t I>
+    struct IsLast
+    {
+        static constexpr bool value = (Vertex::dimension() - 1 == I);
+    };
+
+    template<class Vertex, class Callback, size_t I, bool P>
+    struct ForEach
+    {
+        void operator()(Vertex& pos, const Vertex& from, const Vertex& to, const Callback& callback) const
+        {
+            for (pos[I] = from[I]; pos[I] <= to[I]; ++pos[I])
+                ForEach<Vertex, Callback, I+1, IsLast<Vertex,I+1>::value>()(pos, from, to, callback);
+        }
+    };
+
+    template<class Vertex, class Callback, size_t I>
+    struct ForEach<Vertex,Callback,I,true>
+    {
+        void operator()(Vertex& pos, const Vertex& from, const Vertex& to, const Callback& callback) const
+        {
+            for (pos[I] = from[I]; pos[I] <= to[I]; ++pos[I])
+                callback(pos);
+        }
+    };
+}
+
+template<class Vertex, class Callback>
+void for_each(const Vertex& from, const Vertex& to, const Callback& callback)
+{
+    Vertex pos;
+    reeber::detail::ForEach<Vertex, Callback, 0, detail::IsLast<Vertex,0>::value>()(pos, from, to, callback);
+}
+
+template<class Vertex, class Callback>
+void for_each(const Vertex& shape, const Callback& callback)
+{
+    // specify grid namespace to disambiguate with std::for_each(...)
+    reeber::for_each(Vertex::zero(), shape - Vertex::one(), callback);
+}
 
 }
 
@@ -74,7 +133,7 @@ void
 reeber::VerticesIterator<V>::
 increment()
 {
-    Coordinate j = Vertex::dimension() - 1;
+    int j = Vertex::dimension() - 1;
     while (j > 0 && pos_[j] == to_[j])
     {
         pos_[j] = from_[j];

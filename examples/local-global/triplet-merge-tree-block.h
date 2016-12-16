@@ -1,9 +1,6 @@
 #ifndef REEBER_TRIPLET_MERGE_TREE_BLOCK_H
 #define REEBER_TRIPLET_MERGE_TREE_BLOCK_H
 
-#include <boost/range/adaptor/map.hpp>
-namespace ba = boost::adaptors;
-
 #include <diy/serialization.hpp>
 
 #include <reeber/triplet-merge-tree.h>
@@ -46,7 +43,7 @@ struct TripletMergeTreeBlock
             return std::get<0>(v0) == std::get<0>(v1) && std::get<1>(v0) == std::get<1>(v1);
         }
     };
-   
+
     typedef     std::unordered_map<Edge, std::tuple<Value, Index>, edge_hash, edge_equal>
                                                   EdgeMap;
 

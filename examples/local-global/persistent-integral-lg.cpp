@@ -3,7 +3,6 @@
 #include <string>
 
 #include <boost/algorithm/string/split.hpp>
-#include <boost/foreach.hpp>
 #include <boost/lambda/lambda.hpp>
 #include <boost/range/combine.hpp>
 
@@ -41,7 +40,7 @@ class TreeTracer
 
             diy::mpi::communicator& world = pi_master_.communicator();
 
-            BOOST_FOREACH(const std::string& fn, avg_fn_list_)
+            for(const std::string& fn : avg_fn_list_)
                 avg_var_readers.push_back(std::shared_ptr<Reader>(Reader::create(fn, world)));
 
             if (!density_fn_.empty())
@@ -56,14 +55,14 @@ class TreeTracer
             if (rp.in_link().size() == 0)
             {
                 std::vector<MergeTreeBlock::OffsetGrid*> add_data;
-                BOOST_FOREACH(std::shared_ptr<Reader> reader, avg_var_readers)
+                for(std::shared_ptr<Reader> reader : avg_var_readers)
                     add_data.push_back(reader->read(block.core));
 
                 MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
                 MergeTreeBlock::OffsetGrid *density_data = density_reader ? density_reader->read(block.core) : 0;
                 trace(block.mt.find_root(), block, gp, add_data, density_data, mi_map);
 
-                BOOST_FOREACH(MergeTreeBlock::OffsetGrid* og, add_data)
+                for(MergeTreeBlock::OffsetGrid* og : add_data)
                     delete og;
                 delete density_data;
             }
@@ -96,7 +95,7 @@ class TreeTracer
                 int         dim         = partners.dim(round);      // current dimension along which groups are formed
                 int         width       = (box.max[dim] - box.min[dim] + 1)/group_size;
 
-                BOOST_FOREACH(const MinIntegral& mi, mi_map | ba::map_values)
+                for(const MinIntegral& mi : mi_map | reeber::range::map_values)
                 {
                     int dest_gid = decomposer.point_to_gid(block.global.position(mi.min_vtx));
                     Decomposer::DivisionsVector coords;
@@ -124,7 +123,7 @@ class TreeTracer
 
         void        trace(Neighbor n, const MergeTreeBlock& block, const MergeTreeBlock::OffsetGrid::GridProxy& gp, const std::vector<MergeTreeBlock::OffsetGrid*>& add_data, MergeTreeBlock::OffsetGrid* density_data, MinIntegralMap& mi_map) const
         {
-            BOOST_FOREACH(Neighbor child, n->children)
+            for(Neighbor child : n->children)
             {
                 if (block.mt.cmp(t, child->value))                                   // still too high
                     trace(child, block, gp, add_data, density_data, mi_map);
@@ -145,7 +144,6 @@ class TreeTracer
         MinIntegral integrate(Neighbor n, const MergeTreeBlock& block, const MergeTreeBlock::OffsetGrid::GridProxy& gp, const std::vector<MergeTreeBlock::OffsetGrid*>& add_data, MergeTreeBlock::OffsetGrid *density_data) const
         {
 
-            typedef boost::tuple<Real&, MergeTreeBlock::OffsetGrid*> RealRef_OffsetGridPtr_tuple;
             MinIntegral mi_res(n, add_data.size());
 
             // Find contribution from n
@@ -153,7 +151,7 @@ class TreeTracer
             {
                 mi_res.integral += n->value * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
                 ++mi_res.n_cells;
-                BOOST_FOREACH(RealRef_OffsetGridPtr_tuple t, boost::combine(mi_res.add_sums, add_data))
+                for(auto t : boost::combine(mi_res.add_sums, add_data))
                 {
                     Real new_val = (*t.get<1>())(n->vertex);
                     if (density_data)
@@ -165,12 +163,12 @@ class TreeTracer
                 mi_res.push_back(MergeTreeNode::ValueVertex(n->value, n->vertex));
             }
 
-            BOOST_FOREACH(const MergeTree::Node::ValueVertex& x, n->vertices)
+            for(const MergeTree::Node::ValueVertex& x : n->vertices)
                 if (block.core.contains(x.second) && block.mt.cmp(x.first, t))
                 {
                     mi_res.integral += x.first * block.cell_size[0] * block.cell_size[1] * block.cell_size[2];
                     ++mi_res.n_cells;
-                    BOOST_FOREACH(RealRef_OffsetGridPtr_tuple t, boost::combine(mi_res.add_sums, add_data))
+                    for(auto t : boost::combine(mi_res.add_sums, add_data))
                     {
                         Real new_val = (*t.get<1>())(x.second);
                         if (density_data)
@@ -183,7 +181,7 @@ class TreeTracer
                 }
 
             // Find contribution from children + min
-            BOOST_FOREACH(Neighbor child, n->children)
+            for(Neighbor child : n->children)
             {
                 MinIntegral mi = integrate(child, block, gp, add_data, density_data);
                 if (block.mt.cmp(mi, mi_res))
@@ -224,7 +222,7 @@ class OutputIntegrals {
            std::ofstream ofs(dgm_fn.c_str());
  
            MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
-           BOOST_FOREACH(MinIntegral &mi, block.persistent_integrals)
+           for(MinIntegral &mi : block.persistent_integrals)
            {
                Vertex v = block.global.position(mi.min_vtx);
                ofs << v[0] * block.cell_size[0] << " " << v[1] * block.cell_size[1] << " " << v[2] * block.cell_size[2] << " ";
@@ -233,7 +231,7 @@ class OutputIntegrals {
                ofs <<  mi.integral;
                if (verbose)
                    ofs << " " << mi.n_cells;
-               BOOST_FOREACH(Real sum, mi.add_sums)
+               for(Real sum : mi.add_sums)
                    ofs << " " << sum / (density_weighted ? mi.integral : mi.n_cells);
                ofs << std::endl;
 #ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS

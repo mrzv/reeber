@@ -4,9 +4,7 @@
 #include <dlog/log.h>
 #include <dlog/counters.h>
 
-#include <boost/bind.hpp>
-#include <boost/range/algorithm.hpp>
-#include <boost/range/algorithm_ext/push_back.hpp>
+#include "range/utility.h"
 
 template<class Vertex, class Value>
 typename reeber::MergeTree<Vertex, Value>::Neighbor
@@ -101,7 +99,7 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
 
     std::vector<ValueVertexPair>     vertices;
     vertices.reserve(topology.size());
-    BOOST_FOREACH(Vertex v, topology.vertices())
+    for(Vertex v : topology.vertices())
         vertices.push_back(std::make_pair(f(v), v));
 
     if (mt.negate())
@@ -112,13 +110,13 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
     LOG_SEV(debug) << "Computing merge tree out of " << vertices.size() << " vertices";
 
 
-    BOOST_FOREACH(const ValueVertexPair& fu, vertices)
+    for(const ValueVertexPair& fu : vertices)
     {
         Value val; Vertex u;
-        boost::tie(val, u) = fu;
+        std::tie(val, u) = fu;
 
         std::set<Neighbor>  roots;
-        BOOST_FOREACH(Vertex v, topology.link(u))
+        for(Vertex v : topology.link(u))
         {
             if (mt.contains(v))
             {
@@ -137,7 +135,7 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
         } else
         {
             Neighbor u_root = mt.add(u, val);
-            BOOST_FOREACH(Neighbor n, roots)
+            for(Neighbor n : roots)
                 mt.link(u_root, n);
         }
     }
@@ -163,10 +161,9 @@ reeber::compute_merge_tree(MergeTree& mt, const Topology& topology, const Functi
     // pull out the correct root
     if (!root->vertices.empty())
     {
-        typedef     typename MergeTree::Node::VerticesVector        VerticesVector;
-        typename VerticesVector::iterator max_elem = std::max_element(root->vertices.begin(), root->vertices.end(),
-                                                                      boost::bind(&MergeTree::template cmp<typename VerticesVector::value_type>,
-                                                                                  &mt, _1, _2));
+        using ValueType = decltype(*(root->vertices.begin()));
+        auto max_elem = std::max_element(root->vertices.begin(), root->vertices.end(),
+                                         [&mt](ValueType x, ValueType y) { return mt.cmp(x,y); });
         Neighbor new_root = mt.add(max_elem->second, max_elem->first);
         std::swap(*max_elem, root->vertices.back());
         root->vertices.pop_back();
@@ -188,7 +185,7 @@ reeber::traverse_persistence(const MergeTree& mt, const Functor& f)
     // find root
     std::vector<Neighbor> roots;
     std::stack<Neighbor> s;
-    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+    for(Neighbor n : mt.nodes() | range::map_values)
         if (!n->parent)
         {
             roots.push_back(n);
@@ -203,7 +200,7 @@ reeber::traverse_persistence(const MergeTree& mt, const Functor& f)
             s.pop();
         } else if (!MergeTree::aux_neighbor(n->children[0]))
         {
-            BOOST_FOREACH(Neighbor child, n->children)
+            for(Neighbor child : n->children)
                 s.push(child);
         } else
         {
@@ -219,7 +216,7 @@ reeber::traverse_persistence(const MergeTree& mt, const Functor& f)
             MergeTree::aux_neighbor(n) = MergeTree::aux_neighbor(deepest);
 
             // report the rest of the pairs
-            BOOST_FOREACH(Neighbor child, n->children)
+            for(Neighbor child : n->children)
             {
                 if (child == deepest)
                     continue;
@@ -229,7 +226,7 @@ reeber::traverse_persistence(const MergeTree& mt, const Functor& f)
         }
     }
 
-    BOOST_FOREACH(Neighbor root, roots)
+    for(Neighbor root : roots)
         f(MergeTree::aux_neighbor(root), root, MergeTree::aux_neighbor(root));
 
     mt.reset_aux();
@@ -252,7 +249,7 @@ reeber::sparsify(MergeTree& mt, const Special& special)
 
     std::vector<Neighbor> roots;
     std::stack<Neighbor> s;
-    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+    for(Neighbor n : mt.nodes() | range::map_values)
         if (!n->parent && !n->children.empty())     // if no children, it's a special case, and we keep it no matter what
         {
             roots.push_back(n);
@@ -272,7 +269,7 @@ reeber::sparsify(MergeTree& mt, const Special& special)
             s.pop();
         } else if (!MergeTree::aux_neighbor(n)) // on the way down
         {
-            BOOST_FOREACH(Neighbor child, n->children)
+            for(Neighbor child : n->children)
                 s.push(child);
             MergeTree::aux_neighbor(n) = n;
         } else                                  // on the way up
@@ -321,7 +318,7 @@ reeber::sparsify(MergeTree& mt, const Special& special)
             {
                 Neighbor rm = rms.top();
                 rms.pop();
-                BOOST_FOREACH(Neighbor child, rm->children)
+                for(Neighbor child : rm->children)
                     rms.push(child);
                 mt.nodes().erase(rm->vertex);
                 delete rm;
@@ -357,7 +354,7 @@ reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
 
     std::vector<Neighbor> roots;
     std::stack<Neighbor> s;
-    BOOST_FOREACH(Neighbor n, in.nodes() | ba::map_values)
+    for(Neighbor n : in.nodes() | range::map_values)
         if (!n->parent)
         {
             if (!n->children.empty())
@@ -386,7 +383,7 @@ reeber::sparsify(MergeTree& out, const MergeTree& in, const Special& special)
             s.pop();
         } else if (!MergeTree::aux_neighbor(n)) // on the way down
         {
-            BOOST_FOREACH(Neighbor child, n->children)
+            for(Neighbor child : n->children)
                 s.push(child);
             MergeTree::aux_neighbor(n) = n;
         } else                                  // on the way up
@@ -462,7 +459,7 @@ reeber::detail::clean_roots(MergeTree& mt, const std::vector<typename MergeTree:
 {
     typedef     typename MergeTree::Neighbor        Neighbor;
 
-    BOOST_FOREACH(Neighbor root, roots)
+    for(Neighbor root : roots)
     {
         AssertMsg(!root->parent, "A root could not have acquired a parent during sparsification");
         if (root->children.empty())     // isolated root
@@ -505,11 +502,11 @@ reeber::merge(MergeTree& mt, const std::vector<MergeTree>& trees, const Edges& e
 
     std::vector<Neighbor> nodes;
     for (unsigned i = 0; i < trees.size(); ++i)
-        boost::push_back(nodes, trees[i].nodes() | ba::map_values);
-    boost::sort(nodes,
-                boost::bind(static_cast< bool (MergeTree::*) (Neighbor,Neighbor) const >(&MergeTree::cmp), mt, _1, _2));
+        for (auto& x : trees[i].nodes() | range::map_values)
+            nodes.push_back(x);
+    std::sort(nodes.begin(), nodes.end(), [&mt](Neighbor x, Neighbor y) { return mt.cmp(x,y); });
 
-    BOOST_FOREACH(Neighbor n, nodes)
+    for(Neighbor n : nodes)
     {
         Neighbor nn;
         if (!mt.contains(n->vertex))
@@ -517,7 +514,7 @@ reeber::merge(MergeTree& mt, const std::vector<MergeTree>& trees, const Edges& e
             nn = mt.add(n->vertex, n->value);
 
             // deal with the edges (only once per vertex)
-            BOOST_FOREACH(Vertex v, edges(n->vertex))
+            for(Vertex v : edges(n->vertex))
                 if (mt.contains(v))
                 {
                     Neighbor cn = mt.find(v);
@@ -538,7 +535,7 @@ reeber::merge(MergeTree& mt, const std::vector<MergeTree>& trees, const Edges& e
     }
 
     // reset aux
-    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+    for(Neighbor n : mt.nodes() | range::map_values)
         mt.aux_neighbor(n) = 0;
 
     dlog::prof >> "merge";
@@ -549,7 +546,7 @@ struct reeber::detail::
 EmptyEdges
 {
     typedef         Vertex_                                 Vertex;
-    typedef         std::pair<Vertex*, Vertex*>             VertexRange;
+    typedef         range::iterator_range<Vertex*>          VertexRange;
     VertexRange     operator()(const Vertex& u) const       { return VertexRange(0,0); }
 };
 
@@ -562,7 +559,7 @@ reeber::remove_degree2(MergeTree& mt, const Preserve& preserve, const Special& s
     typedef     typename MergeTree::Neighbor        Neighbor;
 
     std::stack<Neighbor> s;
-    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+    for(Neighbor n : mt.nodes() | range::map_values)
         if (!n->parent)
             s.push(n);
     while(!s.empty())
@@ -586,7 +583,7 @@ reeber::remove_degree2(MergeTree& mt, const Preserve& preserve, const Special& s
                     if (preserve(cur->vertex))
                         descendant->vertices.push_back(ValueVertex(cur->value, cur->vertex));
 
-                    BOOST_FOREACH(const ValueVertex& vv, cur->vertices)
+                    for(const ValueVertex& vv : cur->vertices)
                         if (preserve(vv.second))
                             descendant->vertices.push_back(vv);
                     cur = cur->parent;
@@ -624,7 +621,7 @@ reeber::redistribute_vertices(MergeTree& mt)
     typedef     typename VerticesVector::iterator           VerticesVectorIterator;
 
     std::stack< std::pair<Neighbor,int> > s;
-    BOOST_FOREACH(Neighbor n, mt.nodes() | ba::map_values)
+    for(Neighbor n : mt.nodes() | range::map_values)
         if (!n->parent)
             s.push(std::make_pair(n,0));
     while(!s.empty())

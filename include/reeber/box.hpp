@@ -95,18 +95,9 @@ merge(const Box& other)
 /* Box::FreudenthalLinkIterator */
 template<unsigned D>
 class reeber::Box<D>::FreudenthalLinkIterator:
-    public boost::iterator_facade<FreudenthalLinkIterator,
-                                  Position,
-                                  boost::forward_traversal_tag,
-                                  Position,
-                                  std::ptrdiff_t>
+    public std::iterator<std::forward_iterator_tag, Position>
 {
-    typedef     boost::iterator_facade<FreudenthalLinkIterator,
-                                       Position,
-                                       boost::forward_traversal_tag,
-                                       Position,
-                                       std::ptrdiff_t>              Parent;
-
+    using Parent = std::iterator<std::forward_iterator_tag, Position>;
 
     public:
         typedef     typename Parent::value_type                     value_type;
@@ -122,12 +113,17 @@ class reeber::Box<D>::FreudenthalLinkIterator:
         static FreudenthalLinkIterator
                     end(const Position& p)                          { return FreudenthalLinkIterator(p, 0, -1); }
 
+        const Position&             operator*() const               { return v_; }
+        const Position*             operator->() const              { return &v_; }
+
+        FreudenthalLinkIterator&   operator++()                     { increment(); return *this; }
+        FreudenthalLinkIterator    operator++(int)                  { FreudenthalLinkIterator it = *this; increment(); return it; }
+
+        friend bool operator==(const FreudenthalLinkIterator& x, const FreudenthalLinkIterator& y)    { return x.v_ == y.v_; }
+        friend bool operator!=(const FreudenthalLinkIterator& x, const FreudenthalLinkIterator& y)    { return x.v_ != y.v_; }
+
     private:
         void        increment();
-        bool        equal(const FreudenthalLinkIterator& other) const   { return v_ == other.v_; }
-        reference   dereference() const                                 { return v_; }
-
-        friend class ::boost::iterator_core_access;
 
     private:
         Position    p_, v_;

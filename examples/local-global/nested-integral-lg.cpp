@@ -2,8 +2,6 @@
 #include <string>
 
 #include <boost/algorithm/string/split.hpp>
-#include <boost/foreach.hpp>
-#include <boost/lambda/lambda.hpp>
 
 #include <opts/opts.h>
 #include <dlog/log.h>
@@ -48,7 +46,7 @@ class TreeTracer
         {
             diy::mpi::communicator& world = pi_master_.communicator();
 
-            BOOST_FOREACH(const std::string& fn, avg_fn_list_)
+            for(const std::string& fn : avg_fn_list_)
                 avg_var_readers.push_back(Reader::create(fn, world));
 
             if (!density_fn_.empty())
@@ -57,7 +55,7 @@ class TreeTracer
 
                     ~TreeTracer()
         {
-            BOOST_FOREACH(Reader* reader, avg_var_readers)
+            for(Reader* reader : avg_var_readers)
                 delete reader;
             delete density_reader;
         }
@@ -71,13 +69,13 @@ class TreeTracer
             if (rp.in_link().size() == 0)
             {
                 OffsetGridVector add_data;
-                BOOST_FOREACH(Reader* reader, avg_var_readers)
+                for(Reader* reader : avg_var_readers)
                     add_data.push_back(reader->read(block.core));
                 MergeTreeBlock::OffsetGrid *density_data = density_reader ? density_reader->read(block.core) : 0;
 
                 reeber::traverse_persistence(block.mt, Integrator(m,t,e,density_weighted, &mi_map, &block, &add_data, density_data));
 
-                BOOST_FOREACH(const MinIntegral& mi, mi_map | ba::map_values)
+                for(const MinIntegral& mi : mi_map | reeber::range::map_values)
                 {
                     if (block.mt.cmp(m, mi.min_val))
                         continue;
@@ -91,7 +89,7 @@ class TreeTracer
                     rp.enqueue(dest, mi);
                 }
 
-                BOOST_FOREACH(MergeTreeBlock::OffsetGrid* og, add_data)
+                for(MergeTreeBlock::OffsetGrid* og : add_data)
                     delete og;
                 delete density_data;
             }
@@ -205,7 +203,7 @@ class TreeTracer
 
                 integrate(mi, n->value, n->vertex);
 
-                BOOST_FOREACH(const MergeTree::Node::ValueVertex& x, n->vertices)
+                for(const MergeTree::Node::ValueVertex& x : n->vertices)
                     integrate(mi, x.first, x.second);
 
                 return mi;
@@ -235,7 +233,7 @@ struct OutputIntegrals
            std::string   dgm_fn = fmt::format("{}-b{}.comp", outfn, block.gid);
            std::ofstream ofs(dgm_fn.c_str());
  
-           BOOST_FOREACH(MinIntegral &mi, block.persistent_integrals)
+           for(MinIntegral &mi : block.persistent_integrals)
            {
                Vertex v = block.global.position(mi.min_vtx);
                ofs << v[0] * block.cell_size[0] << " " << v[1] * block.cell_size[1] << " " << v[2] * block.cell_size[2] << " ";
@@ -244,7 +242,7 @@ struct OutputIntegrals
                ofs <<  mi.integral;
                if (verbose)
                    ofs << " " << mi.n_cells;
-               BOOST_FOREACH(Real sum, mi.add_sums)
+               for(Real sum : mi.add_sums)
                    ofs << " " << sum / (density_weighted ? mi.integral : mi.n_cells);
                ofs << std::endl;
 #ifdef REEBER_PERSISTENT_INTEGRAL_TRACE_VTCS

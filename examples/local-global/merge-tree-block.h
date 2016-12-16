@@ -1,9 +1,6 @@
 #ifndef REEBER_MERGE_TREE_BLOCK_H
 #define REEBER_MERGE_TREE_BLOCK_H
 
-#include <boost/range/adaptor/map.hpp>
-namespace ba = boost::adaptors;
-
 #include <diy/serialization.hpp>
 
 #include <reeber/merge-tree.h>
@@ -11,6 +8,7 @@ namespace ba = boost::adaptors;
 #include <reeber/grid-serialization.h>
 #include <reeber/box.h>
 #include <reeber/merge-tree-serialization.h>
+#include <reeber/range/map.h>
 namespace r = reeber;
 
 #include "reeber-real.h"
@@ -78,7 +76,7 @@ compute_average(const diy::Master::ProxyWithLink& cp)
     double                value = 0;
     size_t                count = 0;
 
-    BOOST_FOREACH(const MergeTree::Neighbor node, const_cast<const MergeTree&>(mt).nodes() | ba::map_values)
+    for(const MergeTree::Neighbor node : const_cast<const MergeTree&>(mt).nodes() | r::range::map_values)
     {
         if (core.contains(node->vertex))
         {
@@ -86,7 +84,7 @@ compute_average(const diy::Master::ProxyWithLink& cp)
             count += 1;
         }
 
-        BOOST_FOREACH(const MergeTree::Node::ValueVertex& x, node->vertices)
+        for(const MergeTree::Node::ValueVertex& x : node->vertices)
             if (core.contains(x.second))
             {
                 value += x.first;

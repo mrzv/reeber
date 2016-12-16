@@ -1,8 +1,7 @@
 #ifndef REEBER_PRUNE_H
 #define REEBER_PRUNE_H
 
-#include <boost/array.hpp>
-#include <boost/foreach.hpp>
+#include <array>
 #include "merge-tree-block.h"
 
 // Prune internal vertices + vertices that are not minima in the boundary
@@ -20,7 +19,7 @@ struct PruneInitial
             return true;
 
         MergeTreeBlock::Vertex  p    = b->local.position(v);
-        boost::array<int, 3>    side = {{ 0, 0, 0 }};
+        std::array<int, 3> side {{ 0, 0, 0 }};
         for (int i = 0; i < 3; ++i)
             if (p[i] == b->local.from()[i])
                 side[i] = -1;
@@ -43,7 +42,7 @@ struct PruneInitial
 
         typedef     MergeTreeBlock::MergeTree::Node::ValueVertex    ValueVertex;
         ValueVertex vval(g(v), v);
-        BOOST_FOREACH(MergeTreeBlock::Index u, side_box.link(v))
+        for(MergeTreeBlock::Index u : side_box.link(v))
         {
             ValueVertex uval(g(u), u);
             if (b->mt.cmp(uval, vval))      // v is not a minimum
