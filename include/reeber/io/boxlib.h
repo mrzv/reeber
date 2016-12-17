@@ -115,7 +115,7 @@ namespace BoxLib
                       // Otherwise check, if specified variable exists
                       else
                       {
-                          BOOST_FOREACH(const std::string& var, read_info.varnames)
+                          for (const auto& var : read_info.varnames)
                           {
                               if (std::find(varnames_.begin(), varnames_.end(), var) == varnames_.end())
                               {
@@ -169,7 +169,7 @@ namespace BoxLib
                           diy::DiscreteBounds bnds;
                           diy::MemoryBuffer bb; bb.buffer.swap(buffer_vector[i]);
                           diy::load(bb, bnds);
-                          IntVect from(bnds.min), to(bnds.max);
+                          IntVect from(&bnds.min[0]), to(&bnds.max[0]);
                           partition_boxes.push_back(::Box(from, to));
                           proc_for_box[i] = i;
                       }
@@ -197,7 +197,7 @@ namespace BoxLib
                       const ::Box& my_partition_box = mf_boxes[ParallelDescriptor::MyProc()];
                       typedef GridRef< Real, BL_SPACEDIM > RealGridRef;
                       typedef RealGridRef::Vertex GridVertex;
-                      RealGridRef grid(buffer, GridVertex(bounds.max) - GridVertex(bounds.min) + GridVertex::one());
+                      RealGridRef grid(buffer, GridVertex(&bounds.max[0]) - GridVertex(&bounds.min[0]) + GridVertex::one());
                       for (IntVect iv = my_partition_box.smallEnd(); iv <= my_partition_box.bigEnd(); my_partition_box.next(iv))
                       {
                           GridVertex pos((iv - my_partition_box.smallEnd()).getVect());
@@ -269,7 +269,7 @@ namespace BoxLib
                           diy::DiscreteBounds bnds;
                           diy::MemoryBuffer bb; bb.buffer.swap(buffer_vector[i]);
                           diy::load(bb, bnds);
-                          IntVect from(bnds.min), to(bnds.max);
+                          IntVect from(&bnds.min[0]), to(&bnds.max[0]);
                           partition_boxes.push_back(::Box(from, to));
                           proc_for_box[i] = i;
                       }
@@ -287,7 +287,7 @@ namespace BoxLib
                       const ::Box& my_partition_box = mf_boxes[ParallelDescriptor::MyProc()];
                       typedef GridRef< Real, BL_SPACEDIM > RealGridRef;
                       typedef RealGridRef::Vertex GridVertex;
-                      RealGridRef grid(buffer, GridVertex(bounds.max) - GridVertex(bounds.min) + GridVertex::one());
+                      RealGridRef grid(buffer, GridVertex(&bounds.max[0]) - GridVertex(&bounds.min[0]) + GridVertex::one());
                       for (IntVect iv = my_partition_box.smallEnd(); iv <= my_partition_box.bigEnd(); my_partition_box.next(iv))
                       {
                           GridVertex pos((iv - my_partition_box.smallEnd()).getVect());
