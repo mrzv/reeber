@@ -620,14 +620,14 @@ reeber::redistribute_vertices(MergeTree& mt)
     typedef     typename MergeTree::Node::VerticesVector    VerticesVector;
     typedef     typename VerticesVector::iterator           VerticesVectorIterator;
 
-    std::stack< std::pair<Neighbor,int> > s;
+    std::stack< std::pair<Neighbor,unsigned> > s;
     for(Neighbor n : mt.nodes() | range::map_values)
         if (!n->parent)
             s.push(std::make_pair(n,0));
     while(!s.empty())
     {
         Neighbor n = s.top().first;
-        int&     c = s.top().second;
+        unsigned&     c = s.top().second;
 
         if (c == n->children.size())
         {

@@ -9,7 +9,7 @@
 unsigned spread_bits(unsigned x, unsigned factor)
 {
     unsigned res = 0;
-    for (unsigned j = 0; (1 << j) <= x; ++j)
+    for (unsigned j = 0; (1u << j) <= x; ++j)
         if (x & (1 << j))
             res |= (1 << factor*j);     // spread the bits into even positions
     return res;
