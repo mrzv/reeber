@@ -1,22 +1,20 @@
 #include <reeber/range/filtered.h>
 
-namespace rr = reeber::range;
-
 // local both in vertices and in link
 template<class Topology, class LocalTest>
 struct reeber::detail::LocalTopology
 {
     using Vertices          = decltype(std::declval<Topology>().vertices());
-    using FilteredVertices  = rr::filtered_range<Vertices, LocalTest>;
+    using FilteredVertices  = reeber::range::filtered_range<Vertices, LocalTest>;
     using Link              = decltype(std::declval<Topology>().link(*std::begin(std::declval<Vertices>())));
-    using FilteredLink      = rr::filtered_range<Link, LocalTest>;
+    using FilteredLink      = reeber::range::filtered_range<Link, LocalTest>;
     using Vertex            = typename std::remove_reference<decltype(*std::begin(std::declval<Vertices>()))>::type;
 
                 LocalTopology(const Topology& topology_, const LocalTest& local_test_):
                     topology(topology_), local_test(local_test_)        {}
 
-    FilteredVertices    vertices() const     { return topology.vertices() | rr::filtered(local_test); }
-    FilteredLink        link(Vertex v) const { return topology.link(v)    | rr::filtered(local_test); }
+    FilteredVertices    vertices() const     { return topology.vertices() | reeber::range::filtered(local_test); }
+    FilteredLink        link(Vertex v) const { return topology.link(v)    | reeber::range::filtered(local_test); }
 
     const Topology&     topology;
     const LocalTest&    local_test;
@@ -113,7 +111,7 @@ struct reeber::detail::MergeSparsify
             dlog::prof >> "compute edges";
 
             trees[0].swap(b->mt);
-            r::merge(b->mt, trees[1], merge_edges);
+            reeber::merge(b->mt, trees[1], merge_edges);
 
             trees.clear();
             LOG_SEV(debug) << "  trees merged: " << b->mt.size();
@@ -136,7 +134,7 @@ struct reeber::detail::MergeSparsify
         auto local_test = [&gid_gen,gid](Vertex u)  { return gid_gen(u) == gid; };
 
         if (in_size)
-            r::sparsify(b->mt, [b, &edge_vertices, &local_test](Vertex u)
+            reeber::sparsify(b->mt, [b, &edge_vertices, &local_test](Vertex u)
                                { return local_test(u) || edge_vertices.find(u) != edge_vertices.end(); });
 
         // send (without the vertices) to the neighbors
@@ -144,13 +142,13 @@ struct reeber::detail::MergeSparsify
         if (out_size == 0)        // final round: create the final local-global tree, nothing needs to be sent
         {
             LOG_SEV(debug) << "Sparsifying final tree of size: " << b->mt.size();
-            r::sparsify(b->mt, local_test);
+            reeber::sparsify(b->mt, local_test);
             LOG_SEV(debug) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
             return;
         }
 
         TripletMergeTree mt_out(b->mt.negate());
-        r::sparsify(mt_out, b->mt, [&edge_vertices](Vertex u) { return edge_vertices.find(u) != edge_vertices.end(); });
+        reeber::sparsify(mt_out, b->mt, [&edge_vertices](Vertex u) { return edge_vertices.find(u) != edge_vertices.end(); });
 
         dlog::prof << "enqueue";
         for (int i = 0; i < out_size; ++i)
