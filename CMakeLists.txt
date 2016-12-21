@@ -3,14 +3,24 @@ cmake_minimum_required      (VERSION 3.0)
 
 option                      (boxlib             "Build Reeber with BoxLib support"              OFF)
 option                      (trace              "Enable trace log"                              OFF)
-option                      (debug              "Build Reeber with debugging on"                OFF)
-option                      (optimize           "Build Reeber with optimization"                ON)
 option                      (profile            "Build Reeber with profiling"                   ON)
 option                      (counters           "Build Reeber with counters"                    OFF)
 option                      (slow-tests         "Enable slow tests"                             ON)
 option                      (use-tbb            "Thread using TBB"                              OFF)
 
 add_definitions             (-Wall -fPIC)
+
+# Default to Release
+if                          (NOT CMAKE_BUILD_TYPE)
+    set                     (CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+    set_property            (CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif                       (NOT CMAKE_BUILD_TYPE)
+
+# Debugging
+if                          (${CMAKE_BUILD_TYPE} STREQUAL "Debug" OR
+                             ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
+    add_definitions         (-DDEBUG)
+endif                       ()
 
 # Find everything that's always required
 find_package                (Boost)
@@ -31,23 +41,6 @@ find_library                (TBB_MALLOC_LIBRARY NAMES tbbmalloc)
       message               ("TBB not found; disabling")
    endif                    (TBB_INCLUDE_DIRS AND TBB_LIBRARY AND TBB_MALLOC_LIBRARY)
 endif                       (use-tbb)
-
-# Debugging
-if                          (debug)
-    if                      (optimize)
-            set             (cxx_flags                  ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-    else                    (optimize)
-            set             (cxx_flags                  ${CMAKE_CXX_FLAGS_DEBUG})
-    endif                   (optimize)
-    add_definitions         (-DDEBUG)
-else                        (debug)
-    if                      (optimize)
-            set             (cxx_flags                  ${CMAKE_CXX_FLAGS_RELEASE})
-    else                    (optimize)
-            set             (cxx_flags                  ${CMAKE_CXX_FLAGS})
-    endif                   (optimize)
-endif                       (debug)
-add_definitions             (${cxx_flags})
 
 set                         (CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 
