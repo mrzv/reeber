@@ -46,14 +46,18 @@ void resolve_and_merge(diy::Master&                            master,
     // remove (simplify into vertices vectors) degree-2 nodes
     master.foreach([&](Block* b, const diy::Master::ProxyWithLink& cp)
     {
-        auto& tmt   = b->*tmt_;
-        auto& edges = (b->*edge_maps_)[cp.gid()];
+        auto& tmt       = b->*tmt_;
+        auto& edge_maps = b->*edge_maps_;
 
         std::unordered_set<Vertex> special;
-        for (auto &kv : edges)
+        for (auto& kv_em : edge_maps)
         {
-            Vertex s = std::get<1>(kv.second);
-            if (tmt.contains(s)) special.insert(s);
+            auto& edges = kv_em.second;
+            for (auto &kv : edges)
+            {
+                Vertex s = std::get<1>(kv.second);
+                if (tmt.contains(s)) special.insert(s);
+            }
         }
         remove_degree_two(tmt, [&special](Vertex u) { return special.find(u) != special.end(); });
         LOG_SEV(debug) << "[" << b->gid << "] " << "Tree size after pruning degree-2: " << tmt.size();
