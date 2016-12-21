@@ -116,6 +116,10 @@ class TripletMergeTree
         friend void
         remove_degree_two(TripletMergeTree<Vert, Val>& mt, const S& s);
 
+        template<class Vertex, class Value>
+        friend void
+        repair(TripletMergeTree<Vertex, Value>& mt);
+
         template<class Vert, class Val, class T, class F>
         friend void
         compute_merge_tree2(TripletMergeTree<Vert, Val>& mt, const T& t, const F& f);
@@ -159,6 +163,9 @@ void compute_merge_tree(TripletMergeTree<Vertex, Value>& mt, const Topology& top
 
 template<class Vertex, class Value, class Special>
 void remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& special);
+
+template<class Vertex, class Value>
+void repair(TripletMergeTree<Vertex, Value>& mt);
 
 template<class Vertex, class Value, class Topology, class Function>
 void compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f);

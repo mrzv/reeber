@@ -205,6 +205,14 @@ reeber::remove_degree_two(TripletMergeTree<Vertex, Value>& mt, const Special& sp
     dlog::prof >> "remove-degree-two";
 }
 
+template<class Vertex, class Value>
+void
+reeber::repair(TripletMergeTree<Vertex, Value>& mt)
+{
+    using Neighbor = typename TripletMergeTree<Vertex, Value>::Neighbor;
+    for_each_range(mt.nodes(), [&](const std::pair<Vertex,Neighbor>& n) { mt.repair(n.second); });
+}
+
 template<class Vertex, class Value, class Topology, class Function>
 void
 reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology& topology, const Function& f)
@@ -231,7 +239,7 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
         }
     });
 
-    for_each_range(mt.nodes(), [&](const std::pair<Vertex,Neighbor>& n) { mt.repair(n.second); });
+    repair(mt);
 
     dlog::prof >> "compute-merge-tree2";
 }
@@ -383,7 +391,7 @@ reeber::merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Val
         mt1.merge(mt1[a], mt1[b]);
     });
 
-    for_each_range(mt1.nodes(), [&](const std::pair<Vertex,Neighbor>& n) { mt1.repair(n.second); });
+    repair(mt1);
 
     dlog::prof >> "merge";
 }
