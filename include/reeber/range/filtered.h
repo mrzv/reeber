@@ -17,7 +17,7 @@ struct filtered_types
     using RangeValue        = typename std::remove_reference<decltype(*std::declval<RangeIterator>())>::type;
     using value_type        = RangeValue;
     using reference         = decltype(*std::declval<RangeIterator>());
-    using IteratorParent    = std::iterator<std::forward_iterator_tag, value_type, std::ptrdiff_t, value_type*, reference>;
+    using IteratorParent    = std::iterator<std::forward_iterator_tag, value_type>;
 };
 
 template<class Range, class Filter>
@@ -28,7 +28,7 @@ struct filtered_iterator: public filtered_types<Range, Filter>::IteratorParent
     using RangeIterator = typename filtered_types<Range, Filter>::RangeIterator;
 
                         filtered_iterator(RangeIterator it, RangeIterator end, Filter f):
-                            it_(it), end_(end), f_(f)           { if (!f_(*it_)) increment(); }
+                            it_(it), end_(end), f_(f)           { if (it_ != end_ && !f_(*it_)) increment(); }
 
     reference           operator*() const                       { return *it_; }
 
@@ -39,7 +39,7 @@ struct filtered_iterator: public filtered_types<Range, Filter>::IteratorParent
     friend bool         operator!=(const iterator& x, const iterator& y)    { return x.it_ != y.it_; }
 
     private:
-        void            increment()                             { while (it_ != end_ && !f_(*(++it_))); }
+        void            increment()                             { while (++it_ != end_ && !f_(*it_)); }
 
     private:
         RangeIterator   it_;

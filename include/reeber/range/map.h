@@ -13,7 +13,7 @@ namespace range
 template<class Range>
 struct map_keys_types
 {
-    using RangeIterator     = decltype(std::declval<Range>().begin());
+    using RangeIterator     = decltype(std::declval<const Range>().begin());
     using value_type        = typename std::remove_reference<decltype(std::declval<RangeIterator>()->first)>::type;
     using IteratorParent    = std::iterator<std::forward_iterator_tag, value_type>;
 };
@@ -46,14 +46,14 @@ struct map_keys_range: public iterator_range<map_keys_iterator<Range>>
     using iterator = map_keys_iterator<Range>;
     using Parent   = iterator_range<iterator>;
 
-                        map_keys_range(Range& r):
+                        map_keys_range(const Range& r):
                             Parent(iterator(r.begin()), iterator(r.end()))      {}
 };
 
 template<class Range>
 struct map_values_types
 {
-    using RangeIterator     = decltype(std::declval<Range>().begin());
+    using RangeIterator     = decltype(std::declval<const Range>().begin());
     using value_type        = typename std::remove_reference<decltype(std::declval<RangeIterator>()->second)>::type;
     using IteratorParent    = std::iterator<std::forward_iterator_tag, value_type>;
 };
@@ -86,7 +86,7 @@ struct map_values_range: public iterator_range<map_values_iterator<Range>>
     using iterator = map_values_iterator<Range>;
     using Parent   = iterator_range<iterator>;
 
-                        map_values_range(Range& r):
+                        map_values_range(const Range& r):
                             Parent(iterator(r.begin()), iterator(r.end()))      {}
 };
 
