@@ -379,8 +379,6 @@ reeber::merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Val
 {
     dlog::prof << "merge";
 
-    typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
-
     mt1.nodes_.insert(mt2.nodes().begin(), mt2.nodes().end());
     mt2.nodes_.clear();
 
