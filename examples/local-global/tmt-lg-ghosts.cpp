@@ -182,14 +182,14 @@ struct MergeSparsify
                 std::tie(u,v) = kv.first;
                 if (bounds[out_pos].contains(v))
                 {
-                    out_edges.erase(std::make_tuple(v, u));
+                    reeber::map_erase(out_edges, std::make_tuple(v, u));
                     Index s = std::get<1>(kv.second);
                     if (bounds[out_pos].contains(s)) edges.push_back(std::make_tuple(u, s));
                     else edges.push_back(std::make_tuple(s,v));
                     discard.push_back(kv.first);
                 }
             }
-            for (Edge e : discard) b->edges.erase(e);
+            for (Edge e : discard) reeber::map_erase(b->edges, e);
             b->edges.insert(out_edges.begin(), out_edges.end());
 
             dlog::prof >> "compute edges";

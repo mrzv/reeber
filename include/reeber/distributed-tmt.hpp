@@ -49,7 +49,7 @@ struct reeber::detail::MergeSparsify
         LOG_SEV(debug) << "Round: " << round;
         LOG_SEV_IF(srp.master()->communicator().rank() == 0, info) << "round = " << srp.round();
 
-        auto& edges = b->edge_maps[srp.gid()];
+        auto& edges = (b->*edge_maps)[srp.gid()];
 
         // receive trees, merge, and sparsify
         int in_size = srp.in_link().size();
@@ -59,7 +59,7 @@ struct reeber::detail::MergeSparsify
             dlog::prof << "dequeue";
             std::vector<TripletMergeTree>  trees;
             for (int i = 0; i < in_size; ++i)
-                trees.emplace_back(b->mt.negate());
+                trees.emplace_back((b->*tmt).negate());
             EdgeMap out_edges;
             int local_pos = -1;
             for (int i = 0; i < in_size; ++i)
@@ -68,7 +68,7 @@ struct reeber::detail::MergeSparsify
               if (nbr_gid == srp.gid())
               {
                   local_pos = i;
-                  trees[i].swap(b->mt);
+                  trees[i].swap(b->*tmt);
                   LOG_SEV(debug) << "  swapped in tree of size: " << trees[i].size();
               } else
               {
@@ -95,7 +95,7 @@ struct reeber::detail::MergeSparsify
                 auto vu = std::make_tuple(v,u);
                 if (out_edges.find(vu) != out_edges.end())
                 {
-                    out_edges.erase(vu);
+                    map_erase(out_edges, vu);
                     Vertex s = std::get<1>(kv.second);
 
                     if (mt.contains(s))
@@ -106,15 +106,15 @@ struct reeber::detail::MergeSparsify
                 }
             }
             for (Edge e : discard)
-                edges.erase(e);
+                map_erase(edges, e);
             edges.insert(out_edges.begin(), out_edges.end());
             dlog::prof >> "compute edges";
 
-            trees[0].swap(b->mt);
-            reeber::merge(b->mt, trees[1], merge_edges);
+            trees[0].swap(b->*tmt);
+            reeber::merge(b->*tmt, trees[1], merge_edges);
 
             trees.clear();
-            LOG_SEV(debug) << "  trees merged: " << b->mt.size();
+            LOG_SEV(debug) << "  trees merged: " << (b->*tmt).size();
         }
 
         dlog::prof << "compute edge_vertices";
@@ -134,21 +134,21 @@ struct reeber::detail::MergeSparsify
         auto local_test = [&gid_gen,gid](Vertex u)  { return gid_gen(u) == gid; };
 
         if (in_size)
-            reeber::sparsify(b->mt, [b, &edge_vertices, &local_test](Vertex u)
+            reeber::sparsify(b->*tmt, [b, &edge_vertices, &local_test](Vertex u)
                                { return local_test(u) || edge_vertices.find(u) != edge_vertices.end(); });
 
         // send (without the vertices) to the neighbors
         int out_size = srp.out_link().size();
         if (out_size == 0)        // final round: create the final local-global tree, nothing needs to be sent
         {
-            LOG_SEV(debug) << "Sparsifying final tree of size: " << b->mt.size();
-            reeber::sparsify(b->mt, local_test);
-            LOG_SEV(debug) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
+            LOG_SEV(debug) << "Sparsifying final tree of size: " << (b->*tmt).size();
+            reeber::sparsify(b->*tmt, local_test);
+            LOG_SEV(debug) << "[" << b->gid << "] " << "Final tree size: " << (b->*tmt).size();
             return;
         }
 
-        TripletMergeTree mt_out(b->mt.negate());
-        reeber::sparsify(mt_out, b->mt, [&edge_vertices](Vertex u) { return edge_vertices.find(u) != edge_vertices.end(); });
+        TripletMergeTree mt_out((b->*tmt).negate());
+        reeber::sparsify(mt_out, b->*tmt, [&edge_vertices](Vertex u) { return edge_vertices.find(u) != edge_vertices.end(); });
 
         dlog::prof << "enqueue";
         for (int i = 0; i < out_size; ++i)
