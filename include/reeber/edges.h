@@ -1,5 +1,7 @@
 #pragma once
 
+#include "parallel-tbb.h"
+
 namespace reeber
 {
 
@@ -30,9 +32,9 @@ namespace detail
 }
 
 template<class Vertex, class Value>
-using EdgeMap = std::unordered_map<detail::Edge<Vertex>, std::tuple<Value, Vertex>, detail::edge_hash<Vertex>, detail::edge_equal<Vertex>>;
+using EdgeMap = map<detail::Edge<Vertex>, std::tuple<Value, Vertex>, detail::edge_hash<Vertex>, detail::edge_equal<Vertex>>;
 
 template<class Vertex, class Value>
-using EdgeMaps = std::unordered_map<int, EdgeMap<Vertex,Value>>;
+using EdgeMaps = map<int, EdgeMap<Vertex,Value>>;
 
 }
