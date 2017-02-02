@@ -34,15 +34,13 @@ resolve_edges(diy::Master&                            master,
               EdgeMaps<Vertex,Value> Block::*         edge_maps_);
 
 template<class Block, class Vertex, class Value, class GidGenerator, class Partners>
-void resolve_and_merge(diy::Master&                            master,
-                       diy::Assigner&                          assigner,
-                       TripletMergeTree<Vertex,Value> Block::* tmt_,
-                       EdgeMaps<Vertex,Value> Block::*         edge_maps_,
-                       const GidGenerator&                     gid_generator,
-                       const Partners&                         partners)
+void merge_trees(diy::Master&                            master,
+                 diy::Assigner&                          assigner,
+                 TripletMergeTree<Vertex,Value> Block::* tmt_,
+                 EdgeMaps<Vertex,Value> Block::*         edge_maps_,
+                 const GidGenerator&                     gid_generator,
+                 const Partners&                         partners)
 {
-    resolve_edges<Block, Vertex, Value>(master, tmt_, edge_maps_);
-
     // remove (simplify into vertices vectors) degree-2 nodes
     master.foreach([&](Block* b, const diy::Master::ProxyWithLink& cp)
     {
@@ -66,6 +64,18 @@ void resolve_and_merge(diy::Master&                            master,
     // perform the global swap-reduce
     diy::reduce(master, assigner, partners,
                 detail::MergeSparsify<Block, Vertex, Value, Partners, GidGenerator>(tmt_, edge_maps_, gid_generator));
+}
+
+template<class Block, class Vertex, class Value, class GidGenerator, class Partners>
+void resolve_and_merge(diy::Master&                            master,
+                       diy::Assigner&                          assigner,
+                       TripletMergeTree<Vertex,Value> Block::* tmt_,
+                       EdgeMaps<Vertex,Value> Block::*         edge_maps_,
+                       const GidGenerator&                     gid_generator,
+                       const Partners&                         partners)
+{
+    resolve_edges<Block, Vertex, Value>(master, tmt_, edge_maps_);
+    merge_trees<Block,Vertex,Value,GidGenerator,Partners>(master,assigner,tmt_,edge_maps_,gid_generator,partners);
 }
 
 template<class Block, class Vertex, class Value, class GidGenerator>
