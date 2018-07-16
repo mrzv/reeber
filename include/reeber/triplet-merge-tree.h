@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <tuple>
+#include <set>
 
 #include "parallel-tbb.h"
 
@@ -28,8 +29,13 @@ struct TripletMergeTreeNode
         Neighbor    to;
     };
 
-    bool                        operator<(const TripletMergeTreeNode& other) const     { return value < other.value || (value == other.value && vertex < other.vertex); }
-    bool                        operator>(const TripletMergeTreeNode& other) const     { return value > other.value || (value == other.value && vertex > other.vertex); }
+    bool                        operator< (const TripletMergeTreeNode& other) const     { return std::tie(value, vertex) <  std::tie(other.value, other.vertex); }
+    bool                        operator<=(const TripletMergeTreeNode& other) const     { return std::tie(value, vertex) <= std::tie(other.value, other.vertex); }
+    bool                        operator> (const TripletMergeTreeNode& other) const     { return std::tie(value, vertex) >  std::tie(other.value, other.vertex); }
+    bool                        operator>=(const TripletMergeTreeNode& other) const     { return std::tie(value, vertex) >= std::tie(other.value, other.vertex); }
+
+    bool                        operator==(const TripletMergeTreeNode& other) const     { return std::tie(vertex, value) == std::tie(other.vertex, other.value); }
+    bool                        operator!=(const TripletMergeTreeNode& other) const     { return !(*this == other); }
 
     std::tuple<Neighbor, Neighbor>
                                 parent() const                                          { Parent p = parent_; return std::make_tuple(p.through, p.to); }
@@ -40,6 +46,9 @@ struct TripletMergeTreeNode
     atomic<Parent>              parent_;
     Neighbor                    cur_deepest;
     VerticesVector              vertices;
+
+    friend std::ostream&        operator<<(std::ostream& os, const TripletMergeTreeNode& n) { os << "Node(vertex = " << n.vertex  << ", value = " << n.value << ")"; return os; }
+
 };
 
 template<class Vertex_, class Value_>
@@ -57,7 +66,7 @@ class TripletMergeTree
     public:
                     TripletMergeTree(bool negate = false):
                         negate_(negate)                 {}
-                    ~TripletMergeTree()                 { for (auto n : nodes_) delete_node(n.second); }
+                    ~TripletMergeTree()                 { if (is_node_owner_) for (auto n : nodes_) delete_node(n.second); }
 
         // It's Ok to move the tree; it's not Ok to copy it (because of the dynamically allocated nodes)
                     TripletMergeTree(const TripletMergeTree&)   =delete;
@@ -72,6 +81,8 @@ class TripletMergeTree
         Neighbor    add(const Vertex& x, Value v);
         Neighbor    find_or_add(const Vertex& x, Value v);
         Neighbor    add_or_update(const Vertex& x, Value v);
+        void        make_shallow_copy(TripletMergeTree& other);
+        void        make_deep_copy(TripletMergeTree& other);
         void        link(const Neighbor u, const Neighbor s, const Neighbor v)
                                                         { u->parent_ = Node::make_parent(s, v); }
         bool        cas_link(const Neighbor u, const Neighbor os, const Neighbor ov, const Neighbor s, const Neighbor v)
@@ -146,12 +157,13 @@ class TripletMergeTree
 
         template<class Vert, class Val, class E>
         friend void
-        merge(TripletMergeTree<Vert, Val>& mt1, TripletMergeTree<Vert, Val>& mt2, const E& edges);
+        merge(TripletMergeTree<Vert, Val>& mt1, TripletMergeTree<Vert, Val>& mt2, const E& edges, bool ignore_missing_edges);
 
     private:
         bool                        negate_;
         VertexNeighborMap           nodes_;
         allocator<Node>             alloc_;
+        bool                        is_node_owner_ { true };
 };
 
 /**
@@ -184,7 +196,7 @@ typename TripletMergeTree<Vertex, Value>::Neighbor
 representative(TripletMergeTree<Vertex, Value>& mt, typename TripletMergeTree<Vertex, Value>::Neighbor u, typename TripletMergeTree<Vertex, Value>::Neighbor a);
 
 template<class Vertex, class Value, class Edges>
-void merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Value>& mt2, const Edges& edges);
+void merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Value>& mt2, const Edges& edges, bool ignore_missing_edges = false);
 
 template<class Vertex, class Value, class Special>
 set<Vertex>

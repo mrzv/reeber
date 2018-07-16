@@ -222,6 +222,7 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
     typedef     typename TripletMergeTree<Vertex, Value>::Neighbor        Neighbor;
 
     auto vertices_ = topology.vertices();
+
     vector<Vertex> vertices(std::begin(vertices_), std::end(vertices_));
 
     for_each(0, vertices.size(), [&](size_t i) { Vertex a = vertices[i]; mt.add(a, f(a)); });
@@ -230,7 +231,6 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
     {
         Vertex a = vertices[i];
         Neighbor u = mt[a];
-
         for (const Vertex& b : topology.link(a))
         {
             if (b < a) continue;
@@ -320,6 +320,58 @@ reeber::sparsify(TripletMergeTree<Vertex, Value>& mt, const Special& special)
     dlog::prof >> "sparsify";
 }
 
+
+template<class Vertex, class Value>
+void reeber::TripletMergeTree<Vertex, Value>::make_shallow_copy(reeber::TripletMergeTree<Vertex, Value>& other)
+{
+    // delete previous nodes in other
+    if (other.is_node_owner_)
+    {
+        for (auto& vn_pair : other.nodes_)
+        {
+            other.delete_node(vn_pair.second);
+        }
+    }
+
+    other.nodes_ = this->nodes_;
+    other.negate_ = this->negate_;
+    other.is_node_owner_ = false;
+}
+
+template<class Vertex, class Value>
+void reeber::TripletMergeTree<Vertex, Value>::make_deep_copy(reeber::TripletMergeTree<Vertex, Value>& other)
+{
+    // delete previous nodes in other
+    if (other.is_node_owner_)
+    {
+        for (auto& vn_pair : other.nodes_)
+        {
+            other.delete_node(vn_pair.second);
+        }
+    }
+    for (auto vn_pair : nodes_)
+    {
+
+        Vertex u = vn_pair.first;
+        assert(u == vn_pair.second->vertex);
+        Vertex s = std::get<0>(vn_pair.second->parent())->vertex;
+        Vertex v = std::get<1>(vn_pair.second->parent())->vertex;
+        Value val = vn_pair.second->value;
+
+        Neighbor other_n_u, other_n_s, other_n_v;
+
+        other_n_u = other.add_or_update(u, val);
+        other_n_s = other.find_or_add(s, 0);
+        other_n_v = other.find_or_add(v, 0);
+
+        other.link(other_n_u, other_n_s, other_n_v);
+        other_n_u->vertices = vn_pair.second->vertices;
+    }
+    other.negate_ = this->negate_;
+    other.is_node_owner_ = true;
+}
+
+
 template<class Vertex, class Value>
 void
 reeber::TripletMergeTree<Vertex, Value>::
@@ -375,7 +427,8 @@ merge(Neighbor u, Neighbor v)
 
 template<class Vertex, class Value, class Edges>
 void
-reeber::merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Value>& mt2, const Edges& edges)
+reeber::merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Value>& mt2, const Edges& edges,
+              bool ignore_missing_edges)
 {
     dlog::prof << "merge";
 
@@ -386,7 +439,10 @@ reeber::merge(TripletMergeTree<Vertex, Value>& mt1, TripletMergeTree<Vertex, Val
     {
         Vertex a, b;
         std::tie(a, b) = edges[i];
-        mt1.merge(mt1[a], mt1[b]);
+        if (not ignore_missing_edges or (mt1.contains(a) and mt1.contains(b)))
+        {
+            mt1.merge(mt1[a], mt1[b]);
+        }
     });
 
     repair(mt1);

@@ -11,61 +11,28 @@
 #include "format.h"
 
 #include "triplet-merge-tree-block.h"
+#include "output_persistence.h"
 
 typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
 
-struct OutputPairs
+struct IsLocalTest
 {
-    struct ExtraInfo
-    {
-                            ExtraInfo(const std::string& outfn_, const Decomposer& decomposer_, bool verbose_):
-                                outfn(outfn_), decomposer(decomposer_), verbose(verbose_)   {}
-        std::string         outfn;
-        const Decomposer&   decomposer;
-        bool                verbose;
-    };
+    using Position = TripletMergeTreeBlock::Box::Position;
+    using Neighbor = TripletMergeTreeBlock::TripletMergeTree::Neighbor;
 
-    typedef TripletMergeTreeBlock::TripletMergeTree::Neighbor  Neighbor;
-    typedef TripletMergeTreeBlock::Box                         Box;
+    const Decomposer& decomposer;
 
-            OutputPairs(const TripletMergeTreeBlock& block_, const ExtraInfo& extra_):
-                block(block_),
-                extra(extra_)
+    IsLocalTest(const Decomposer& decomposer_) : decomposer(decomposer_) {}
+
+    bool operator()(const TripletMergeTreeBlock& block, Neighbor from) const
     {
-        std::string   dgm_fn = fmt::format("{}-b{}.dgm", extra.outfn, block.gid);
-        ofs.open(dgm_fn.c_str());
+        Position from_position = block.global.position(from->vertex);
+        return decomposer.lowest_gid(from_position) == block.gid;
     }
-
-    void    operator()(Neighbor from, Neighbor through, Neighbor to) const
-    {
-        Box::Position from_position = block.global.position(from->vertex);
-        if (extra.decomposer.lowest_gid(from_position) != block.gid)
-            return;
-
-        if (extra.verbose)
-        {
-            if (from != to)
-                fmt::print(ofs, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
-            else
-                fmt::print(ofs, "{} {} {} --\n",       from->vertex,  from->value, (block.mt.negate() ? "-inf" : "inf"));
-        } else
-            fmt::print(ofs, "{} {}\n", from->value, through->value);
-    }
-
-    const TripletMergeTreeBlock&       block;
-    const ExtraInfo&                   extra;
-    mutable std::ofstream              ofs;
 };
 
-void output_persistence(TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp, const OutputPairs::ExtraInfo& extra)
-{
-    LOG_SEV(debug) << "Block:   " << cp.gid();
-    LOG_SEV(debug) << " Tree:   " << b->mt.size();
-    LOG_SEV(debug) << " Local:  " << b->local.from()  << " - " << b->local.to();
-    LOG_SEV(debug) << " Global: " << b->global.from() << " - " << b->global.to();
 
-    r::traverse_persistence(b->mt, OutputPairs(*b, extra));
-}
+using OutputPairsR = OutputPairs<TripletMergeTreeBlock, IsLocalTest>;
 
 int main(int argc, char** argv)
 {
@@ -141,11 +108,14 @@ int main(int argc, char** argv)
         domain.min[i] = global.from()[i];
         domain.max[i] = global.to()[i];
     }
-    diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner.nblocks());
 
     // output persistence
-    OutputPairs::ExtraInfo extra(outfn, decomposer, verbose);
-    master.foreach([&extra](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) { output_persistence(b,cp,extra); });
+    diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner.nblocks());
+    IsLocalTest test_local(decomposer);
+
+    OutputPairsR::ExtraInfo extra(outfn, verbose);
+    master.foreach([&extra, &test_local](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
+        output_persistence(b, cp, extra, test_local); });
 
     dlog::prof.flush();
 }

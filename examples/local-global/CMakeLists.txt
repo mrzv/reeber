@@ -44,7 +44,7 @@ endif                       (persistent-integral-trace-vertices)
 
 add_executable              (print-trees-${real}   print-trees.cpp ${DEBUG_SOURCES} ${SOURCES})
 target_link_libraries       (print-trees-${real}   ${libraries})
-set_target_properties       (print-trees-${real}   PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real} -std=c++11")
+set_target_properties       (print-trees-${real}   PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real} ")
 
 endforeach                  (real)
 

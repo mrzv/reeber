@@ -37,6 +37,8 @@ struct TripletMergeTreeBlock
 
     inline void             compute_average(const diy::Master::ProxyWithLink& cp, void*);
 
+    const TripletMergeTree& get_merge_tree() const { return mt; }
+
     int                     gid;
     Box                     local;
     Box                     global;

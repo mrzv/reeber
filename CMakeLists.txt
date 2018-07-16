@@ -42,7 +42,7 @@ find_library                (TBB_MALLOC_LIBRARY NAMES tbbmalloc)
    endif                    (TBB_INCLUDE_DIRS AND TBB_LIBRARY AND TBB_MALLOC_LIBRARY)
 endif                       (use-tbb)
 
-set                         (CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+set                         (CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
 
 if                          (profile)
     add_definitions         (-DPROFILE)
@@ -59,6 +59,7 @@ if                          (counters)
 endif                       (counters)
 
 # DIY
+set(DIY_INCLUDE_DIR "/home/narn/code/berkeley-2018/diy/include")
 find_path                   (DIY_INCLUDE_DIR        diy/master.hpp)
 
 # BOXLIB

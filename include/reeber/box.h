@@ -45,6 +45,10 @@ class Box
                                 const Position& from,
                                 const Position& to):
                                 g_(0, shape), from_(from), to_(to)                  {}
+                            Box(const Position& from,
+                                const Position& to):
+                                g_(0, to - from + Position::one()),
+                                from_(from), to_(to)                                {}
 
 
         const Position&     from() const                                            { return from_; }
@@ -59,9 +63,13 @@ class Box
 
         VertexRange         vertices() const                                        { return range::iterator_range<VI>(VI::begin(from_, to_), VI::end(from_, to_))
                                                                                                 | range::transformed(position_to_vertex()); }
+
+        decltype(auto)      positions() const                                       { return range::iterator_range<VI>(VI::begin(from_, to_), VI::end(from_, to_));}
+
         Link                link(const Position& p) const                           { return position_link(p)
                                                                                                 | range::transformed(position_to_vertex()); }
         Link                link(const Vertex& v) const                             { return link(position(v)); }
+
         PositionLink        position_link(const Position& p) const                  { return FreudenthalLinkRange(FreudenthalLinkIterator::begin(p), FreudenthalLinkIterator::end(p))
                                                                                                 | range::filtered(bounds_test()); }
         PositionLink        position_link(const Vertex& v) const                    { return position_link(position(v)); }
@@ -102,6 +110,7 @@ class Box
         {
                             BoundaryTest(const Box& box): box_(box)                 {}
             bool            operator()(const Vertex& v) const                       { return box_.boundary(v); }
+            bool            operator()(const Position& p) const                     { return box_.boundary(box_.position_to_vertex()(p)); }
             const Box&      box_;
         };
 

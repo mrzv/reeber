@@ -24,6 +24,62 @@
 #include "edges.h"
 #include "triplet-merge-tree-block.h"
 
+typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
+
+struct OutputPairs
+{
+    struct ExtraInfo
+    {
+                            ExtraInfo(const std::string& outfn_, const Decomposer& decomposer_, bool verbose_):
+                                outfn(outfn_), decomposer(decomposer_), verbose(verbose_)   {}
+        std::string         outfn;
+        const Decomposer&   decomposer;
+        bool                verbose;
+    };
+
+    typedef TripletMergeTreeBlock::TripletMergeTree::Neighbor  Neighbor;
+    typedef TripletMergeTreeBlock::Box                         Box;
+
+            OutputPairs(const TripletMergeTreeBlock& block_, const ExtraInfo& extra_):
+                block(block_),
+                extra(extra_)
+    {
+        std::string   dgm_fn = fmt::format("{}-b{}.dgm", extra.outfn, block.gid);
+//        std::string   dgm_fn = extra.outfn;
+        ofs.open(dgm_fn.c_str());
+    }
+
+    void    operator()(Neighbor from, Neighbor through, Neighbor to) const
+    {
+        Box::Position from_position = block.global.position(from->vertex);
+        if (extra.decomposer.lowest_gid(from_position) != block.gid)
+            return;
+
+        if (extra.verbose)
+        {
+            if (from != to)
+                fmt::print(ofs, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
+            else
+                fmt::print(ofs, "{} {} {} --\n",       from->vertex,  from->value, (block.mt.negate() ? "-inf" : "inf"));
+        } else if (from->value != through->value)
+            fmt::print(ofs, "{} {}\n", from->value, through->value);
+    }
+
+    const TripletMergeTreeBlock&       block;
+    const ExtraInfo&                   extra;
+    mutable std::ofstream              ofs;
+};
+
+void output_persistence(TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp, const OutputPairs::ExtraInfo& extra)
+{
+    LOG_SEV(debug) << "Block:   " << cp.gid();
+    LOG_SEV(debug) << " Tree:   " << b->mt.size();
+    LOG_SEV(debug) << " Local:  " << b->local.from()  << " - " << b->local.to();
+    LOG_SEV(debug) << " Global: " << b->global.from() << " - " << b->global.to();
+
+    r::traverse_persistence(b->mt, OutputPairs(*b, extra));
+}
+
 // Load the specified chunk of data, compute local merge tree, add block to diy::Master
 struct LoadAdd
 {
@@ -283,6 +339,16 @@ void test_link(void* b_, const diy::Master::ProxyWithLink& cp, void*)
         fmt::print("  {} -> {}\n", u, b->local.position(u));
 }
 
+void print_persistence(void* b_, const diy::Master::ProxyWithLink& cp)
+{
+    using Neighbor = TripletMergeTreeBlock::TripletMergeTree::Neighbor;
+    TripletMergeTreeBlock* b = static_cast<TripletMergeTreeBlock*>(b_);
+    reeber::traverse_persistence(b->mt, [](Neighbor from, Neighbor through, Neighbor to) {
+        fmt::print("{} {}\n", from->value, through->value);
+    });
+}
+
+
 int main(int argc, char** argv)
 {
     diy::mpi::environment   env(argc, argv);
@@ -316,7 +382,7 @@ int main(int argc, char** argv)
     bool        wrap_       = ops >> Present('w', "wrap",   "periodic boundary conditions");
     bool        split       = ops >> Present(     "split",  "use split IO");
 
-    std::string infn, outfn;
+    std::string infn, outfn, outdiag;
     if (  ops >> Present('h', "help", "show help message") ||
         !(ops >> PosOption(infn) >> PosOption(outfn)))
     {
@@ -332,6 +398,8 @@ int main(int argc, char** argv)
         }
         return 1;
     }
+
+    bool write_diag = (ops >> PosOption(outdiag));
 
     r::task_scheduler_init init(threads);
 
@@ -463,4 +531,19 @@ int main(int argc, char** argv)
                             //       the global dlog::prof goes out of scope and flushes the events.
                             //       Need to eventually fix this.
     dlog::stats.flush();
+
+//    master.foreach([](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
+//        fmt::print("--------------------\n", b->gid, b->mt.size());
+//        fmt::print("Block {} done, #nodes = {}\n", b->gid, b->mt.size());
+//        fmt::print("--------------------\n", b->gid, b->mt.size());
+//    });
+
+    if (write_diag) {
+        // output persistence
+        bool verbose = false;
+        OutputPairs::ExtraInfo extra(outdiag, decomposer, verbose);
+        master.foreach([&extra](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
+            output_persistence(b, cp, extra);
+        });
+    }
 }
