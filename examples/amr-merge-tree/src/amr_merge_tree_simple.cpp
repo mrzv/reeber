@@ -2,6 +2,8 @@
 #include <diy/io/block.hpp>
 #include <diy/decomposition.hpp>
 
+#include <dlog/stats.h>
+#include <dlog/log.h>
 #include <opts/opts.h>
 
 #include <reeber/box.h>
@@ -548,7 +550,18 @@ int main(int argc, char** argv)
     diy::MemoryBuffer header;
     diy::DiscreteBounds domain;
 
+    world.barrier();
+    dlog::Timer timer;
+    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation";
+
     read_from_file(infn, world, master_reader, master, assigner, header, domain);
+
+    world.barrier();
+
+    LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master.size();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
+
 
     // copy FabBlocks to FabTmtBlocks
     // in FabTmtConstructor mask will be set and local trees will be computed
@@ -574,6 +587,10 @@ int main(int argc, char** argv)
             });
 
     fmt::print("FabBlocks copied\n");
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
 
     int global_done = false;
     int rounds = 0;
@@ -603,6 +620,10 @@ int main(int argc, char** argv)
         }
     }
 
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
+
     //    fmt::print("----------------------------------------\n");
     //    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
     //        int my_nodes = 0;
@@ -629,6 +650,10 @@ int main(int argc, char** argv)
             diy::io::split::write_blocks(outfn, world, master);
     }
 
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
+
     bool verbose = false;
 
     if (write_diag) {
@@ -638,6 +663,10 @@ int main(int argc, char** argv)
             output_persistence(b, cp, extra, test_local);
         });
     }
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
+    timer.restart();
 
     return 0;
 }
