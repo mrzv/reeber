@@ -39,43 +39,43 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 # src files
 #file(GLOB AMT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 
-# add_executable(amr_merge_tree ${CMAKE_CURRENT_SOURCE_DIR}/src/amr_merge_tree.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
-add_executable(amr_merge_tree_simple ${CMAKE_CURRENT_SOURCE_DIR}/src/amr_merge_tree_simple.cpp
-        ${AMT_HEADERS} ${REEBER_HEADERS})
+foreach(real   float double)
 
-add_executable(amr_merge_tree_send_components ${CMAKE_CURRENT_SOURCE_DIR}/src/amr_merge_tree_send_components.cpp
-        ${AMT_HEADERS} ${REEBER_HEADERS})
+add_executable(amr_merge_tree_simple_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr_merge_tree_simple.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
+set_target_properties(amr_merge_tree_simple_${real}   PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
 
-add_executable(amr_merge_tree_test ${CMAKE_CURRENT_SOURCE_DIR}/tests/tests_main.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_amr_merge_tree.cpp
-        ${AMT_HEADERS}
-        ${REEBER_HEADERS})
+add_executable(amr_merge_tree_send_components_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr_merge_tree_send_components.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
+set_target_properties(amr_merge_tree_send_components_${real} PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
 
-add_executable(write_refined_amr ${CMAKE_CURRENT_SOURCE_DIR}/src/write-refined-amr.cpp
-        ${AMT_HEADERS} ${REEBER_HEADERS})
+add_executable(amr_merge_tree_test_${real} ${CMAKE_CURRENT_SOURCE_DIR}/tests/tests_main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_amr_merge_tree.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
+set_target_properties(amr_merge_tree_test_${real} PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
 
-add_executable(my_tests ${CMAKE_CURRENT_SOURCE_DIR}/src/tests.cpp
-        ${AMT_HEADERS} ${REEBER_HEADERS})
+add_executable(write_refined_amr_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/write-refined-amr.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
+set_target_properties(write_refined_amr_${real}  PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
+
+#add_executable(my_tests ${CMAKE_CURRENT_SOURCE_DIR}/src/tests.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
 
 # target_link_libraries(amr_merge_tree PUBLIC ${libraries})
-target_link_libraries(amr_merge_tree_simple PUBLIC ${libraries})
-target_link_libraries(amr_merge_tree_send_components PUBLIC ${libraries})
-target_link_libraries(amr_merge_tree_test PUBLIC ${libraries})
-target_link_libraries(write_refined_amr PUBLIC ${libraries})
-target_link_libraries(my_tests PUBLIC ${libraries})
+target_link_libraries(amr_merge_tree_simple_${real} PUBLIC ${libraries})
+target_link_libraries(amr_merge_tree_send_components_${real} PUBLIC ${libraries})
+target_link_libraries(amr_merge_tree_test_${real} PUBLIC ${libraries})
+target_link_libraries(write_refined_amr_${real} PUBLIC ${libraries})
+#target_link_libraries(my_tests PUBLIC ${libraries})
 
 if (MPI_COMPILE_FLAGS)
 #    set_target_properties(amr_merge_tree PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
-    set_target_properties(amr_merge_tree_simple PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
-    set_target_properties(amr_merge_tree_send_components PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
-    set_target_properties(write_refined_amr PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
-    set_target_properties(my_tests PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
+    set_target_properties(amr_merge_tree_simple_${real} PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
+    set_target_properties(amr_merge_tree_send_components_${real} PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
+    set_target_properties(write_refined_amr_${real} PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
+#    set_target_properties(my_tests PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
 endif ()
 
 if (MPI_LINK_FLAGS)
 #    set_target_properties(amr_merge_tree PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
-    set_target_properties(amr_merge_tree_simple PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
-    set_target_properties(amr_merge_tree_send_components PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
-    set_target_properties(write_refined_amr PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
-    set_target_properties(my_tests PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+    set_target_properties(amr_merge_tree_simple_${real} PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+    set_target_properties(amr_merge_tree_send_components_${real} PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+    set_target_properties(write_refined_amr_${real} PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+#    set_target_properties(my_tests PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
 endif ()
+
+endforeach()

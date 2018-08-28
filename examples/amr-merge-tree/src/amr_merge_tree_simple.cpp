@@ -1,3 +1,5 @@
+#include "reeber-real.h"
+
 #include <diy/master.hpp>
 #include <diy/io/block.hpp>
 #include <diy/decomposition.hpp>
@@ -79,7 +81,7 @@ bool link_contains_gid(Link* link, int gid)
  *
  */
 template<unsigned D>
-void send_edges_to_neighbors(FabTmtBlock<double, D>* b, const diy::Master::ProxyWithLink& cp)
+void send_edges_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
     bool debug = false;
 
@@ -118,7 +120,7 @@ void send_edges_to_neighbors(FabTmtBlock<double, D>* b, const diy::Master::Proxy
  * @param cp
  */
 template<unsigned D>
-void delete_low_edges(FabTmtBlock<double, D>* b, const diy::Master::ProxyWithLink& cp)
+void delete_low_edges(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
     bool debug = false;
 
@@ -155,7 +157,7 @@ void delete_low_edges(FabTmtBlock<double, D>* b, const diy::Master::ProxyWithLin
 
 
 template<unsigned D>
-void send_to_neighbors(FabTmtBlock<double, D>* b, const diy::Master::ProxyWithLink& cp)
+void send_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
     bool debug = false;
     //    if (debug) fmt::print("Called send_to_neighbors for block = {}\n", b->gid);
@@ -285,13 +287,13 @@ expand_link(Block* b, const diy::Master::ProxyWithLink& cp, diy::AMRLink* l, std
  */
 
 template<unsigned D>
-void get_from_neighbors_and_merge(FabTmtBlock<double, D>* b, const diy::Master::ProxyWithLink& cp)
+void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
     bool debug = false;
 
     //    if (debug) fmt::print("Called get_from_neighbors_and_merge for block = {}\n", b->gid);
 
-    using Block = FabTmtBlock<double, D>;
+    using Block = FabTmtBlock<Real, D>;
     using AmrTripletMergeTree = typename Block::TripletMergeTree;
     using AmrEdgeVector = typename Block::AmrEdgeContainer;
     using VertexVertexMap = typename Block::VertexVertexMap;
@@ -469,7 +471,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<double, D>* b, const diy::Master::
  * in every round send to neighbors.
  */
 template<unsigned D>
-void amr_merge_tree_simple(FabTmtBlock<double, D>* b, const diy::Master::ProxyWithLink& cp, bool first)
+void amr_merge_tree_simple(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp, bool first)
 {
     if (!first) {
         // receive from neighbors
@@ -510,7 +512,7 @@ int main(int argc, char** argv)
     std::string log_level = "info";
 
     // threshold
-    double rho = 1E54;
+    Real rho = 1E54;
 
     using namespace opts;
 

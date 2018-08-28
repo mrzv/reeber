@@ -1,3 +1,5 @@
+#include "reeber-real.h"
+
 #include <diy/master.hpp>
 #include <diy/io/block.hpp>
 #include <opts/opts.h>
@@ -88,9 +90,9 @@ void f1()
 void f2()
 {
     using Point = diy::Point<int, 4>;
-    using Grid = diy::Grid<double, 2>;
+    using Grid = diy::Grid<Real, 2>;
     using IntGrid = diy::Grid<int, 2>;
-    using Block = FabTmtBlock<double, 2>;
+    using Block = FabTmtBlock<Real, 2>;
 
     using Vertex = Block::Vertex;
     using MaskedBox = Block::MaskedBox;
@@ -130,7 +132,7 @@ void f2()
         Vertex grid_shape { blocks_size_1, blocks_size_1 };
         Vertex mask_shape { grid_shape + Vertex::one() + Vertex::one() };
 
-        double rho = 20000.0;
+        Real rho = 20000.0;
 
         // fill in function values
         for (int i = 0; i < n_blocks; ++i) {
@@ -314,9 +316,9 @@ void f2()
 void f3()
 {
     using Point = diy::Point<int, 4>;
-    using Grid = diy::Grid<double, 2>;
+    using Grid = diy::Grid<Real, 2>;
     using IntGrid = diy::Grid<int, 2>;
-    using Block = FabTmtBlock<double, 2>;
+    using Block = FabTmtBlock<Real, 2>;
 
     using Vertex = Block::Vertex;
     using MaskedBox = Block::MaskedBox;
@@ -356,7 +358,7 @@ void f3()
         Vertex grid_shape { blocks_size_1, blocks_size_1 };
         Vertex mask_shape { grid_shape + Vertex::one() + Vertex::one() };
 
-        double rho = 20000.0;
+        Real rho = 20000.0;
 
         // fill in function values
         for (int i = 0; i < n_blocks; ++i) {
@@ -528,9 +530,9 @@ void f3()
 void f4()
 {
     using Point = diy::Point<int, 4>;
-    using Grid = diy::Grid<double, 2>;
+    using Grid = diy::Grid<Real, 2>;
     using IntGrid = diy::Grid<int, 2>;
-    using Block = FabTmtBlock<double, 2>;
+    using Block = FabTmtBlock<Real, 2>;
 
     using Vertex = Block::Vertex;
     using MaskedBox = Block::MaskedBox;
@@ -570,7 +572,7 @@ void f4()
         Vertex grid_shape { blocks_size_1, blocks_size_1 };
         Vertex mask_shape { grid_shape + Vertex::one() + Vertex::one() };
 
-        double rho = 20000.0;
+        Real rho = 20000.0;
 
         // fill in function values
         for (int i = 0; i < n_blocks; ++i) {
@@ -741,9 +743,9 @@ void f4()
 void f5()
 {
     using Point = diy::Point<int, 4>;
-    using Grid = diy::Grid<double, 2>;
+    using Grid = diy::Grid<Real, 2>;
     using IntGrid = diy::Grid<int, 2>;
-    using Block = FabTmtBlock<double, 2>;
+    using Block = FabTmtBlock<Real, 2>;
 
     using Vertex = Block::Vertex;
     using MaskedBox = Block::MaskedBox;
@@ -788,7 +790,7 @@ void f5()
         Vertex grid_shape { blocks_size_1, blocks_size_1 };
         Vertex mask_shape { grid_shape + Vertex::one() + Vertex::one() };
 
-        double rho = 20000.0;
+        Real rho = 20000.0;
 
         // fill in function values
         for (int i = 0; i < n_blocks; ++i) {
@@ -987,7 +989,7 @@ int main()
 }
 
 template<unsigned D>
-void check_edge_symmetry(const typename std::vector<FabTmtBlock<double, D>>& blocks)
+void check_edge_symmetry(const typename std::vector<FabTmtBlock<Real, D>>& blocks)
 {
     using BID = diy::BlockID;
     std::map<BID, std::map<BID, std::set<AmrEdge>>> edge_matr;

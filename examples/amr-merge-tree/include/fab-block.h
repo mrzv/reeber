@@ -12,7 +12,6 @@
 
 namespace r = reeber;
 
-using Real = double;
 
 
 template<class T, unsigned D>

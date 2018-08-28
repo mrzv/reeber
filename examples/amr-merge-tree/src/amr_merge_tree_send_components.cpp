@@ -1,3 +1,5 @@
+#include "reeber-real.h"
+
 #include <diy/master.hpp>
 #include <diy/io/block.hpp>
 #include <opts/opts.h>
@@ -90,7 +92,7 @@ bool link_contains_gid(Link* link, int gid)
  *
  */
 template<unsigned D>
-void send_edges_to_neighbors(FabTmtBlock<double, D>* b, const diy::Master::ProxyWithLink& cp)
+void send_edges_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
     bool debug = false;
 
@@ -128,7 +130,7 @@ void send_edges_to_neighbors(FabTmtBlock<double, D>* b, const diy::Master::Proxy
  * @param cp
  */
 template<unsigned D>
-void delete_low_edges(FabTmtBlock<double, D>* b, const diy::Master::ProxyWithLink& cp)
+void delete_low_edges(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
     bool debug = false;
 
@@ -197,7 +199,7 @@ expand_link(Block* b, const diy::Master::ProxyWithLink& cp, diy::AMRLink* l, std
 }
 
 template<unsigned D>
-void send_to_neighbors_main(FabTmtBlock<double, D>* b, const diy::Master::ProxyWithLink& cp)
+void send_to_neighbors_main(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
     bool debug = true;
     if (debug) fmt::print("Called send_to_neighbors_main for block = {}\n", b->gid);
@@ -257,11 +259,11 @@ void send_to_neighbors_main(FabTmtBlock<double, D>* b, const diy::Master::ProxyW
 }
 
 template<unsigned D>
-void receive_main(FabTmtBlock<double, D>* b, const diy::Master::ProxyWithLink& cp)
+void receive_main(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
     bool debug = true;
     //    if (debug) fmt::print("Called receive_main for block = {}\n", b->gid);
-    using Block = FabTmtBlock<double, D>;
+    using Block = FabTmtBlock<Real, D>;
     using AmrTripletMergeTree = typename Block::TripletMergeTree;
     using AmrEdgeVector = typename Block::AmrEdgeContainer;
     using VertexVertexMap = typename Block::VertexVertexMap;
@@ -396,7 +398,7 @@ int main(int argc, char** argv)
     std::string log_level = "info";
 
     // threshold
-    double rho = 1E54;
+    Real rho = 1E54;
 
     using namespace opts;
 
