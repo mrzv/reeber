@@ -37,6 +37,11 @@ struct FabBlock
         return new FabBlock;
     }
 
+    static void destroy(void* b)
+    {
+        delete static_cast<FabBlock*>(b);
+    }
+
     static void save(const void* b_, diy::BinaryBuffer& bb);
 
     static void load(void* b_, diy::BinaryBuffer& bb);

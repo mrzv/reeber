@@ -610,7 +610,7 @@ int main(int argc, char** argv)
 
     diy::FileStorage storage(prefix);
 
-    diy::Master master_reader(world, 1, -1, FabBlockR::create);
+    diy::Master master_reader(world, threads, in_memory, &FabBlockR::create, &FabBlockR::destroy);
     diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save, &Block::load);
     diy::ContiguousAssigner assigner(world.size(), 0);
     diy::MemoryBuffer header;
