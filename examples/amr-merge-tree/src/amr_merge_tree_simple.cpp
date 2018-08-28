@@ -84,7 +84,7 @@ bool link_contains_gid(Link* link, int gid)
 template<unsigned D>
 void send_original_gids(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = true;
+    bool debug = false;
     if (debug) fmt::print("Enter send_original_gids, gid = {}\n", b->gid);
 
     auto* l = static_cast<diy::AMRLink*>(cp.link());
@@ -114,7 +114,7 @@ void send_original_gids(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLin
 template<unsigned D>
 void delete_unnecessary_receivers(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = true;
+    bool debug = false;
 
     if (debug) fmt::print("Called delete_unnecessary_receivers for block = {}\n", b->gid);
 
@@ -230,7 +230,7 @@ void delete_unnecessary_receivers(FabTmtBlock<Real, D>* b, const diy::Master::Pr
 template<unsigned D>
 void send_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = true;
+    bool debug = false;
     if (debug) fmt::print("Called send_to_neighbors for block = {}\n", b->gid);
 
     auto* l = static_cast<diy::AMRLink*>(cp.link());
@@ -361,7 +361,7 @@ expand_link(Block* b, const diy::Master::ProxyWithLink& cp, diy::AMRLink* l, std
 template<unsigned D>
 void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = true;
+    bool debug = false;
 
     //    if (debug) fmt::print("Called get_from_neighbors_and_merge for block = {}\n", b->gid);
 
@@ -624,6 +624,9 @@ int main(int argc, char** argv)
     diy::MemoryBuffer header;
     diy::DiscreteBounds domain;
 
+    dlog::add_stream(std::cerr, dlog::severity(log_level))
+        << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
+
     world.barrier();
     dlog::Timer timer;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation";
@@ -634,8 +637,6 @@ int main(int argc, char** argv)
     read_from_file(infn, world, master_reader, master, assigner, header, domain);
 
     world.barrier();
-
-    fmt::print("Data read\n");
 
     LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master.size();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
@@ -656,8 +657,8 @@ int main(int argc, char** argv)
                 int local_lev = l->level();
 
 
-                fmt::print("copying block, bounds = {} - {}, core = {} - {}, gid = {}\n", l->bounds().min,
-                           l->bounds().max, l->core().min, l->core().max, cp.gid());
+//                fmt::print("copying block, bounds = {} - {}, core = {} - {}, gid = {}\n", l->bounds().min,
+//                           l->bounds().max, l->core().min, l->core().max, cp.gid());
 
                 master.add(cp.gid(),
                            new Block(b->fab, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
@@ -665,7 +666,7 @@ int main(int argc, char** argv)
                            new_link);
             });
 
-    fmt::print("FabBlocks copied\n");
+//    fmt::print("FabBlocks copied\n");
 
 
     world.barrier();
@@ -703,9 +704,8 @@ int main(int argc, char** argv)
 
     world.barrier();
 
-    fmt::print("world.rank = {}, time for exchange = {}\n", world.rank(), dlog::clock_to_string(timer.elapsed()));
+//    fmt::print("world.rank = {}, time for exchange = {}\n", world.rank(), dlog::clock_to_string(timer.elapsed()));
 
-    LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
     LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 

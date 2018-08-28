@@ -34,7 +34,8 @@ void set_mask(typename FabTmtBlock<T, D>::MaskedBox& local,
               const diy::Point<int, D>& v_bounds,
               diy::AMRLink* l,
               const diy::DiscreteBounds& domain,
-              const T& rho);
+              const T& rho,
+              bool negate);
 
 
 template<class Real, unsigned D>
@@ -208,14 +209,14 @@ struct FabTmtBlock
             processed_receiveres_({ gid }),
             negate_(_negate)
     {
-        bool debug = true;
+        bool debug = false;
 
         std::string debug_prefix = "FabTmtBlock ctor, gid = " + std::to_string(gid);
 
         if (debug) fmt::print("{} setting mask\n", debug_prefix);
 
         diy::for_each(local_.mask_shape(), [this, amr_link, &fab_grid, rho](const Vertex& v) {
-            set_mask<Real, D>(this->local_, fab_grid, v, amr_link, this->domain(), rho);
+            set_mask<Real, D>(this->local_, fab_grid, v, amr_link, this->domain(), rho, this->negate_);
         });
 
         //        if (debug) fmt::print("gid = {}, checking mask\n", gid);

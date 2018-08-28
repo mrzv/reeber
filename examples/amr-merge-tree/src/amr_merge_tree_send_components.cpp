@@ -1,6 +1,6 @@
 #include "reeber-real.h"
 
-#define SEND_COMPONETS
+#define SEND_COMPONENTS
 
 #include <diy/master.hpp>
 #include <diy/io/block.hpp>
