@@ -84,6 +84,9 @@ bool link_contains_gid(Link* link, int gid)
 template<unsigned D>
 void send_original_gids(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
+    bool debug = true;
+    if (debug) fmt::print("Enter send_original_gids, gid = {}\n", b->gid);
+
     auto* l = static_cast<diy::AMRLink*>(cp.link());
 
     std::set<diy::BlockID> receivers;
@@ -96,6 +99,8 @@ void send_original_gids(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLin
     for (const diy::BlockID& receiver : receivers) {
         cp.enqueue(receiver, b->original_link_gids_);
     }
+
+    if (debug) fmt::print("Exit send_original_gids, gid = {}\n", b->gid);
 }
 
 
@@ -109,9 +114,9 @@ void send_original_gids(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLin
 template<unsigned D>
 void delete_unnecessary_receivers(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = false;
+    bool debug = true;
 
-    if (debug) fmt::print("Called delete_low_edges for block = {}\n", b->gid);
+    if (debug) fmt::print("Called delete_unnecessary_receivers for block = {}\n", b->gid);
 
     auto* l = static_cast<diy::AMRLink*>(cp.link());
 
@@ -125,12 +130,14 @@ void delete_unnecessary_receivers(FabTmtBlock<Real, D>* b, const diy::Master::Pr
     for (const diy::BlockID& sender : senders) {
         GidVector gids_from_neighbor;
 
-        if (debug) fmt::print("In delete_low_edges for block = {}, dequeing from sender = {}\n", b->gid, sender.gid);
+        if (debug) fmt::print("In delete_unnecessary_receivers for block = {}, dequeing from sender = {}\n", b->gid, sender.gid);
 
         cp.dequeue(sender, gids_from_neighbor);
 
         b->adjust_original_gids(sender.gid, gids_from_neighbor);
     }
+
+    if (debug) fmt::print("Exit delete_unnecessary_receivers for block = {}\n", b->gid);
 }
 
 ///**
@@ -223,8 +230,9 @@ void delete_unnecessary_receivers(FabTmtBlock<Real, D>* b, const diy::Master::Pr
 template<unsigned D>
 void send_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = false;
-    //    if (debug) fmt::print("Called send_to_neighbors for block = {}\n", b->gid);
+    bool debug = true;
+    if (debug) fmt::print("Called send_to_neighbors for block = {}\n", b->gid);
+
     auto* l = static_cast<diy::AMRLink*>(cp.link());
 
     cp.collectives()->clear();
@@ -353,7 +361,7 @@ expand_link(Block* b, const diy::Master::ProxyWithLink& cp, diy::AMRLink* l, std
 template<unsigned D>
 void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = false;
+    bool debug = true;
 
     //    if (debug) fmt::print("Called get_from_neighbors_and_merge for block = {}\n", b->gid);
 
@@ -460,8 +468,8 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
         r::merge(b->mt_, rt, received_edges[i], true);
         r::repair(b->mt_);
         if (debug)
-            fmt::print("In get_from_neighbors_and_merge for block = {}, merge and repair OK for sender = {}\n", b->gid,
-                       sender_gids_debug[i]);
+            fmt::print("In get_from_neighbors_and_merge for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid,
+                       sender_gids_debug[i], b->mt_.size());
 
         // save information about vertex-component relation and component merging in block
         b->vertex_to_deepest_.insert(received_vertex_to_deepest[i].begin(), received_vertex_to_deepest[i].end());
@@ -501,7 +509,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
         }
     }
 
-    if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, disjoint sets updated OK\n", b->gid);
+    if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->mt_.size());
 
     b->done_ = b->is_done_simple(vertices_to_check);
 
@@ -610,7 +618,7 @@ int main(int argc, char** argv)
 
     diy::FileStorage storage(prefix);
 
-    diy::Master master_reader(world, threads, in_memory, &FabBlockR::create, &FabBlockR::destroy);
+    diy::Master master_reader(world, 1, in_memory, &FabBlockR::create, &FabBlockR::destroy);
     diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save, &Block::load);
     diy::ContiguousAssigner assigner(world.size(), 0);
     diy::MemoryBuffer header;
@@ -619,10 +627,15 @@ int main(int argc, char** argv)
     world.barrier();
     dlog::Timer timer;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation";
+    fmt::print("Starting computation\n");
+    world.barrier();
+
 
     read_from_file(infn, world, master_reader, master, assigner, header, domain);
 
     world.barrier();
+
+    fmt::print("Data read\n");
 
     LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master.size();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
@@ -654,9 +667,11 @@ int main(int argc, char** argv)
 
     fmt::print("FabBlocks copied\n");
 
+
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
+
 
     int global_done = false;
     int rounds = 0;
@@ -687,9 +702,14 @@ int main(int argc, char** argv)
     }
 
     world.barrier();
+
+    fmt::print("world.rank = {}, time for exchange = {}\n", world.rank(), dlog::clock_to_string(timer.elapsed()));
+
+    LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
     LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
+    return 0;
     //    fmt::print("----------------------------------------\n");
     //    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
     //        int my_nodes = 0;

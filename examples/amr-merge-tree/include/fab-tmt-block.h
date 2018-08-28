@@ -208,7 +208,7 @@ struct FabTmtBlock
             processed_receiveres_({ gid }),
             negate_(_negate)
     {
-        bool debug = (gid == 1);
+        bool debug = true;
 
         std::string debug_prefix = "FabTmtBlock ctor, gid = " + std::to_string(gid);
 

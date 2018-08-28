@@ -131,7 +131,7 @@ refine_vertex(const diy::Point<int, D>& v, int v_refinement, int target_refineme
     Position from = ratio * v;
     Position to = from + (ratio - 1) * Position::one();
 
-    return { from, to };
+    return std::tie(from, to);
 }
 
 /**
