@@ -64,6 +64,7 @@ struct FabTmtBlock
     using VertexSizeMap = std::map<AmrVertexId, int>;
 
     using GidContainer = std::set<int>;
+    using GidVector = std::vector<int>;
 
     template<class Vertex_, class Node>
     struct TmtConnectedComponent
@@ -76,8 +77,10 @@ struct FabTmtBlock
         AmrVertexId root_;
         GidContainer current_neighbors_;
         GidContainer processed_neighbors_;
+#ifdef SEND_COMPONENTS
         AmrEdgeContainer outgoing_edges_;
         TripletMergeTree merge_tree_;
+#endif
 
         // methods
 
@@ -88,9 +91,12 @@ struct FabTmtBlock
         template<class EC>
         TmtConnectedComponent(const AmrVertexId& root, const EC& _edges) :
                 root_(root),
-                current_neighbors_({ root.gid }),
-                outgoing_edges_(_edges.cbegin(), _edges.cend())
+                current_neighbors_({ root.gid })
+#ifdef SEND_COMPONENTS
+                , outgoing_edges_(_edges.cbegin(), _edges.cend())
+#endif
         {
+#ifdef SEND_COMPONENTS
             bool debug = false;
 
             std::transform(outgoing_edges_.begin(), outgoing_edges_.end(),
@@ -103,8 +109,10 @@ struct FabTmtBlock
             if (debug)
                 fmt::print("entered TmtConnectedComponentConstructor, root = {}, #edges = {}\n", root,
                            outgoing_edges_.size());
+#endif
         }
 
+#ifdef SEND_COMPONENTS
         template<class EC>
         void add_edges(const EC& more_edges)
         {
@@ -117,7 +125,7 @@ struct FabTmtBlock
                                return std::get<1>(e).gid;
                            });
         }
-
+#endif
         int is_done() const
         {
             return current_neighbors_ == processed_neighbors_;
@@ -155,7 +163,7 @@ struct FabTmtBlock
     std::set<int> new_receivers_;
     std::set<int> processed_receiveres_;
 
-    std::vector<int> original_link_gids_;
+    GidVector original_link_gids_;
 
     bool negate_;
 
@@ -177,7 +185,7 @@ struct FabTmtBlock
     int refinement() const
     { return local_.refinement(); }
 
-    const std::vector<int>& get_original_link_gids() const
+    const GidVector& get_original_link_gids() const
     { return original_link_gids_; }
 
 
@@ -257,7 +265,7 @@ struct FabTmtBlock
     // and the other is outside
     bool edge_goes_out(const AmrEdge& e) const;
 
-    void adjust_outgoing_edges();
+//    void adjust_outgoing_edges();
     // diy stuff
 
     bool deepest_computed(Neighbor n) const
@@ -283,7 +291,9 @@ struct FabTmtBlock
 
     void compute_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
 
-    void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender);
+//    void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender);
+
+    void adjust_original_gids(int sender_gid, FabTmtBlock::GidVector& edges_from_sender);
 
     // disjoint-sets related methods
     bool are_components_connected(const AmrVertexId& deepest_a, const AmrVertexId& deepest_b);
@@ -296,8 +306,9 @@ struct FabTmtBlock
 
     int is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check);
 
+#ifdef SEND_COMPONENTS
     int are_all_components_done() const;
-
+#endif
     std::vector<AmrVertexId> get_deepest_vertices() const;
 
     const AmrEdgeContainer& get_all_outgoing_edges()

@@ -1,5 +1,7 @@
 #include "reeber-real.h"
 
+#define SEND_COMPONETS
+
 #include <diy/master.hpp>
 #include <diy/io/block.hpp>
 #include <opts/opts.h>

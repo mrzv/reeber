@@ -229,83 +229,93 @@ void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink* l, VertexEdgesMa
 
             std::copy(out_edges.begin(), out_edges.end(), std::back_inserter(initial_edges_));
 
-            for (const AmrEdge& e : out_edges) {
-                assert(std::get<0>(e).gid == gid);
-                gid_to_outgoing_edges_[std::get<1>(e).gid].push_back(e);
-            }
+//            for (const AmrEdge& e : out_edges) {
+//                assert(std::get<0>(e).gid == gid);
+//                gid_to_outgoing_edges_[std::get<1>(e).gid].push_back(e);
+//            }
 
         }
     }
 }
 
-// delete edges from this block that end in a low vertex of a neighbor block.
-// edges_from_gid: outogoing eddes we receive from a neigbor block
-// subtract them from the edges we keep in gid_to_outgoing_edges_
 template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdgeContainer& edges_from_sender)
+void FabTmtBlock<Real, D>::adjust_original_gids(int sender_gid, FabTmtBlock::GidVector& edges_from_sender)
 {
-    bool debug = false;
+    auto iter = std::find(original_link_gids_.begin(), original_link_gids_.end(), sender_gid);
+    bool i_talk_to_sender = iter != original_link_gids_.end();
+    bool sender_talks_to_me = std::find(edges_from_sender.begin(), edges_from_sender.end(), gid) != edges_from_sender.end();
+    if (i_talk_to_sender and not sender_talks_to_me)
+        original_link_gids_.erase(iter);
+}
 
-    auto iter = gid_to_outgoing_edges_.find(sender_gid);
-    if (iter == gid_to_outgoing_edges_.end()) {
-        // all edges from neighbor must end in low vertex of mine
-        if (debug)
-            fmt::print("In delete_low_edges in block with gid = {}, sender = {}, no edges from this block, exiting\n",
-                       gid, sender_gid);
-        return;  // we don't expect any edges from gid
-    }
-
-    // edges from neighbor come reversed, correct that
-    std::transform(edges_from_sender.begin(), edges_from_sender.end(), edges_from_sender.begin(),
-                   &reeber::reverse_amr_edge);
-
-    if (debug) fmt::print("in BlocK::delete_low_edges, transform OK\n");
-
-    // put edges into set to find the set difference
-    std::set<AmrEdge> my_edges { iter->second.begin(), iter->second.end() };
-    std::set<AmrEdge> neighbor_edges { edges_from_sender.begin(), edges_from_sender.end() };
-
-    int old_n_edges = my_edges.size();
-
-    iter->second.clear();
-
-    if (debug) fmt::print("In delete_low_edges in block with gid = {}, sender = {}, clear OK\n", gid, sender_gid);
-
-//    if (debug)
-//    {
-//        for (const AmrEdge& e : my_edges)
-//        {
-//            if (neighbor_edges.count(e) == 0)
-//            {
-//                fmt::print("gid = {}, sender = {}, e = {}\n", gid, sender_gid, e);
-//            }
-//        }
+//// delete edges from this block that end in a low vertex of a neighbor block.
+//// edges_from_gid: outogoing eddes we receive from a neigbor block
+//// subtract them from the edges we keep in gid_to_outgoing_edges_
+//template<class Real, unsigned D>
+//void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdgeContainer& edges_from_sender)
+//{
+//    bool debug = false;
+//
+//    auto iter = gid_to_outgoing_edges_.find(sender_gid);
+//    if (iter == gid_to_outgoing_edges_.end()) {
+//        // all edges from neighbor must end in low vertex of mine
+//        if (debug)
+//            fmt::print("In delete_low_edges in block with gid = {}, sender = {}, no edges from this block, exiting\n",
+//                       gid, sender_gid);
+//        return;  // we don't expect any edges from gid
 //    }
+//
+//    // edges from neighbor come reversed, correct that
+//    std::transform(edges_from_sender.begin(), edges_from_sender.end(), edges_from_sender.begin(),
+//                   &reeber::reverse_amr_edge);
+//
+//    if (debug) fmt::print("in BlocK::delete_low_edges, transform OK\n");
+//
+//    // put edges into set to find the set difference
+//    std::set<AmrEdge> my_edges { iter->second.begin(), iter->second.end() };
+//    std::set<AmrEdge> neighbor_edges { edges_from_sender.begin(), edges_from_sender.end() };
+//
+//    int old_n_edges = my_edges.size();
+//
+//    iter->second.clear();
+//
+//    if (debug) fmt::print("In delete_low_edges in block with gid = {}, sender = {}, clear OK\n", gid, sender_gid);
+//
+////    if (debug)
+////    {
+////        for (const AmrEdge& e : my_edges)
+////        {
+////            if (neighbor_edges.count(e) == 0)
+////            {
+////                fmt::print("gid = {}, sender = {}, e = {}\n", gid, sender_gid, e);
+////            }
+////        }
+////    }
+//
+//    std::set_intersection(my_edges.begin(), my_edges.end(), neighbor_edges.begin(), neighbor_edges.end(),
+//                          std::back_inserter(iter->second));
+//
+//    int new_n_edges = iter->second.size();
+//
+//    if (iter->second.empty())
+//        gid_to_outgoing_edges_.erase(iter);
+//    if (debug)
+//        fmt::print("in BlocK::delete_low_edges, erase OK, old_n_edges = {}, new_n_edges = {}\n", old_n_edges,
+//                   new_n_edges);
+//}
 
-    std::set_intersection(my_edges.begin(), my_edges.end(), neighbor_edges.begin(), neighbor_edges.end(),
-                          std::back_inserter(iter->second));
-
-    int new_n_edges = iter->second.size();
-
-    if (iter->second.empty())
-        gid_to_outgoing_edges_.erase(iter);
-    if (debug)
-        fmt::print("in BlocK::delete_low_edges, erase OK, old_n_edges = {}, new_n_edges = {}\n", old_n_edges,
-                   new_n_edges);
-}
-
-template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::adjust_outgoing_edges()
-{
-    size_t s = initial_edges_.size();
-    initial_edges_.clear();
-    initial_edges_.reserve(s);
-
-    for (const auto& gid_edge_vector_pair : gid_to_outgoing_edges_) {
-        std::copy(gid_edge_vector_pair.second.begin(), gid_edge_vector_pair.second.end(),
-                  std::back_inserter(initial_edges_));
-    }
-}
+//template<class Real, unsigned D>
+//void FabTmtBlock<Real, D>::adjust_outgoing_edges()
+//{
+//    size_t s = initial_edges_.size();
+//    initial_edges_.clear();
+//    initial_edges_.reserve(s);
+//
+//    for (const auto& gid_edge_vector_pair : gid_to_outgoing_edges_) {
+//        std::copy(gid_edge_vector_pair.second.begin(), gid_edge_vector_pair.second.end(),
+//                  std::back_inserter(initial_edges_));
+//    }
+//}
 
 template<class Real, unsigned D>
 r::AmrVertexId FabTmtBlock<Real, D>::deepest(const AmrVertexId& v) const
@@ -448,7 +458,9 @@ void FabTmtBlock<Real, D>::compute_connected_components(const VertexEdgesMap& ve
                     fmt::print("in compute_connected_compponent, gid = {}, adding edges to existing cc, deepest = {}\n",
                                gid, deepest_vertex);
                 // add to existing components new block_ids
+#ifdef SEND_COMPONENTS
                 find_component(deepest_vertex).add_edges(edges);
+#endif
             }
 
             for (const AmrVertexId& v : visited_neighbors) {
@@ -465,7 +477,7 @@ void FabTmtBlock<Real, D>::compute_connected_components(const VertexEdgesMap& ve
                            [this](const bool& prev, const typename VertexNeighborMap::value_type& vn) {
                                return prev and this->deepest_computed(vn.second);
                            }));
-
+#ifdef SEND_COMPONENTS
     // copy nodes from local merge tree of block to merge trees of components
     for (const auto& vertex_deepest_pair : vertex_to_deepest_) {
         TripletMergeTree& mt = find_component(vertex_deepest_pair.second).merge_tree_;
@@ -485,6 +497,7 @@ void FabTmtBlock<Real, D>::compute_connected_components(const VertexEdgesMap& ve
         n_v = mt.find_or_add(v, 0);
         mt.link(n_u, n_s, n_v);
     }
+#endif
 }
 
 
@@ -581,7 +594,7 @@ int FabTmtBlock<Real, D>::is_done_simple(const std::vector<FabTmtBlock::AmrVerte
     return 1;
 }
 
-
+#ifdef SEND_COMPONENTS
 template<class Real, unsigned D>
 int FabTmtBlock<Real, D>::are_all_components_done() const
 {
@@ -595,6 +608,7 @@ int FabTmtBlock<Real, D>::are_all_components_done() const
     if (debug) fmt::print("are_all_components_done, gid = {}, returning 1\n", gid);
     return 1;
 }
+#endif
 
 template<class Real, unsigned D>
 bool FabTmtBlock<Real, D>::gid_must_be_in_link(int gid) const
@@ -618,7 +632,7 @@ void FabTmtBlock<Real, D>::save(const void* b, diy::BinaryBuffer& bb)
     //            diy::save(bb, block->components_);
     diy::save(bb, block->domain_);
     diy::save(bb, block->initial_edges_);
-    diy::save(bb, block->gid_to_outgoing_edges_);
+//    diy::save(bb, block->gid_to_outgoing_edges_);
     diy::save(bb, block->new_receivers_);
     diy::save(bb, block->processed_receiveres_);
     diy::save(bb, block->original_link_gids_);
@@ -641,7 +655,7 @@ void FabTmtBlock<Real, D>::load(void* b, diy::BinaryBuffer& bb)
     //            diy::load(bb, block->components_);
     diy::load(bb, block->domain_);
     diy::load(bb, block->initial_edges_);
-    diy::load(bb, block->gid_to_outgoing_edges_);
+//    diy::load(bb, block->gid_to_outgoing_edges_);
     diy::load(bb, block->new_receivers_);
     diy::load(bb, block->processed_receiveres_);
     diy::load(bb, block->original_link_gids_);
