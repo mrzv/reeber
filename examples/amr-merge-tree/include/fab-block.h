@@ -2,16 +2,9 @@
 
 #include <diy/serialization.hpp>
 #include <diy/grid.hpp>
+#include <diy/vertices.hpp>
 #include <diy/fmt/format.h>
 #include <diy/fmt/ostream.h>
-
-#include <reeber/grid.h>
-#include <reeber/grid-serialization.h>
-#include <reeber/masked-box.h>
-#include <reeber/edges.h>
-
-namespace r = reeber;
-
 
 
 template<class T, unsigned D>
