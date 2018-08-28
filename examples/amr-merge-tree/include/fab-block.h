@@ -2,16 +2,9 @@
 
 #include <diy/serialization.hpp>
 #include <diy/grid.hpp>
+#include <diy/vertices.hpp>
 #include <diy/fmt/format.h>
 #include <diy/fmt/ostream.h>
-
-#include <reeber/grid.h>
-#include <reeber/grid-serialization.h>
-#include <reeber/masked-box.h>
-#include <reeber/edges.h>
-
-namespace r = reeber;
-
 
 
 template<class T, unsigned D>
@@ -35,6 +28,11 @@ struct FabBlock
     static void* create()
     {
         return new FabBlock;
+    }
+
+    static void destroy(void* b)
+    {
+        delete static_cast<FabBlock*>(b);
     }
 
     static void save(const void* b_, diy::BinaryBuffer& bb);

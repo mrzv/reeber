@@ -208,9 +208,12 @@ struct FabTmtBlock
             processed_receiveres_({ gid }),
             negate_(_negate)
     {
-        bool debug = false;
+        bool debug = (gid == 1);
 
-        //        if (debug) fmt::print("gid = {}, setting mask\n", gid);
+        std::string debug_prefix = "FabTmtBlock ctor, gid = " + std::to_string(gid);
+
+        if (debug) fmt::print("{} setting mask\n", debug_prefix);
+
         diy::for_each(local_.mask_shape(), [this, amr_link, &fab_grid, rho](const Vertex& v) {
             set_mask<Real, D>(this->local_, fab_grid, v, amr_link, this->domain(), rho);
         });
@@ -225,14 +228,21 @@ struct FabTmtBlock
 
         reeber::compute_merge_tree2(mt_, local_, fab_grid);
 
+        if (debug) fmt::print("{} local tree computed\n", debug_prefix);
+
         mt_.make_deep_copy(original_tree_);
+
+        if (debug) fmt::print("{} local tree copied\n", debug_prefix);
 
         VertexEdgesMap vertex_to_outgoing_edges;
 
         compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
 
+        if (debug) fmt::print("{} outgoing edges computed\n", debug_prefix);
+
         compute_connected_components(vertex_to_outgoing_edges);
 
+        if (debug) fmt::print("{} connected components computed\n", debug_prefix);
 
         for (int i = 0; i < amr_link->size(); ++i) {
             if (amr_link->target(i).gid != gid) {
@@ -242,12 +252,10 @@ struct FabTmtBlock
         }
 
         if (debug)
-            fmt::print(
-                    "Block with gid = {} constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n",
-                    gid, _ref, _level, local_, domain().max, components_.size());
+            fmt::print( "{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n", debug_prefix, _ref, _level, local_, domain().max, components_.size());
         if (debug)
-            fmt::print("Block with gid = {} constructed, tree.size = {}, new_receivers.size = {}, new_receivers = {}\n",
-                       gid, mt_.size(), new_receivers_.size(), container_to_string(new_receivers_));
+            fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}, new_receivers = {}\n",
+                       debug_prefix, mt_.size(), new_receivers_.size(), container_to_string(new_receivers_));
 
         assert(mt_.size() == original_tree_.size());
     }
