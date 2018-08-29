@@ -300,7 +300,8 @@ struct FabTmtBlock
 
     void compute_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
 
-//    void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender);
+    void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender);
+    void adjust_outgoing_edges();
 
     void adjust_original_gids(int sender_gid, FabTmtBlock::GidVector& edges_from_sender);
 
