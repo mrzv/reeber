@@ -642,8 +642,7 @@ int main(int argc, char** argv)
 
     world.barrier();
     dlog::Timer timer;
-    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation";
-    fmt::print("Starting computation\n");
+    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, infn = " << infn << ", nblocks = " << nblocks << ", rho = " << rho;
     world.barrier();
 
 
@@ -679,13 +678,9 @@ int main(int argc, char** argv)
                            new_link);
             });
 
-//    fmt::print("FabBlocks copied\n");
-
-
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
-
 
     int global_done = false;
     int rounds = 0;
@@ -707,7 +702,7 @@ int main(int argc, char** argv)
 
             global_done = master.proxy(master.loaded_block()).read<int>();
 
-            if (master.communicator().rank() == 0) { fmt::print("MASTER round {}, global_done = {}\n", rounds, global_done); }
+            LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", global_done = " << global_done;
 
             if (global_done)
                 break;
