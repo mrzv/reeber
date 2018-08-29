@@ -92,19 +92,21 @@ void send_original_gids(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLin
     auto* l = static_cast<diy::AMRLink*>(cp.link());
 
     std::set<diy::BlockID> receivers;
-    for (int i = 0; i < l->size(); ++i) {
-        if (l->target(i).gid != b->gid) {
+    for (int i = 0; i < l->size(); ++i)
+    {
+        if (l->target(i).gid != b->gid)
+        {
             receivers.insert(l->target(i));
         }
     }
 
-    for (const diy::BlockID& receiver : receivers) {
+    for (const diy::BlockID& receiver : receivers)
+    {
         cp.enqueue(receiver, b->original_link_gids_);
     }
 
     if (debug) fmt::print("Exit send_original_gids, gid = {}\n", b->gid);
 }
-
 
 
 /**
@@ -123,16 +125,21 @@ void delete_unnecessary_receivers(FabTmtBlock<Real, D>* b, const diy::Master::Pr
     auto* l = static_cast<diy::AMRLink*>(cp.link());
 
     std::set<diy::BlockID> senders;
-    for (int i = 0; i < l->size(); ++i) {
-        if (l->target(i).gid != b->gid) {
+    for (int i = 0; i < l->size(); ++i)
+    {
+        if (l->target(i).gid != b->gid)
+        {
             senders.insert(l->target(i));
         }
     }
 
-    for (const diy::BlockID& sender : senders) {
+    for (const diy::BlockID& sender : senders)
+    {
         GidVector gids_from_neighbor;
 
-        if (debug) fmt::print("In delete_unnecessary_receivers for block = {}, dequeing from sender = {}\n", b->gid, sender.gid);
+        if (debug)
+            fmt::print("In delete_unnecessary_receivers for block = {}, dequeing from sender = {}\n", b->gid,
+                       sender.gid);
 
         cp.dequeue(sender, gids_from_neighbor);
 
@@ -240,8 +247,10 @@ void send_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink
     cp.collectives()->clear();
 
     std::set<diy::BlockID> receivers;
-    for (int i = 0; i < l->size(); ++i) {
-        if (l->target(i).gid != b->gid) {
+    for (int i = 0; i < l->size(); ++i)
+    {
+        if (l->target(i).gid != b->gid)
+        {
             receivers.insert(l->target(i));
         }
     }
@@ -251,7 +260,8 @@ void send_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink
                    receivers.size());
 
 
-    for (const diy::BlockID& receiver : receivers) {
+    for (const diy::BlockID& receiver : receivers)
+    {
         int receiver_gid = receiver.gid;
 
 
@@ -265,7 +275,8 @@ void send_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink
 
         cp.enqueue(receiver, n_trees);
 
-        if (n_trees) {
+        if (n_trees)
+        {
             // send local tree and all outgoing edges that end in receiver
             cp.enqueue(receiver, b->original_tree_);
             cp.enqueue(receiver, b->vertex_to_deepest_);
@@ -310,14 +321,16 @@ expand_link(Block* b, const diy::Master::ProxyWithLink& cp, diy::AMRLink* l, std
     assert(received_links.size() == received_original_gids.size());
     std::set<int> added_gids;
 
-    for (size_t i = 0; i < received_links.size(); ++i) {
+    for (size_t i = 0; i < received_links.size(); ++i)
+    {
         const diy::AMRLink& received_link = received_links[i];
         assert(not received_original_gids[i].empty());
         if (debug)
             fmt::print("in expand_link for block = {}, i = {}, received_links[i].size = {}\n", b->gid, i,
                        received_links[i].size());
 
-        for (int j = 0; j < received_link.size(); ++j) {
+        for (int j = 0; j < received_link.size(); ++j)
+        {
             // if we are already sending to this block, skip it
             int candidate_gid = received_link.target(j).gid;
             if (link_contains_gid(l, candidate_gid))
@@ -330,7 +343,8 @@ expand_link(Block* b, const diy::Master::ProxyWithLink& cp, diy::AMRLink* l, std
 
             // skip non-original gids (we only include the original link)
             if (std::find(received_original_gids[i].begin(), received_original_gids[i].end(), candidate_gid) ==
-                received_original_gids[i].end()) {
+                received_original_gids[i].end())
+            {
                 if (debug)
                     fmt::print("in expand_link for block = {}, gid = {} not in original gids, skipping\n", b->gid,
                                candidate_gid);
@@ -378,8 +392,10 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
     auto* l = static_cast<diy::AMRLink*>(cp.link());
 
     std::set<diy::BlockID> senders;
-    for (int i = 0; i < l->size(); ++i) {
-        if (l->target(i).gid != b->gid) {
+    for (int i = 0; i < l->size(); ++i)
+    {
+        if (l->target(i).gid != b->gid)
+        {
             senders.insert(l->target(i));
         }
     }
@@ -400,7 +416,8 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
 
     if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, # senders = {}\n", b->gid, senders.size());
 
-    for (const diy::BlockID& sender : senders) {
+    for (const diy::BlockID& sender : senders)
+    {
         int n_trees;
         cp.dequeue(sender, n_trees);
 
@@ -410,7 +427,8 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
             fmt::print("In get_from_neighbors_and_merge for block = {}, dequeued from sender {} n_trees = {} \n",
                        b->gid, sender.gid, n_trees);
 
-        if (n_trees > 0) {
+        if (n_trees > 0)
+        {
             assert(n_trees == 1);
             sender_gids_debug.push_back(sender.gid);
 
@@ -445,8 +463,10 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
 
 #ifdef DEBUG
     // just for debug - check all received edges
-    for (const AmrEdgeContainer& ec : received_edges) {
-        for (const AmrEdge& e : ec) {
+    for (const AmrEdgeContainer& ec : received_edges)
+    {
+        for (const AmrEdge& e : ec)
+        {
             AmrVertexId my_vertex = std::get<1>(e);
 
             assert(my_vertex.gid != b->gid or
@@ -463,21 +483,25 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
     std::vector<AmrVertexId> vertices_to_check;
 
     // merge all received trees
-    for (size_t i = 0; i < received_trees.size(); ++i) {
+    for (size_t i = 0; i < received_trees.size(); ++i)
+    {
         if (received_edges[i].empty())
             continue;
         AmrTripletMergeTree& rt = received_trees[i];
         r::merge(b->mt_, rt, received_edges[i], true);
         r::repair(b->mt_);
         if (debug)
-            fmt::print("In get_from_neighbors_and_merge for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid,
-                       sender_gids_debug[i], b->mt_.size());
+            fmt::print(
+                    "In get_from_neighbors_and_merge for block = {}, merge and repair OK for sender = {}, tree size = {}\n",
+                    b->gid,
+                    sender_gids_debug[i], b->mt_.size());
 
         // save information about vertex-component relation and component merging in block
         b->vertex_to_deepest_.insert(received_vertex_to_deepest[i].begin(), received_vertex_to_deepest[i].end());
 
         // make_set in disjoint-sets of components
-        for (const AmrVertexId& new_deepest_vertex : received_deepest_vertices[i]) {
+        for (const AmrVertexId& new_deepest_vertex : received_deepest_vertices[i])
+        {
             b->add_component_to_disjoint_sets(new_deepest_vertex);
         }
 
@@ -486,8 +510,10 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
         // update receivers - if a block from the 1-neighbourhood of sender has not received a tree from us
         // we must send it to this block in the next round
 
-        for (const diy::AMRLink& rl : received_links) {
-            for (int k = 0; k < rl.size(); ++k) {
+        for (const diy::AMRLink& rl : received_links)
+        {
+            for (int k = 0; k < rl.size(); ++k)
+            {
                 int sender_neighbor_gid = rl.target(k).gid;
                 if (b->processed_receiveres_.count(sender_neighbor_gid) == 0)
                     b->new_receivers_.insert(sender_neighbor_gid);
@@ -497,21 +523,27 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
     }
 
     // update disjoint sets data structure (some components are now connected to each other)
-    for (size_t i = 0; i < received_trees.size(); ++i) {
-        for (const AmrEdge& e : received_edges[i]) {
-            if (b->edge_exists(e)) {
+    for (size_t i = 0; i < received_trees.size(); ++i)
+    {
+        for (const AmrEdge& e : received_edges[i])
+        {
+            if (b->edge_exists(e))
+            {
                 // edge e connects two vertices that we have, connect their components
                 AmrVertexId deepest_a = b->deepest(std::get<0>(e));
                 AmrVertexId deepest_b = b->deepest(std::get<1>(e));
                 b->connect_components(deepest_a, deepest_b);
-            } else {
+            } else
+            {
                 assert(b->edge_goes_out(e));
                 vertices_to_check.push_back(std::get<0>(e));
             }
         }
     }
 
-    if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->mt_.size());
+    if (debug)
+        fmt::print("In get_from_neighbors_and_merge for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid,
+                   b->mt_.size());
 
     b->done_ = b->is_done_simple(vertices_to_check);
 
@@ -547,7 +579,8 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
 template<unsigned D>
 void amr_merge_tree_simple(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp, bool first)
 {
-    if (!first) {
+    if (!first)
+    {
         // receive from neighbors
         get_from_neighbors_and_merge<D>(b, cp);
     }
@@ -584,7 +617,8 @@ int main(int argc, char** argv)
     diy::mpi::environment env(argc, argv);
     diy::mpi::communicator world;
 
-    if (argc < 2) {
+    if (argc < 2)
+    {
         fmt::print(std::cerr, "Usage: {} IN.amr rho\n", argv[0]);
         return 1;
     }
@@ -597,7 +631,7 @@ int main(int argc, char** argv)
     std::string log_level = "info";
 
     // threshold
-    Real rho = 1E54;
+    Real rho = 81.66;
 
     using namespace opts;
 
@@ -611,6 +645,7 @@ int main(int argc, char** argv)
             >> Option('p', "profile", profile_path, "path to keep the execution profile")
             >> Option('l', "log", log_level, "log level");
 
+    bool absolute = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
     bool negate = ops >> opts::Present('n', "negate", "sweep superlevel sets");
     bool split = ops >> Present("split", "use split IO");
 
@@ -618,8 +653,10 @@ int main(int argc, char** argv)
 
     if (ops >> Present('h', "help", "show help message") or
         not(ops >> PosOption(infn))
-        or not(ops >> PosOption(outfn))) {
-        if (world.rank() == 0) {
+        or not(ops >> PosOption(outfn)))
+    {
+        if (world.rank() == 0)
+        {
             fmt::print("Usage: {} INPUT.AMR OUTPUT \n", argv[0]);
             fmt::print("Compute local-global tree from AMR data\n");
             fmt::print("{}", ops);
@@ -632,17 +669,20 @@ int main(int argc, char** argv)
     diy::FileStorage storage(prefix);
 
     diy::Master master_reader(world, 1, in_memory, &FabBlockR::create, &FabBlockR::destroy);
-    diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save, &Block::load);
+    diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
+                       &Block::load);
     diy::ContiguousAssigner assigner(world.size(), nblocks);
     diy::MemoryBuffer header;
     diy::DiscreteBounds domain;
 
     dlog::add_stream(std::cerr, dlog::severity(log_level))
-        << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
+            << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level()
+            << dlog::color_post() >> dlog::flush();
 
     world.barrier();
     dlog::Timer timer;
-    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, infn = " << infn << ", nblocks = " << nblocks << ", rho = " << rho;
+    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, infn = " << infn << ", nblocks = " << nblocks
+                                                                           << ", rho = " << rho;
     world.barrier();
 
 
@@ -653,6 +693,23 @@ int main(int argc, char** argv)
     LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master.size();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
+
+    if (!absolute)
+    {
+        master_reader.foreach(&FabBlockR::compute_average);
+        master_reader.exchange();
+
+        const diy::Master::ProxyWithLink& proxy = master_reader.proxy(master_reader.loaded_block());
+        Real mean = proxy.get<Real>() / proxy.get<size_t>();
+        rho *= mean;
+
+        LOG_SEV_IF(world.rank() == 0, info) << "Average value is " << mean << ". Using threshold of " << rho;
+
+        world.barrier();
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute average:              "
+                << dlog::clock_to_string(timer.elapsed());
+        timer.restart();
+    }
 
 
     // copy FabBlocks to FabTmtBlocks
@@ -669,8 +726,8 @@ int main(int argc, char** argv)
                 int local_lev = l->level();
 
 
-//                fmt::print("copying block, bounds = {} - {}, core = {} - {}, gid = {}\n", l->bounds().min,
-//                           l->bounds().max, l->core().min, l->core().max, cp.gid());
+                //                fmt::print("copying block, bounds = {} - {}, core = {} - {}, gid = {}\n", l->bounds().min,
+                //                           l->bounds().max, l->core().min, l->core().max, cp.gid());
 
                 master.add(cp.gid(),
                            new Block(b->fab, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
@@ -679,20 +736,24 @@ int main(int argc, char** argv)
             });
 
     world.barrier();
-    LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  " << dlog::clock_to_string(timer.elapsed());
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  "
+            << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
     int global_done = false;
     int rounds = 0;
     bool first = true;
-    while (true) {
+    while (true)
+    {
         rounds++;
-        if (rounds == 1) {
+        if (rounds == 1)
+        {
             // remove non-existing edges that end in LOW vertex in neighbouring block
             master.foreach(&send_original_gids<DIM>);
             master.exchange();
             master.foreach(&delete_unnecessary_receivers<3>);
-        } else {
+        } else
+        {
 
             master.foreach(
                     [&](Block* b, const diy::Master::ProxyWithLink& cp) { amr_merge_tree_simple<DIM>(b, cp, first); });
@@ -712,7 +773,7 @@ int main(int argc, char** argv)
 
     world.barrier();
 
-//    fmt::print("world.rank = {}, time for exchange = {}\n", world.rank(), dlog::clock_to_string(timer.elapsed()));
+    //    fmt::print("world.rank = {}, time for exchange = {}\n", world.rank(), dlog::clock_to_string(timer.elapsed()));
 
     LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
@@ -736,7 +797,8 @@ int main(int argc, char** argv)
     //    fmt::print("----------------------------------------\n");
 
     // save the result
-    if (outfn != "none") {
+    if (outfn != "none")
+    {
         if (!split)
             diy::io::write_blocks(outfn, world, master);
         else
@@ -749,7 +811,8 @@ int main(int argc, char** argv)
 
     bool verbose = false;
 
-    if (write_diag) {
+    if (write_diag)
+    {
         OutputPairsR::ExtraInfo extra(outdiagfn, verbose);
         IsAmrVertexLocal test_local;
         master.foreach([&extra, &test_local](Block* b, const diy::Master::ProxyWithLink& cp) {
