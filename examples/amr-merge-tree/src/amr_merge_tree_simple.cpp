@@ -18,6 +18,8 @@
 
 #include "../../local-global/output_persistence.h"
 
+#include "read-npy.h"
+
 
 // block-independent types
 using Bounds = diy::DiscreteBounds;
@@ -553,17 +555,28 @@ void amr_merge_tree_simple(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWith
     send_to_neighbors<D>(b, cp);
 }
 
+inline bool ends_with(const std::string& s, const std::string& suffix)
+{
+    if (suffix.size() > s.size()) return false;
+    return std::equal(suffix.rbegin(), suffix.rend(), s.rbegin());
+}
+
 void read_from_file(std::string infn,
                     diy::mpi::communicator& world,
                     diy::Master& master_reader,
-                    diy::Master& master,
                     diy::ContiguousAssigner& assigner,
                     diy::MemoryBuffer& header,
-                    diy::DiscreteBounds& domain)
+                    diy::DiscreteBounds& domain,
+                    int nblocks)
 {
-    diy::io::read_blocks(infn, world, assigner, master_reader, header, FabBlockR::load);
-    diy::load(header, domain);
-    fmt::print("data read\n");
+    if (ends_with(infn, ".npy"))
+    {
+        read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
+    } else
+    {
+        diy::io::read_blocks(infn, world, assigner, master_reader, header, FabBlockR::load);
+        diy::load(header, domain);
+    }
 }
 
 int main(int argc, char** argv)
@@ -620,7 +633,7 @@ int main(int argc, char** argv)
 
     diy::Master master_reader(world, 1, in_memory, &FabBlockR::create, &FabBlockR::destroy);
     diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save, &Block::load);
-    diy::ContiguousAssigner assigner(world.size(), 0);
+    diy::ContiguousAssigner assigner(world.size(), nblocks);
     diy::MemoryBuffer header;
     diy::DiscreteBounds domain;
 
@@ -634,7 +647,7 @@ int main(int argc, char** argv)
     world.barrier();
 
 
-    read_from_file(infn, world, master_reader, master, assigner, header, domain);
+    read_from_file(infn, world, master_reader, assigner, header, domain, nblocks);
 
     world.barrier();
 
@@ -709,7 +722,6 @@ int main(int argc, char** argv)
     LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
-    return 0;
     //    fmt::print("----------------------------------------\n");
     //    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
     //        int my_nodes = 0;
