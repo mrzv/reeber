@@ -17,7 +17,7 @@ void set_mask(typename FabTmtBlock<T, D>::MaskedBox& local,
     bool debug = false;
 
     bool is_ghost = local.is_ghost(v_bounds);
-    bool is_low = not is_ghost and (negate ? fab(v_bounds) > rho : fab(v_bounds) < rho);
+    bool is_low = not is_ghost and (negate ? fab(v_bounds) < rho : fab(v_bounds) > rho);
 
     r::AmrVertexId v_idx;
     if (not is_ghost) v_idx = local.get_vertex_from_global_position(local.global_position_from_local(v_bounds));
