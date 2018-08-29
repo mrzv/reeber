@@ -1,5 +1,10 @@
 #include "reeber-real.h"
 
+// to print nice backtrace on segfault signal
+#include <signal.h>
+#include <execinfo.h>
+#include <cxxabi.h>
+
 #include <diy/master.hpp>
 #include <diy/io/block.hpp>
 #include <diy/decomposition.hpp>
@@ -41,6 +46,7 @@ using GidVector = Block::GidVector;
 
 using Neighbor = AmrTripletMergeTree::Neighbor;
 
+constexpr bool abort_on_segfault = true;
 
 struct IsAmrVertexLocal
 {
@@ -612,8 +618,85 @@ void read_from_file(std::string infn,
     }
 }
 
+
+void catch_sig(int signum)
+{
+    LOG_SEV_IF(true, fatal) << "caught signal " << signum ;
+//    << ",  local group = " << pro {}, local rank = {}", signum, active_puppet, proc_map->group(), proc_map->local_rank());
+
+    // print backtrace
+    void*   callstack[128];
+    int     frames      = backtrace(callstack, 128);
+    char**  strs        = backtrace_symbols(callstack, frames);
+
+    size_t funcnamesize = 256;
+    char*  funcname     = (char*) malloc(funcnamesize);
+
+    // iterate over the returned symbol lines. skip the first, it is the
+    // address of this function.
+    for (int i = 1; i < frames; i++)
+    {
+        char *begin_name = 0, *begin_offset = 0, *end_offset = 0;
+
+        // find parentheses and +address offset surrounding the mangled name:
+        // ./module(function+0x15c) [0x8048a6d]
+        for (char *p = strs[i]; *p; ++p)
+        {
+            if (*p == '(')
+                begin_name = p;
+            else if (*p == '+')
+                begin_offset = p;
+            else if (*p == ')' && begin_offset)
+            {
+                end_offset = p;
+                break;
+            }
+        }
+
+        if (begin_name && begin_offset && end_offset && begin_name < begin_offset)
+        {
+            *begin_name++   = '\0';
+            *begin_offset++ = '\0';
+            *end_offset     = '\0';
+
+            // mangled name is now in [begin_name, begin_offset) and caller
+            // offset in [begin_offset, end_offset). now apply __cxa_demangle():
+
+            int status;
+            char* ret = abi::__cxa_demangle(begin_name, funcname, &funcnamesize, &status);
+            if (status == 0)
+            {
+                funcname = ret; // use possibly realloc()-ed string
+                LOG_SEV_IF(true, fatal) << "  " << strs[i] << " : " << funcname << "+" << begin_offset;
+            } else
+            {
+                // demangling failed. Output function name as a C function with no arguments.
+//                logger->critical("  {} : {}()+{}", strs[i], begin_name, begin_offset);
+                LOG_SEV_IF(true, fatal)  << "  " << strs[i] << " : " << funcname << "+" << begin_offset;
+            }
+        }
+        else
+        {
+            // couldn't parse the line? print the whole line.
+            LOG_SEV_IF(true, fatal)  << "  " << strs[i];
+//            logger->critical("  {}", strs[i]);
+        }
+    }
+
+    free(funcname);
+    free(strs);
+
+    signal(signum, SIG_DFL);    // restore the default signal
+    if (abort_on_segfault)
+        MPI_Abort(MPI_COMM_WORLD, 1);
+}
+
+
+
 int main(int argc, char** argv)
 {
+    signal(SIGSEGV, catch_sig);
+
     diy::mpi::environment env(argc, argv);
     diy::mpi::communicator world;
 
