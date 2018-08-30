@@ -467,20 +467,20 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
            received_trees.size() == received_deepest_vertices.size() and
            received_trees.size() == received_original_gids.size());
 
-#ifdef DEBUG
-    // just for debug - check all received edges
-    for (const AmrEdgeContainer& ec : received_edges)
-    {
-        for (const AmrEdge& e : ec)
-        {
-            AmrVertexId my_vertex = std::get<1>(e);
+//#ifdef DEBUG
+//    // just for debug - check all received edges
+//    for (const AmrEdgeContainer& ec : received_edges)
+//    {
+//        for (const AmrEdge& e : ec)
+//        {
+//            AmrVertexId my_vertex = std::get<1>(e);
 
-            assert(my_vertex.gid != b->gid or
-                   b->local_.mask_by_index(my_vertex) == MaskedBox::ACTIVE or
-                   b->local_.mask_by_index(my_vertex) == MaskedBox::LOW);
-        }
-    }
-#endif
+//            assert(my_vertex.gid != b->gid or
+//                   b->local_.mask_by_index(my_vertex) == MaskedBox::ACTIVE or
+//                   b->local_.mask_by_index(my_vertex) == MaskedBox::LOW);
+//        }
+//    }
+//#endif
 
     //if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, dequeed all, edges checked OK\n", b->gid);
 
@@ -541,7 +541,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::Pr
                 b->connect_components(deepest_a, deepest_b);
             } else
             {
-                assert(b->edge_goes_out(e));
+                //assert(b->edge_goes_out(e));
                 vertices_to_check.push_back(std::get<0>(e));
             }
         }
@@ -596,7 +596,8 @@ void amr_merge_tree_simple(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWith
 
 inline bool ends_with(const std::string& s, const std::string& suffix)
 {
-    if (suffix.size() > s.size()) return false;
+    if (suffix.size() > s.size())
+        return false;
     return std::equal(suffix.rbegin(), suffix.rend(), s.rbegin());
 }
 
@@ -610,9 +611,11 @@ void read_from_file(std::string infn,
 {
     if (ends_with(infn, ".npy"))
     {
+        fmt::print("read npy\n");
         read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
     } else
     {
+        fmt::print("read amr\n");
         diy::io::read_blocks(infn, world, assigner, master_reader, header, FabBlockR::load);
         diy::load(header, domain);
     }
@@ -696,6 +699,7 @@ void catch_sig(int signum)
 int main(int argc, char** argv)
 {
     signal(SIGSEGV, catch_sig);
+    signal(SIGABRT, catch_sig);
 
     diy::mpi::environment env(argc, argv);
     diy::mpi::communicator world;
@@ -777,22 +781,28 @@ int main(int argc, char** argv)
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
-    if (!absolute)
-    {
-        master_reader.foreach(&FabBlockR::compute_average);
-        master_reader.exchange();
+    //if (!absolute)
+    //{
+    //    master_reader.foreach(&FabBlockR::compute_average);
+    //    master_reader.exchange();
 
-        const diy::Master::ProxyWithLink& proxy = master_reader.proxy(master_reader.loaded_block());
-        Real mean = proxy.get<Real>() / proxy.get<size_t>();
-        rho *= mean;
+    //    const diy::Master::ProxyWithLink& proxy = master_reader.proxy(master_reader.loaded_block());
+    //    Real mean = proxy.get<Real>() / proxy.get<size_t>();
+    //    rho *= mean;
 
-        LOG_SEV_IF(world.rank() == 0, info) << "Average value is " << mean << ". Using threshold of " << rho;
+    //    LOG_SEV_IF(world.rank() == 0, info) << "Average value is " << mean << ". Using threshold of " << rho;
 
-        world.barrier();
-        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute average:              "
-                << dlog::clock_to_string(timer.elapsed());
-        timer.restart();
-    }
+    //    world.barrier();
+    //    LOG_SEV_IF(world.rank() == 0, info) << "Time to compute average:              "
+    //            << dlog::clock_to_string(timer.elapsed());
+    //    timer.restart();
+    //} else
+    //{
+    //    LOG_SEV_IF(world.rank() == 0, info) << "Absolute threshold given, no exchange";
+    //    fmt::print("Absolute threshold given, no exchange\n");
+    //}
+
+    //world.barrier();
 
 
     // copy FabBlocks to FabTmtBlocks
@@ -808,14 +818,11 @@ int main(int argc, char** argv)
                 int local_ref = l->refinement();
                 int local_lev = l->level();
 
-
-                //                fmt::print("copying block, bounds = {} - {}, core = {} - {}, gid = {}\n", l->bounds().min,
-                //                           l->bounds().max, l->core().min, l->core().max, cp.gid());
-
                 master.add(cp.gid(),
                            new Block(b->fab, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
                                      new_link, rho, negate),
                            new_link);
+
             });
 
     world.barrier();

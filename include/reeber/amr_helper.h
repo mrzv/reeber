@@ -33,7 +33,7 @@ inline diy::Point<C, D> coarsen_point(const diy::Point<C, D>& p, int point_refin
         return p;
     }
 
-    assert(point_refinement >= target_refinement and point_refinement % target_refinement == 0);
+    //assert(point_refinement >= target_refinement and point_refinement % target_refinement == 0);
 
     double factor = (double) target_refinement / (double) point_refinement;
     diy::Point<C, D> result;
@@ -49,7 +49,7 @@ template<class C, unsigned int D>
 inline diy::Point<C, D> wrap_point(const diy::Point<C, D>& p, const diy::DiscreteBounds& domain, int ref)
 {
     // we assume that domain starts from the origin
-    assert(domain.min == decltype(domain.min)::zero());
+    //assert(domain.min == decltype(domain.min)::zero());
 
     using Point = diy::Point<C, D>;
 
@@ -100,7 +100,7 @@ size_t get_vertex_id(const diy::Point<int, D>& v, int v_refinement, int link_idx
         fmt::print("enter get_vertex_id v = {}, v_ref = {}\n", v, v_refinement);
     }
 
-    assert(v_refinement >= refinement);
+    //assert(v_refinement >= refinement);
 
     // bring point to my level
     Position vv = coarsen_point(v, v_refinement, refinement);
@@ -110,7 +110,7 @@ size_t get_vertex_id(const diy::Point<int, D>& v, int v_refinement, int link_idx
     if (debug) { fmt::print("in local coords vv = {}\n", vv); }
     if (debug) { fmt::print("index = {}\n", grid.index(vv)); }
 
-    assert(0 <= grid.index(vv) and grid.index(vv) < grid.size());
+    //assert(0 <= grid.index(vv) and grid.index(vv) < grid.size());
 
     return grid.index(vv);
 }
@@ -123,8 +123,8 @@ refine_vertex(const diy::Point<int, D>& v, int v_refinement, int target_refineme
 {
     using Position = diy::Point<int, D>;
 
-    assert(v_refinement <= target_refinement);
-    assert(target_refinement % v_refinement == 0);
+    //assert(v_refinement <= target_refinement);
+    //assert(target_refinement % v_refinement == 0);
 
     int ratio = target_refinement / v_refinement;
 
@@ -165,7 +165,7 @@ bool neighbor_contains(size_t i, diy::AMRLink* l, diy::Point<int, D>& v_glob, in
         // vertex is below, its coordinates must be multiplied to pull it to level_
         // In fact, we check only one vertex in the whole set of vertices
         // that correspond to v_glob at our level, but it is OK for our purposes
-        assert(refinement % v_refinement == 0);
+        //assert(refinement % v_refinement == 0);
         int scale = refinement / v_refinement;
 
         for (size_t i = 0; i < D; ++i)
@@ -176,7 +176,7 @@ bool neighbor_contains(size_t i, diy::AMRLink* l, diy::Point<int, D>& v_glob, in
     } else if (v_refinement > refinement) {
         // vertex is above, out coords must be multiplied
         int scale = v_refinement / refinement;
-        assert(v_refinement % refinement == 0);
+        //assert(v_refinement % refinement == 0);
         if (debug) { fmt::print("In NeighborBox.contains, scale = {}\n", scale); }
 
         Position new_to = scale * (to + Position::one()) - Position::one();
@@ -200,7 +200,7 @@ bool neighbor_contains(size_t i, diy::AMRLink* l, diy::Point<int, D>& v_glob, in
 template<unsigned D>
 diy::DiscreteBounds refine_bounds(const diy::DiscreteBounds& bounds_in, int scale)
 {
-    assert(scale >= 1);
+    //assert(scale >= 1);
     diy::DiscreteBounds result;
 
     result.min = scale * bounds_in.min;

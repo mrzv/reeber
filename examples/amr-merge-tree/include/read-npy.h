@@ -32,11 +32,18 @@ void read_from_npy_file(std::string infn,
     diy::io::NumPy reader(in);
     reader.read_header();
 
+    fmt::print("Entered read_from_npy_file\n");
+
     using Decomposer = diy::RegularDecomposer<diy::DiscreteBounds>;
     using Point   = diy::Point<int, DIY_MAX_DIM>;
 
     domain.min = { 0, 0, 0, 0 };
     domain.max = { 0, 0, 0, 0 };
+    Point one = Point::one();
+
+    for(unsigned i = D; i < DIY_MAX_DIM; ++i)
+        one[i] = 0;
+
     for(unsigned i = 0; i < D; ++i)
     {
         domain.max[i] = reader.shape()[i] - 1;
@@ -47,7 +54,7 @@ void read_from_npy_file(std::string infn,
                           wrap,
                           Decomposer::CoordinateVector { 1, 1, 1 });        // ghosts
 
-    decomposer.decompose(0, assigner, [&master_reader, &wrap, &reader](int gid,
+    decomposer.decompose(0, assigner, [&master_reader, &wrap, &reader, &world, one](int gid,
                                                                        const Decomposer::Bounds& core,
                                                                        const Decomposer::Bounds& bounds,
                                                                        const Decomposer::Bounds& domain,
@@ -56,18 +63,17 @@ void read_from_npy_file(std::string infn,
 
         auto my_bounds = core;
 
-        my_bounds.max += Point::one();
-        my_bounds.min -= Point::one();
-
+        my_bounds.max += one;
+        my_bounds.min -= one;
 
         // we always want ghosts
-        auto shape_4d = my_bounds.max - my_bounds.min + Point::one();
+        auto shape_4d = my_bounds.max - my_bounds.min + one;
         typename FabBlockR::Shape shape(&shape_4d[0]);       // quick and hacky
         bool c_order = true;
         b->fab_storage_ = decltype(b->fab_storage_)(shape, c_order);
         b->fab = decltype(b->fab)(b->fab_storage_.data(), shape, c_order);
 
-        auto core_shape_4d = core.max - core.min + Point::one();
+        auto core_shape_4d = core.max - core.min + one;
         typename FabBlockR::Shape core_shape(&core_shape_4d[0]);
 
         diy::Grid<Real, D> core_grid(core_shape);
@@ -85,8 +91,8 @@ void read_from_npy_file(std::string infn,
             // shrink core from bounds, since it's not stored in the RegularLink explicitly
             auto nbr_core = link.bounds(i);
             auto nbr_bounds = link.bounds(i);
-            nbr_bounds.min -= Point::one();
-            nbr_bounds.max += Point::one();
+            nbr_bounds.min -= one;
+            nbr_bounds.max += one;
             amr_link->add_bounds(0, 1, nbr_core, nbr_bounds);
         }
 
@@ -116,6 +122,7 @@ void read_from_npy_file(std::string infn,
                 }
             }
         }
+        fmt::print("Added block with gid = {}, world.rank = {}\n", gid, world.rank());
         master_reader.add(gid, b, amr_link);
 //        fmt::print("Block added\n");
     });

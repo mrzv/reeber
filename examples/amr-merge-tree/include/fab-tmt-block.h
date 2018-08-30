@@ -209,7 +209,7 @@ struct FabTmtBlock
             processed_receiveres_({ gid }),
             negate_(_negate)
     {
-        bool debug = false;
+        bool debug = true;
 
         std::string debug_prefix = "FabTmtBlock ctor, gid = " + std::to_string(gid);
 
@@ -225,7 +225,7 @@ struct FabTmtBlock
             max_gid = std::max(max_gid, amr_link->target(i).gid);
         }
 
-        local_.check_mask_validity(max_gid);
+        //local_.check_mask_validity(max_gid);
 
         reeber::compute_merge_tree2(mt_, local_, fab_grid);
 

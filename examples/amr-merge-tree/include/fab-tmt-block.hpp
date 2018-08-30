@@ -142,7 +142,7 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
             }
         }
 
-        assert(link_idx_found);
+        //assert(link_idx_found);
         if (not link_idx_found)
             throw std::runtime_error("gid not found in link");
 
@@ -158,7 +158,7 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
                     local.gid(), gid, wrapped_neighb_vert_glob, nb_from, nb_to);
         }
 
-        assert(abs(nb_level - local.level()) <= 1);
+        //assert(abs(nb_level - local.level()) <= 1);
 
         if (nb_level <= local.level()) {
             // neighbour is on the same level or below me, neighbouring vertex corresponds
@@ -351,8 +351,8 @@ typename FabTmtBlock<Real, D>::Component& FabTmtBlock<Real, D>::find_component(c
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex)
 {
-    assert(components_disjoint_set_parent_.find(deepest_vertex) == components_disjoint_set_parent_.end());
-    assert(components_disjoint_set_size_.find(deepest_vertex) == components_disjoint_set_size_.end());
+    //assert(components_disjoint_set_parent_.find(deepest_vertex) == components_disjoint_set_parent_.end());
+    //assert(components_disjoint_set_size_.find(deepest_vertex) == components_disjoint_set_size_.end());
 
     components_disjoint_set_parent_[deepest_vertex] = deepest_vertex;
     components_disjoint_set_size_[deepest_vertex] = 1;
@@ -474,10 +474,10 @@ void FabTmtBlock<Real, D>::compute_connected_components(const VertexEdgesMap& ve
         }
     }
 
-    assert(std::accumulate(const_tree.nodes().cbegin(), const_tree.nodes().cend(), true,
-                           [this](const bool& prev, const typename VertexNeighborMap::value_type& vn) {
-                               return prev and this->deepest_computed(vn.second);
-                           }));
+    //assert(std::accumulate(const_tree.nodes().cbegin(), const_tree.nodes().cend(), true,
+    //                       [this](const bool& prev, const typename VertexNeighborMap::value_type& vn) {
+    //                           return prev and this->deepest_computed(vn.second);
+    //                       }));
 #ifdef SEND_COMPONENTS
     // copy nodes from local merge tree of block to merge trees of components
     for (const auto& vertex_deepest_pair : vertex_to_deepest_) {
@@ -486,7 +486,7 @@ void FabTmtBlock<Real, D>::compute_connected_components(const VertexEdgesMap& ve
         AmrVertexId u = vertex_deepest_pair.first;
         Neighbor mt_n_u = const_tree.nodes().at(u);
         Value val = mt_n_u->value;
-        assert(u == mt_n_u->vertex);
+        //assert(u == mt_n_u->vertex);
 
         AmrVertexId s = std::get<0>(mt_n_u->parent())->vertex;
         AmrVertexId v = std::get<1>(mt_n_u->parent())->vertex;
@@ -521,7 +521,6 @@ bool FabTmtBlock<Real, D>::are_components_connected(const AmrVertexId& deepest_a
 {
     bool result = find_component_in_disjoint_sets(deepest_a) == find_component_in_disjoint_sets(deepest_b);
     // for debug - assume everything is connected
-    assert(result);
     return result;
 }
 
@@ -533,7 +532,7 @@ bool FabTmtBlock<Real, D>::is_component_connected_to_any_internal(const FabTmtBl
         if (are_components_connected(deepest, cc.root_))
             return true;
     // for debug - assume everything is connected
-    assert(false);
+    //assert(false);
     return false;
 }
 

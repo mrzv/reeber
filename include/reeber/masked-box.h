@@ -81,7 +81,7 @@ namespace reeber {
                 level_(_level),
                 gid_(_gid)
         {
-            assert(ghost_adjustment_ == bounds_to - core_to);
+            //assert(ghost_adjustment_ == bounds_to - core_to);
             diy::for_each(mask_.shape(), [this](const Position& p) { this->set_mask(p, this->UNINIT); });
         }
 
@@ -252,7 +252,7 @@ namespace reeber {
 
         Vertex get_vertex_from_global_position(Position p_global) const
         {
-            assert(bounds_contains_global(p_global));
+            //assert(bounds_contains_global(p_global));
             Position p_local = local_position_from_global(p_global);
             return AmrVertexId { gid(), mask_.index(p_local) };
         }
@@ -310,7 +310,7 @@ namespace reeber {
          */
         Position local_position(const Vertex& v) const
         {
-            assert(static_cast<size_t>(v) < mask_.size());
+            //assert(static_cast<size_t>(v) < mask_.size());
             auto result = mask_.vertex(static_cast<size_t>(v));
             return result;
             return mask_.vertex(static_cast<size_t>(v));
@@ -359,7 +359,7 @@ namespace reeber {
          */
         MaskValue mask(const Position& p_bounds) const
         {
-            assert(is_valid_mask_position(p_bounds));
+            //assert(is_valid_mask_position(p_bounds));
             return mask_(p_bounds);
         }
 
@@ -439,7 +439,7 @@ namespace reeber {
         {
             Position p_bounds = local_position(v);
 
-            assert(Position::zero().is_less_or_eq(p_bounds) && mask_shape().is_greater_or_eq(p_bounds));
+            //assert(Position::zero().is_less_or_eq(p_bounds) && mask_shape().is_greater_or_eq(p_bounds));
 
             return mask_(p_bounds);
         }
