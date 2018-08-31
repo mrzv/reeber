@@ -28,14 +28,6 @@ namespace r = reeber;
 template<class T, unsigned D>
 struct FabTmtBlock;
 
-template<class T, unsigned D>
-void set_mask(typename FabTmtBlock<T, D>::MaskedBox& local,
-              const diy::GridRef<T, D>& fab,
-              const diy::Point<int, D>& v_bounds,
-              diy::AMRLink* l,
-              const diy::DiscreteBounds& domain,
-              const T& rho,
-              bool negate);
 
 
 template<class Real, unsigned D>
@@ -44,6 +36,7 @@ struct FabTmtBlock
     using Shape = diy::Point<int, D>;
 
     using Grid = r::Grid<Real, D>;
+    using GridRef = r::GridRef<Real, D>;
     // index of point: first = index inside box, second = index of a box
     using AmrVertexId = r::AmrVertexId;
     using Value = typename Grid::Value;
@@ -161,6 +154,15 @@ struct FabTmtBlock
     TripletMergeTree mt_;
     TripletMergeTree original_tree_;
 
+    // if relative threshold is given, we cannot determine
+    // LOW values in constructor. Instead, we mark all unmasked vertices
+    // ACTIVE and save the average of their values in local_sum_ and the number in local_n_unmasked_
+    // Pointer to grid data is saved in fab_ and after all blocks exchange their local averages
+    // we resume initialization
+    Real sum_ { 0 };
+    size_t n_unmasked_ { 0 };
+    GridRef fab_;
+
     // this vector is not serialized, because we send trees component-wise
     std::vector<Component> components_;
 
@@ -197,17 +199,12 @@ struct FabTmtBlock
     // methods
 
     // simple getters/setters
-    const diy::DiscreteBounds& domain() const
-    { return domain_; }
+    const diy::DiscreteBounds& domain() const { return domain_; }
+    int refinement() const { return local_.refinement(); }
+    int level() const { return local_.level(); }
+    const GidVector& get_original_link_gids() const { return original_link_gids_; }
 
-    int refinement() const
-    { return local_.refinement(); }
-
-    const GidVector& get_original_link_gids() const
-    { return original_link_gids_; }
-
-
-    FabTmtBlock(const diy::GridRef<Real, D>& fab_grid,
+    FabTmtBlock(diy::GridRef<Real, D>& fab_grid,
                 int _ref,
                 int _level,
                 const diy::DiscreteBounds& _domain,
@@ -216,24 +213,26 @@ struct FabTmtBlock
                 int _gid,
                 diy::AMRLink* amr_link,
                 Real rho,                                           // threshold for LOW value
-                bool _negate) :
+                bool _negate,
+                bool is_absolute_threshold) :
             gid(_gid),
             local_(project_point<D>(core.min), project_point<D>(core.max), project_point<D>(bounds.min),
                    project_point<D>(bounds.max), _ref, _level, gid, fab_grid.c_order()),
             mt_(_negate),
             original_tree_(_negate),
+            fab_(fab_grid.data(), fab_grid.shape(), fab_grid.c_order()),
             domain_(_domain),
             processed_receiveres_({ gid }),
             negate_(_negate)
     {
-        bool debug = true;
+        bool debug = false;
 
         std::string debug_prefix = "FabTmtBlock ctor, gid = " + std::to_string(gid);
 
         if (debug) fmt::print("{} setting mask\n", debug_prefix);
 
-        diy::for_each(local_.mask_shape(), [this, amr_link, &fab_grid, rho](const Vertex& v) {
-            set_mask<Real, D>(this->local_, fab_grid, v, amr_link, this->domain(), rho, this->negate_);
+        diy::for_each(local_.mask_shape(), [this, amr_link, &fab_grid, rho, is_absolute_threshold](const Vertex& v) {
+            this->set_mask(v, amr_link, rho, is_absolute_threshold);
         });
 
         //        if (debug) fmt::print("gid = {}, checking mask\n", gid);
@@ -245,7 +244,27 @@ struct FabTmtBlock
 
         //local_.check_mask_validity(max_gid);
 
-        reeber::compute_merge_tree2(mt_, local_, fab_grid);
+        if (is_absolute_threshold)
+        {
+            init(rho, amr_link);
+        }
+    }
+
+    FabTmtBlock() :
+    fab_(nullptr, diy::Point<int, D>::zero())
+    {}
+
+    void init(Real absolute_rho, diy::AMRLink* amr_link)
+    {
+        bool debug = false;
+
+        diy::for_each(local_.mask_shape(), [this, amr_link, absolute_rho](const Vertex& v) {
+            this->set_low(v, absolute_rho);
+        });
+
+        std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
+
+        reeber::compute_merge_tree2(mt_, local_, fab_);
 
         if (debug) fmt::print("{} local tree computed\n", debug_prefix);
 
@@ -263,7 +282,8 @@ struct FabTmtBlock
 
         if (debug) fmt::print("{} connected components computed\n", debug_prefix);
 
-        for (int i = 0; i < amr_link->size(); ++i)
+        // TODO: delete this? we are going to overwrite this in adjust_outgoing_edges anyway
+        for(int i = 0; i < amr_link->size(); ++i)
         {
             if (amr_link->target(i).gid != gid)
             {
@@ -274,7 +294,7 @@ struct FabTmtBlock
 
         if (debug)
             fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n",
-                       debug_prefix, _ref, _level, local_, domain().max, components_.size());
+                       debug_prefix, refinement(), level(), local_, domain().max, components_.size());
         if (debug)
             fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}, new_receivers = {}\n",
                        debug_prefix, mt_.size(), new_receivers_.size(), container_to_string(new_receivers_));
@@ -282,8 +302,14 @@ struct FabTmtBlock
         assert(mt_.size() == original_tree_.size());
     }
 
-    FabTmtBlock()
-    {}
+    void set_low(const diy::Point<int, D>& v_bounds,
+                 const Real& absolute_rho);
+
+
+    void set_mask(const diy::Point<int, D>& v_bounds,
+                  diy::AMRLink* l,
+                  const Real& rho,
+                  bool is_absolute_threshold);
 
     const TripletMergeTree& get_merge_tree() const
     { return mt_; }

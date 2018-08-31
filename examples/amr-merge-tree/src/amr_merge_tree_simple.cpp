@@ -172,175 +172,12 @@ void delete_low_edges(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink&
     b->adjust_outgoing_edges();
 }
 
-/**
- *
- * send outgoing edges computed in b to all its neighbors
- * used to symmetrize the edge set in the beginning of the algorithm
- *
- * @param b FabTmtBlock
- * block that will send its edges
- *
- * @param cp diy::Master::ProxyWithLink
- * communication proxy
- *
- */
-template<unsigned D>
-void send_original_gids(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
-{
-    bool debug = false;
-    if (debug) fmt::print("Enter send_original_gids, gid = {}\n", b->gid);
-
-    auto* l = static_cast<diy::AMRLink*>(cp.link());
-
-    std::set<diy::BlockID> receivers;
-    for(int i = 0; i < l->size(); ++i)
-    {
-        if (l->target(i).gid != b->gid)
-        {
-            receivers.insert(l->target(i));
-        }
-    }
-
-    for(const diy::BlockID& receiver : receivers)
-    {
-        cp.enqueue(receiver, b->original_link_gids_);
-    }
-
-    if (debug) fmt::print("Exit send_original_gids, gid = {}\n", b->gid);
-}
-
-
-/**
- *
- * @tparam D
- * @param b
- * @param cp
- */
-template<unsigned D>
-void delete_unnecessary_receivers(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
-{
-    bool debug = false;
-
-    if (debug) fmt::print("Called delete_unnecessary_receivers for block = {}\n", b->gid);
-
-    auto* l = static_cast<diy::AMRLink*>(cp.link());
-
-    std::set<diy::BlockID> senders;
-    for(int i = 0; i < l->size(); ++i)
-    {
-        if (l->target(i).gid != b->gid)
-        {
-            senders.insert(l->target(i));
-        }
-    }
-
-    for(const diy::BlockID& sender : senders)
-    {
-        GidVector gids_from_neighbor;
-
-        if (debug)
-            fmt::print("In delete_unnecessary_receivers for block = {}, dequeing from sender = {}\n", b->gid,
-                       sender.gid);
-
-        cp.dequeue(sender, gids_from_neighbor);
-
-        b->adjust_original_gids(sender.gid, gids_from_neighbor);
-    }
-
-    if (debug) fmt::print("Exit delete_unnecessary_receivers for block = {}\n", b->gid);
-}
-
-///**
-// *
-// * send outgoing edges computed in b to all its neighbors
-// * used to symmetrize the edge set in the beginning of the algorithm
-// *
-// * @param b FabTmtBlock
-// * block that will send its edges
-// *
-// * @param cp diy::Master::ProxyWithLink
-// * communication proxy
-// *
-// */
-//template<unsigned D>
-//void send_edges_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
-//{
-//    bool debug = false;
-//
-//    if (debug) fmt::print("Called send_edges_to_neighbors for block = {}\n", b->gid);
-//
-//    auto* l = static_cast<diy::AMRLink*>(cp.link());
-//
-//    std::set<diy::BlockID> receivers;
-//    for (int i = 0; i < l->size(); ++i) {
-//        if (l->target(i).gid != b->gid) {
-//            receivers.insert(l->target(i));
-//        }
-//    }
-//
-//    for (const diy::BlockID& receiver : receivers) {
-//        int receiver_gid = receiver.gid;
-//        if (b->new_receivers_.count(receiver_gid)) {
-//            if (debug) {
-//                fmt::print("In send_edges_to_neighbors for block = {}, sending to receiver= {}, cardinality = {}\n",
-//                           b->gid, receiver_gid, b->get_all_outgoing_edges().size());
-//            };
-//            cp.enqueue(receiver, b->get_all_outgoing_edges());
-//        } else {
-//            if (debug)
-//                fmt::print("In send_edges_to_neighbors for block = {}, sending to receiver= {} empty container\n",
-//                           b->gid, receiver_gid);
-//            cp.enqueue(receiver, r::AmrEdgeContainer());
-//        }
-//    }
-//}
-//
-///**
-// *
-// * @tparam D
-// * @param b
-// * @param cp
-// */
-//template<unsigned D>
-//void delete_low_edges(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
-//{
-//    bool debug = false;
-//
-//    if (debug) fmt::print("Called delete_low_edges for block = {}\n", b->gid);
-//
-//    auto* l = static_cast<diy::AMRLink*>(cp.link());
-//
-//    std::set<diy::BlockID> senders;
-//    for (int i = 0; i < l->size(); ++i) {
-//        if (l->target(i).gid != b->gid) {
-//            senders.insert(l->target(i));
-//        }
-//    }
-//
-//    for (const diy::BlockID& sender : senders) {
-//        AmrEdgeContainer edges_from_neighbor;
-//        if (debug) fmt::print("In delete_low_edges for block = {}, dequeing from sender = {}\n", b->gid, sender.gid);
-//
-//        cp.dequeue(sender, edges_from_neighbor);
-//
-//        if (debug)
-//            fmt::print("In delete_low_edges for block = {}, dequed {} edges from sender = {}\n", b->gid,
-//                       edges_from_neighbor.size(), sender.gid);
-//
-//        b->delete_low_edges(sender.gid, edges_from_neighbor);
-//
-//        if (debug)
-//            fmt::print("In delete_low_edges for block = {}, from sender = {}, b->delete_low_edges OK\n", b->gid,
-//                       sender.gid);
-//    }
-//
-//    b->adjust_outgoing_edges();
-//}
 
 template<unsigned D>
 void send_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
+//    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
+    bool debug = false;
     if (debug) fmt::print("Called send_to_neighbors for block = {}\n", b->gid);
 
     auto* l = static_cast<diy::AMRLink*>(cp.link());
@@ -417,7 +254,8 @@ void
 expand_link(Block* b, const diy::Master::ProxyWithLink& cp, diy::AMRLink* l, std::vector<diy::AMRLink>& received_links,
             std::vector<std::vector<int>>& received_original_gids)
 {
-    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
+//    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
+    bool debug = false;
     if (debug) fmt::print("in expand_link for block = {}, round = {}, started updating link\n", b->gid, b->round_);
     int n_added = 0;
     assert(received_links.size() == received_original_gids.size());
@@ -479,7 +317,8 @@ expand_link(Block* b, const diy::Master::ProxyWithLink& cp, diy::AMRLink* l, std
 template<unsigned D>
 void get_from_neighbors_and_merge(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
+//    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
+    bool debug = false;
 
     //    if (debug) fmt::print("Called get_from_neighbors_and_merge for block = {}\n", b->gid);
 
@@ -698,11 +537,11 @@ void read_from_file(std::string infn,
 {
     if (ends_with(infn, ".npy"))
     {
-        fmt::print("read npy\n");
+//        fmt::print("read npy\n");
         read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
     } else
     {
-        fmt::print("read amr\n");
+//        fmt::print("read amr\n");
         diy::io::read_blocks(infn, world, assigner, master_reader, header, FabBlockR::load);
         diy::load(header, domain);
     }
@@ -866,36 +705,14 @@ int main(int argc, char** argv)
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
-    if (!absolute)
-    {
-        master_reader.foreach(&FabBlockR::compute_average);
-        master_reader.exchange();
-
-        const diy::Master::ProxyWithLink& proxy = master_reader.proxy(master_reader.loaded_block());
-        Real mean = proxy.get<Real>() / proxy.get<size_t>();
-        rho *= mean;
-
-        LOG_SEV_IF(world.rank() == 0, info) << "Average value is " << mean << ". Using threshold of " << rho;
-
-        world.barrier();
-        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute average:              "
-                << dlog::clock_to_string(timer.elapsed());
-        timer.restart();
-    } else
-    {
-        LOG_SEV_IF(world.rank() == 0, info) << "Absolute threshold given, no exchange";
-        fmt::print("Absolute threshold given, no exchange\n");
-    }
-
     world.barrier();
-
 
     // copy FabBlocks to FabTmtBlocks
     // in FabTmtConstructor mask will be set and local trees will be computed
     // FabBlock can be safely discarded afterwards
 
     master_reader.foreach(
-            [&master, &assigner, domain, rho, negate](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
+            [&master, &assigner, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
                 auto* l = static_cast<diy::AMRLink*>(cp.link());
                 diy::AMRLink* new_link = new diy::AMRLink(*l);
 
@@ -905,15 +722,55 @@ int main(int argc, char** argv)
 
                 master.add(cp.gid(),
                            new Block(b->fab, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
-                                     new_link, rho, negate),
+                                     new_link, rho, negate, absolute),
                            new_link);
 
             });
 
-    world.barrier();
-    LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  "
-            << dlog::clock_to_string(timer.elapsed());
-    timer.restart();
+
+    if (absolute)
+    {
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  " << dlog::clock_to_string(timer.elapsed());
+        timer.restart();
+    } else
+    {
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to construct FabTmtBlocks: " << dlog::clock_to_string(timer.elapsed());
+        timer.restart();
+
+        master.foreach([&rho](Block* b, const diy::Master::ProxyWithLink& cp) {
+            cp.collectives()->clear();
+            cp.all_reduce(b->sum_, std::plus<Real>());
+            cp.all_reduce(b->n_unmasked_, std::plus<size_t>());
+        });
+
+        master.exchange();
+
+        const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+
+        Real mean = proxy.get<Real>() / proxy.get<size_t>();
+        rho *= mean;                                            // now rho contains absolute threshold
+
+        world.barrier();
+        LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho << ", time to compute average: " << dlog::clock_to_string(timer.elapsed());
+        timer.restart();
+
+        master.foreach([rho](Block* b, const diy::Master::ProxyWithLink& cp) {
+            diy::AMRLink* l = static_cast<diy::AMRLink*>(cp.link());
+            b->init(rho, l);
+            cp.collectives()->clear();
+        });
+
+
+        world.barrier();
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to initializee FabTmtBlocks (low vertices, local trees, components, outgoing edges): " << dlog::clock_to_string(timer.elapsed());
+        timer.restart();
+    }
+
+    // to ensure that master_reader is not destroyed before this point.
+    // in non-absolut
+    // TODO: use a pointer and delete master_reader explicitly?
+    LOG_SEV_IF(true, info) << "master_reader.size =  " << master_reader.size();
+
 
     int global_done = 0;
 

@@ -42,16 +42,6 @@ struct FabBlock
     diy::Grid<T, D> fab_storage_;        // container, in case we own the data
     diy::GridRef<T, D> fab;
 
-    void compute_average(const diy::Master::ProxyWithLink& cp)
-    {
-        T value = 0;
-        T count = fab.size();
-        diy::for_each(fab.shape(), [this, &value](const Vertex& v) { value += fab(v); });
-
-        cp.all_reduce(value, std::plus<T>());
-        cp.all_reduce(count, std::plus<size_t>());
-    }
-
 };
 
 template<class T, unsigned D>
