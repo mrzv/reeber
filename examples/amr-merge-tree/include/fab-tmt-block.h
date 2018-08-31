@@ -100,12 +100,7 @@ struct FabTmtBlock
 #ifdef SEND_COMPONENTS
             bool debug = false;
 
-            std::transform(outgoing_edges_.begin(), outgoing_edges_.end(),
-                           std::inserter(current_neighbors_, current_neighbors_.begin()),
-                           [this](const AmrEdge& e) {
-                               assert(std::get<0>(e).gid == this->root_.gid);
-                               return std::get<1>(e).gid;
-                           });
+            fill_current_neighbors();
 
             if (debug)
                 fmt::print("entered TmtConnectedComponentConstructor, root = {}, #edges = {}\n", root,
@@ -114,6 +109,7 @@ struct FabTmtBlock
         }
 
 #ifdef SEND_COMPONENTS
+
         template<class EC>
         void add_edges(const EC& more_edges)
         {
@@ -126,7 +122,28 @@ struct FabTmtBlock
                                return std::get<1>(e).gid;
                            });
         }
+
+
+        void fill_current_neighbors()
+        {
+            current_neighbors_.clear();
+
+            std::transform(outgoing_edges_.begin(), outgoing_edges_.end(),
+                           std::inserter(current_neighbors_, current_neighbors_.begin()),
+                           [this](const AmrEdge& e) {
+                               assert(std::get<0>(e).gid == this->root_.gid);
+                               return std::get<1>(e).gid;
+                           });
+        }
+
+        template<class EC>
+        void delete_low_edges(const EC& neighbor_edges)
+        {
+
+        }
+
 #endif
+
         int is_done() const
         {
             return current_neighbors_ == processed_neighbors_;
@@ -221,7 +238,8 @@ struct FabTmtBlock
 
         //        if (debug) fmt::print("gid = {}, checking mask\n", gid);
         int max_gid = 0;
-        for (int i = 0; i < amr_link->size(); ++i) {
+        for (int i = 0; i < amr_link->size(); ++i)
+        {
             max_gid = std::max(max_gid, amr_link->target(i).gid);
         }
 
@@ -245,15 +263,18 @@ struct FabTmtBlock
 
         if (debug) fmt::print("{} connected components computed\n", debug_prefix);
 
-        for (int i = 0; i < amr_link->size(); ++i) {
-            if (amr_link->target(i).gid != gid) {
+        for (int i = 0; i < amr_link->size(); ++i)
+        {
+            if (amr_link->target(i).gid != gid)
+            {
                 new_receivers_.insert(amr_link->target(i).gid);
                 original_link_gids_.push_back(amr_link->target(i).gid);
             }
         }
 
         if (debug)
-            fmt::print( "{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n", debug_prefix, _ref, _level, local_, domain().max, components_.size());
+            fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n",
+                       debug_prefix, _ref, _level, local_, domain().max, components_.size());
         if (debug)
             fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}, new_receivers = {}\n",
                        debug_prefix, mt_.size(), new_receivers_.size(), container_to_string(new_receivers_));
@@ -261,9 +282,11 @@ struct FabTmtBlock
         assert(mt_.size() == original_tree_.size());
     }
 
-    FabTmtBlock() {}
+    FabTmtBlock()
+    {}
 
-    const TripletMergeTree& get_merge_tree() const { return mt_; }
+    const TripletMergeTree& get_merge_tree() const
+    { return mt_; }
 
     // return true, if both edge vertices are in the current neighbourhood
     // no checking of mask is performed, if a vertex is LOW, function will return true.
@@ -274,7 +297,6 @@ struct FabTmtBlock
     // and the other is outside
     bool edge_goes_out(const AmrEdge& e) const;
 
-//    void adjust_outgoing_edges();
     // diy stuff
 
     bool deepest_computed(Neighbor n) const
@@ -301,6 +323,7 @@ struct FabTmtBlock
     void compute_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
 
     void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender);
+
     void adjust_outgoing_edges();
 
     void adjust_original_gids(int sender_gid, FabTmtBlock::GidVector& edges_from_sender);
@@ -317,8 +340,11 @@ struct FabTmtBlock
     int is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check);
 
 #ifdef SEND_COMPONENTS
+
     int are_all_components_done() const;
+
 #endif
+
     std::vector<AmrVertexId> get_deepest_vertices() const;
 
     const AmrEdgeContainer& get_all_outgoing_edges()
@@ -361,7 +387,7 @@ namespace diy {
     //        {
     //        }
     //    };
-//
+    //
     template<class R, unsigned D>
     struct Serialization<FabTmtBlock<R, D>>
     {
@@ -372,7 +398,7 @@ namespace diy {
 
         static void load(diy::BinaryBuffer& bb, FabTmtBlock<R, D>& b)
         {
-            FabTmtBlock<R,D>::load(b, bb);
+            FabTmtBlock<R, D>::load(b, bb);
         }
     };
 }

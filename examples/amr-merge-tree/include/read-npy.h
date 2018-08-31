@@ -13,8 +13,9 @@
 #include <diy/io/block.hpp>         // for saving blocks in DIY format
 #include <diy/io/numpy.hpp>
 
-#include <opts/opts.h>
-
+#include <dlog/stats.h>
+#include <dlog/log.h>
+#
 #include "fab-block.h"
 
 template<unsigned D>
@@ -31,6 +32,12 @@ void read_from_npy_file(std::string infn,
     diy::mpi::io::file in(world, infn, diy::mpi::io::file::rdonly);
     diy::io::NumPy reader(in);
     reader.read_header();
+
+    if (reader.word_size() != sizeof(Real))
+    {
+        LOG_SEV_IF(world.rank() == 0, fatal) << "Type mismatch: in numpy " << reader.word_size() << ", expect floating point type of size " << sizeof(Real);
+        throw std::runtime_error("Type mismatch");
+    }
 
     fmt::print("Entered read_from_npy_file\n");
 
@@ -54,7 +61,7 @@ void read_from_npy_file(std::string infn,
                           wrap,
                           Decomposer::CoordinateVector { 1, 1, 1 });        // ghosts
 
-    decomposer.decompose(0, assigner, [&master_reader, &wrap, &reader, &world, one](int gid,
+    decomposer.decompose(world.rank(), assigner, [&master_reader, &wrap, &reader, &world, one](int gid,
                                                                        const Decomposer::Bounds& core,
                                                                        const Decomposer::Bounds& bounds,
                                                                        const Decomposer::Bounds& domain,
@@ -122,8 +129,6 @@ void read_from_npy_file(std::string infn,
                 }
             }
         }
-        fmt::print("Added block with gid = {}, world.rank = {}\n", gid, world.rank());
         master_reader.add(gid, b, amr_link);
-//        fmt::print("Block added\n");
     });
 }
