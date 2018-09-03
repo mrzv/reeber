@@ -276,7 +276,7 @@ struct FabTmtBlock
 
         compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
 
-        if (debug) fmt::print("{} outgoing edges computed\n", debug_prefix);
+        if (debug) fmt::print("{} outgoing edges computed, vertex_to_otgoing_edges.size = {}\n", debug_prefix, vertex_to_outgoing_edges.size());
 
         compute_connected_components(vertex_to_outgoing_edges);
 
@@ -296,8 +296,8 @@ struct FabTmtBlock
             fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n",
                        debug_prefix, refinement(), level(), local_, domain().max, components_.size());
         if (debug)
-            fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}, new_receivers = {}\n",
-                       debug_prefix, mt_.size(), new_receivers_.size(), container_to_string(new_receivers_));
+            fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}\n",
+                       debug_prefix, mt_.size(), new_receivers_.size());
 
         assert(mt_.size() == original_tree_.size());
     }

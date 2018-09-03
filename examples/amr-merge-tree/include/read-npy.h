@@ -39,8 +39,6 @@ void read_from_npy_file(std::string infn,
         throw std::runtime_error("Type mismatch");
     }
 
-    fmt::print("Entered read_from_npy_file\n");
-
     using Decomposer = diy::RegularDecomposer<diy::DiscreteBounds>;
     using Point   = diy::Point<int, DIY_MAX_DIM>;
 

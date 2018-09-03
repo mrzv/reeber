@@ -136,7 +136,7 @@ void send_edges_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWi
 template<unsigned D>
 void delete_low_edges(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = false;
+    bool debug = true;
 
     if (debug) fmt::print("Called delete_low_edges for block = {}\n", b->gid);
 
@@ -154,22 +154,19 @@ void delete_low_edges(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink&
     for(const diy::BlockID& sender : senders)
     {
         AmrEdgeContainer edges_from_neighbor;
-        if (debug) fmt::print("In delete_low_edges for block = {}, dequeing from sender = {}\n", b->gid, sender.gid);
+        //if (debug) fmt::print("In delete_low_edges for block = {}, dequeing from sender = {}\n", b->gid, sender.gid);
 
         cp.dequeue(sender, edges_from_neighbor);
 
-        if (debug)
-            fmt::print("In delete_low_edges for block = {}, dequed {} edges from sender = {}\n", b->gid,
-                       edges_from_neighbor.size(), sender.gid);
+        //if (debug) fmt::print("In delete_low_edges for block = {}, dequed {} edges from sender = {}\n", b->gid, edges_from_neighbor.size(), sender.gid);
 
         b->delete_low_edges(sender.gid, edges_from_neighbor);
 
-        if (debug)
-            fmt::print("In delete_low_edges for block = {}, from sender = {}, b->delete_low_edges OK\n", b->gid,
-                       sender.gid);
+        //if (debug) fmt::print("In delete_low_edges for block = {}, from sender = {}, b->delete_low_edges OK\n", b->gid, sender.gid);
     }
 
     b->adjust_outgoing_edges();
+    if (debug) fmt::print("Exit delete_low_edges for block = {}\n", b->gid);
 }
 
 
@@ -765,12 +762,6 @@ int main(int argc, char** argv)
         LOG_SEV_IF(world.rank() == 0, info) << "Time to initializee FabTmtBlocks (low vertices, local trees, components, outgoing edges): " << dlog::clock_to_string(timer.elapsed());
         timer.restart();
     }
-
-    // to ensure that master_reader is not destroyed before this point.
-    // in non-absolut
-    // TODO: use a pointer and delete master_reader explicitly?
-    LOG_SEV_IF(true, info) << "master_reader.size =  " << master_reader.size();
-
 
     int global_done = 0;
 
