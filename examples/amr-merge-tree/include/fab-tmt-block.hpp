@@ -324,7 +324,7 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
 
     size_t s = initial_edges_.size();
     initial_edges_.clear();
-    initial_edges_.reserve(s);
+//    initial_edges_.reserve(s);
 
     for (const auto& gid_edge_vector_pair : gid_to_outgoing_edges_) {
         std::copy(gid_edge_vector_pair.second.begin(), gid_edge_vector_pair.second.end(),
@@ -345,6 +345,7 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
     if (debug) fmt::print("In adjust_outgoing_edges for gid = {}, old #edges = {}, new #edges = {}, old link size = {}, new link size = {}, new link = {}\n",
             gid, s, initial_edges_.size(), orig_link_old_size, original_link_gids_.size(), container_to_string(new_receivers_));
 
+    gid_to_outgoing_edges_.clear();
 }
 
 template<class Real, unsigned D>

@@ -10,6 +10,7 @@
 
 #include "fab-block.h"
 #include "fab-tmt-block.h"
+#include "amr_merge_tree_helper.h"
 #include "reader-interfaces.h"
 #include "diy/vertices.hpp"
 #include "reeber/grid.h"
@@ -79,92 +80,6 @@ bool link_contains_gid(Link* link, int gid)
         if (link->target(i).gid == gid)
             return true;
     return false;
-}
-
-/**
- *
- * send outgoing edges computed in b to all its neighbors
- * used to symmetrize the edge set in the beginning of the algorithm
- *
- * @param b FabTmtBlock
- * block that will send its edges
- *
- * @param cp diy::Master::ProxyWithLink
- * communication proxy
- *
- */
-template<unsigned D>
-void send_edges_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
-{
-    bool debug = false;
-
-    if (debug) fmt::print("Called send_edges_to_neighbors for block = {}\n", b->gid);
-
-    auto* l = static_cast<diy::AMRLink*>(cp.link());
-
-    std::set<diy::BlockID> receivers;
-    for (int i = 0; i < l->size(); ++i) {
-        if (l->target(i).gid != b->gid) {
-            receivers.insert(l->target(i));
-        }
-    }
-
-    for (const diy::BlockID& receiver : receivers) {
-        int receiver_gid = receiver.gid;
-        if (b->new_receivers_.count(receiver_gid)) {
-            if (debug)
-                fmt::print("In send_edges_to_neighbors for block = {}, sending to receiver= {}, cardinality = {}\n",
-                           b->gid, receiver_gid, b->get_all_outgoing_edges().size());
-            cp.enqueue(receiver, b->get_all_outgoing_edges());
-        } else {
-            if (debug)
-                fmt::print("In send_edges_to_neighbors for block = {}, sending to receiver= {} empty container\n",
-                           b->gid, receiver_gid);
-            cp.enqueue(receiver, r::AmrEdgeContainer());
-        }
-    }
-}
-
-/**
- *
- * @tparam D
- * @param b
- * @param cp
- */
-template<unsigned D>
-void delete_low_edges(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
-{
-    bool debug = false;
-
-    if (debug) fmt::print("Called delete_low_edges for block = {}\n", b->gid);
-
-    auto* l = static_cast<diy::AMRLink*>(cp.link());
-
-    std::set<diy::BlockID> senders;
-    for (int i = 0; i < l->size(); ++i) {
-        if (l->target(i).gid != b->gid) {
-            senders.insert(l->target(i));
-        }
-    }
-
-    for (const diy::BlockID& sender : senders) {
-        AmrEdgeContainer edges_from_neighbor;
-        if (debug) fmt::print("In delete_low_edges for block = {}, dequeing from sender = {}\n", b->gid, sender.gid);
-
-        cp.dequeue(sender, edges_from_neighbor);
-
-        if (debug)
-            fmt::print("In delete_low_edges for block = {}, dequed {} edges from sender = {}\n", b->gid,
-                       edges_from_neighbor.size(), sender.gid);
-
-        b->delete_low_edges(sender.gid, edges_from_neighbor);
-
-        if (debug)
-            fmt::print("In delete_low_edges for block = {}, from sender = {}, b->delete_low_edges OK\n", b->gid,
-                       sender.gid);
-    }
-
-    b->adjust_outgoing_edges();
 }
 
 void
@@ -247,6 +162,7 @@ void send_to_neighbors_main(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWit
                     c.processed_neighbors_.insert(receiver_gid);
                 }
             }
+
             cp.enqueue(receiver, b->vertex_to_deepest_);
 
             diy::MemoryBuffer& out = cp.outgoing(receiver);
@@ -415,7 +331,7 @@ int main(int argc, char** argv)
             >> Option('l', "log", log_level, "log level");
 
     bool negate = ops >> opts::Present('n', "negate", "sweep superlevel sets");
-
+    bool absolute = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
 
     std::string infn;
 
@@ -442,7 +358,7 @@ int main(int argc, char** argv)
     // FabBlock can be safely discarded afterwards
 
     master_reader.foreach(
-            [&master, &assigner, domain, rho, negate](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
+            [&master, &assigner, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
                 auto* l = static_cast<diy::AMRLink*>(cp.link());
                 diy::AMRLink* new_link = new diy::AMRLink(*l);
 
@@ -452,7 +368,7 @@ int main(int argc, char** argv)
 
                 master.add(cp.gid(),
                            new Block(b->fab, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
-                                     new_link, rho, negate),
+                                     new_link, rho, negate, absolute),
                            new_link);
             });
 

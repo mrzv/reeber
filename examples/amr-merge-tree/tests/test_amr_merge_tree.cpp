@@ -301,6 +301,7 @@ TEST_CASE("Check blocks constructor in simplest case", "[FabTmtBlock][dim2]")
 
     int dim = 2;
     bool negate = false;
+    bool absolute = true;
     int dom_size = 3;
     Point min_domain { 0, 0, 0, 0 };
     Point max_domain { dom_size, dom_size, 0, 0 };
@@ -370,7 +371,7 @@ TEST_CASE("Check blocks constructor in simplest case", "[FabTmtBlock][dim2]")
 
         for (int i = 0; i < n_blocks; ++i) {
             blocks.emplace_back(grids[i], refinements[i], levels[i], domain, bounds[i], cores[i], bids[i].gid,
-                                &links[i], rho, negate);
+                                &links[i], rho, negate, absolute);
         }
 
         std::vector<IntGrid> correct_masks;
@@ -509,6 +510,7 @@ TEST_CASE("Check blocks constructor in simple masked case", "[FabTmtBlock][dim2]
 
     int dim = 2;
     bool negate = false;
+    bool absolute = true;
     int dom_size = 3;
     Point min_domain { 0, 0, 0, 0 };
     Point max_domain { dom_size, dom_size, 0, 0 };
@@ -590,7 +592,7 @@ TEST_CASE("Check blocks constructor in simple masked case", "[FabTmtBlock][dim2]
 
         for (int i = 0; i < n_blocks; ++i) {
             blocks.emplace_back(grids[i], refinements[i], levels[i], domain, bounds[i], cores[i], bids[i].gid,
-                                &links[i], rho, negate);
+                                &links[i], rho, negate, absolute);
         }
 
         std::vector<IntGrid> correct_masks;
