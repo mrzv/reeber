@@ -10,7 +10,7 @@
 
 #include "fab-block.h"
 #include "fab-tmt-block.h"
-#include "amr_merge_tree_helper.h"
+#include "amr-merge-tree-helper.h"
 #include "reader-interfaces.h"
 #include "diy/vertices.hpp"
 #include "reeber/grid.h"

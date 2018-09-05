@@ -25,11 +25,6 @@
 
 namespace r = reeber;
 
-template<class T, unsigned D>
-struct FabTmtBlock;
-
-
-
 template<class Real, unsigned D>
 struct FabTmtBlock
 {
@@ -183,7 +178,7 @@ struct FabTmtBlock
     std::map<int, AmrEdgeContainer> gid_to_outgoing_edges_;
 
     std::set<int> new_receivers_;
-    std::set<int> processed_receiveres_;
+    std::set<int> processed_receivers_;
 
     GidVector original_link_gids_;
 
@@ -224,7 +219,7 @@ struct FabTmtBlock
             original_tree_(_negate),
             fab_(fab_grid.data(), fab_grid.shape(), fab_grid.c_order()),
             domain_(_domain),
-            processed_receiveres_({ gid }),
+            processed_receivers_({ gid }),
             negate_(_negate)
     {
         bool debug = false;
@@ -400,36 +395,5 @@ struct FabTmtBlock
     static void load(void* b, diy::BinaryBuffer& bb);
 };
 
-
-namespace diy {
-
-    //    template<class R, unsigned D>
-    //    struct Serialization<typename FabTmtBlock<R, D>::Component>
-    //    {
-    //        using Component = FabTmtBlock<R, D>::Component;
-    //
-    //        static void save(diy::BinaryBuffer& bb, const Component& c)
-    //        {
-    //        }
-    //
-    //        static void load(diy::BinaryBuffer& bb, Component& c)
-    //        {
-    //        }
-    //    };
-    //
-    template<class R, unsigned D>
-    struct Serialization<FabTmtBlock<R, D>>
-    {
-        static void save(diy::BinaryBuffer& bb, const FabTmtBlock<R, D>& b)
-        {
-            FabTmtBlock<R, D>::save(b, bb);
-        }
-
-        static void load(diy::BinaryBuffer& bb, FabTmtBlock<R, D>& b)
-        {
-            FabTmtBlock<R, D>::load(b, bb);
-        }
-    };
-}
 
 #include "fab-tmt-block.hpp"

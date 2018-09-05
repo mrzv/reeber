@@ -5,25 +5,17 @@
 
 #include "fab-tmt-block.h"
 
-template<class Real>
-Real contribution_to_integral(Real v, Real rho_min, Real rho_max)
-{
-    if (v >= rho_min and v <= rho_max)
-        return v;
-    else
-        return 0;
-}
-
-template<class Real>
-using LocalIntegral = std::map<reeber::AmrVertexId, Real>;
+template<class Vertex, class Real>
+using LocalIntegral = std::map<Vertex, Real>;
 
 template<class Real, unsigned D>
-LocalIntegral<Real> get_local_integral(FabTmtBlock<Real, D>* b, Real rho_min, Real rho_max, const std::string& fname)
+LocalIntegral<reeber::AmrVertexId, Real> get_local_integral(FabTmtBlock<Real, D>* b, Real rho_min, Real rho_max, const std::string& fname)
 {
     using AmrVertexId = reeber::AmrVertexId;
     using Block = FabTmtBlock<Real, D>;
     using Node = typename Block::Node;
-    using Neighbor = typename Block::Neighbor;
+
+    const Real refinement_factor = static_cast<Real>(1.0) / b->refinement();
 
     auto deepest_vertices = b->get_current_deepest_vertices();
     std::map<AmrVertexId, Real> local_integral;
@@ -32,17 +24,22 @@ LocalIntegral<Real> get_local_integral(FabTmtBlock<Real, D>* b, Real rho_min, Re
     for(const auto& vertex_node_pair : nodes)
     {
         AmrVertexId current_vertex = vertex_node_pair.first;
+
+        assert(current_vertex == vertex_node_pair.second->vertex);
+
+        if (current_vertex.gid != b->gid)
+            continue;
+
         Node* current_node = vertex_node_pair.second;
         AmrVertexId root = b->vertex_to_deepest_[current_vertex];
-        // save only information about local components
-        if (root.gid != b->gid)
-            continue;
+        // save only information about local vertices
+
         Real root_value = nodes.at(root)->value;
         if ((negate and root_value < rho_max) or (not negate and root_value > rho_min))
             continue;
-        local_integral[root] += contribution_to_integral(current_node->value, rho_min, rho_max);
+        local_integral[root] += refinement_factor * current_node->value;
         for(const auto& value_vertex_pair : current_node->vertices) {
-            local_integral[root] += contribution_to_integral(value_vertex_pair.first, rho_min, rho_max);
+            local_integral[root] += refinement_factor * value_vertex_pair.first;
         }
     }
     return local_integral;

@@ -27,48 +27,21 @@
 
 typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
 
-struct OutputPairs
+struct LocalFunctorDecomposer
 {
-    struct ExtraInfo
-    {
-                            ExtraInfo(const std::string& outfn_, const Decomposer& decomposer_, bool verbose_):
-                                outfn(outfn_), decomposer(decomposer_), verbose(verbose_)   {}
-        std::string         outfn;
-        const Decomposer&   decomposer;
-        bool                verbose;
-    };
+    using Block = TripletMergeTreeBlock;
+    using Neighbor = Block::TripletMergeTree::Neighbor;
 
-    typedef TripletMergeTreeBlock::TripletMergeTree::Neighbor  Neighbor;
-    typedef TripletMergeTreeBlock::Box                         Box;
+    LocalFunctorDecomposer(const Decomposer& _decomposer) : decomposer(_decomposer)
+    {}
 
-            OutputPairs(const TripletMergeTreeBlock& block_, const ExtraInfo& extra_):
-                block(block_),
-                extra(extra_)
+    bool operator()(const TripletMergeTreeBlock& b, const Neighbor &from) const
     {
-        std::string   dgm_fn = fmt::format("{}-b{}.dgm", extra.outfn, block.gid);
-//        std::string   dgm_fn = extra.outfn;
-        ofs.open(dgm_fn.c_str());
+        auto from_position = b.global.position(from->vertex);
+        return decomposer.lowest_gid(from_position) == b.gid;
     }
 
-    void    operator()(Neighbor from, Neighbor through, Neighbor to) const
-    {
-        Box::Position from_position = block.global.position(from->vertex);
-        if (extra.decomposer.lowest_gid(from_position) != block.gid)
-            return;
-
-        if (extra.verbose)
-        {
-            if (from != to)
-                fmt::print(ofs, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
-            else
-                fmt::print(ofs, "{} {} {} --\n",       from->vertex,  from->value, (block.mt.negate() ? "-inf" : "inf"));
-        } else if (from->value != through->value)
-            fmt::print(ofs, "{} {}\n", from->value, through->value);
-    }
-
-    const TripletMergeTreeBlock&       block;
-    const ExtraInfo&                   extra;
-    mutable std::ofstream              ofs;
+    const Decomposer& decomposer;
 };
 
 // Load the specified chunk of data, compute local merge tree, add block to diy::Master
@@ -537,9 +510,10 @@ int main(int argc, char** argv)
         // output persistence
         bool verbose = false;
         bool ignore_zero_persistence = true;
-        OutputPairs::ExtraInfo extra(outdiag, decomposer, verbose);
-        master.foreach([&extra, ignore_zero_persistence](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
-            output_persistence(b, cp, extra, ignore_zero_persistence);
+        LocalFunctorDecomposer local_functor(decomposer);
+        OutputPairs<TripletMergeTreeBlock, LocalFunctorDecomposer>::ExtraInfo extra(outdiag, verbose);
+        master.foreach([&extra, &local_functor, ignore_zero_persistence, rho](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
+            output_persistence(b, cp, extra, local_functor, rho, ignore_zero_persistence);
         });
     }
 }

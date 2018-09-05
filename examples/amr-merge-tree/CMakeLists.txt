@@ -41,10 +41,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 foreach(real   float double)
 
-add_executable(amr_merge_tree_simple_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr_merge_tree_simple.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
+add_executable(amr_merge_tree_simple_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-merge-tree-simple.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
 set_target_properties(amr_merge_tree_simple_${real}   PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
 
-add_executable(amr_merge_tree_send_components_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr_merge_tree_send_components.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
+add_executable(amr_merge_tree_send_components_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-merge-tree-send-components.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
 set_target_properties(amr_merge_tree_send_components_${real} PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
 
 add_executable(amr_merge_tree_test_${real} ${CMAKE_CURRENT_SOURCE_DIR}/tests/tests_main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_amr_merge_tree.cpp ${AMT_HEADERS} ${REEBER_HEADERS})

@@ -47,10 +47,12 @@ int main(int argc, char** argv)
 
     std::string profile_path;
     std::string log_level = "info";
+    Real rho;
     Options ops(argc, argv);
     ops
         >> Option('m', "memory",    in_memory,    "maximum blocks to store in memory")
         >> Option('j', "jobs",      threads,      "threads to use during the computation")
+        >> Option('t', "threshold", rho, "threshold")
         >> Option('s', "storage",   prefix,       "storage prefix")
         >> Option('p', "profile",   profile_path, "path to keep the execution profile")
         >> Option('l', "log",       log_level,    "log level")
@@ -113,9 +115,10 @@ int main(int argc, char** argv)
     diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner.nblocks());
     IsLocalTest test_local(decomposer);
 
+    bool ignore_zero_persistence = false;
     OutputPairsR::ExtraInfo extra(outfn, verbose);
-    master.foreach([&extra, &test_local](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
-        output_persistence(b, cp, extra, test_local); });
+    master.foreach([&extra, &test_local, rho, ignore_zero_persistence] (TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
+        output_persistence(b, cp, extra, test_local, rho, ignore_zero_persistence); });
 
     dlog::prof.flush();
 }

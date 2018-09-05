@@ -679,7 +679,7 @@ void FabTmtBlock<Real, D>::save(const void* b, diy::BinaryBuffer& bb)
     diy::save(bb, block->initial_edges_);
 //    diy::save(bb, block->gid_to_outgoing_edges_);
     diy::save(bb, block->new_receivers_);
-    diy::save(bb, block->processed_receiveres_);
+    diy::save(bb, block->processed_receivers_);
     diy::save(bb, block->original_link_gids_);
     diy::save(bb, block->negate_);
     diy::save(bb, block->vertex_to_deepest_);
@@ -702,7 +702,7 @@ void FabTmtBlock<Real, D>::load(void* b, diy::BinaryBuffer& bb)
     diy::load(bb, block->initial_edges_);
 //    diy::load(bb, block->gid_to_outgoing_edges_);
     diy::load(bb, block->new_receivers_);
-    diy::load(bb, block->processed_receiveres_);
+    diy::load(bb, block->processed_receivers_);
     diy::load(bb, block->original_link_gids_);
     diy::load(bb, block->negate_);
     diy::load(bb, block->vertex_to_deepest_);
