@@ -21,6 +21,7 @@
 #include "diy/vertices.hpp"
 #include "reeber/grid.h"
 #include "amr_merge_tree_helper.h"
+#include "amr-persistent-integral.h"
 
 #include "../../local-global/output_persistence.h"
 
@@ -124,7 +125,7 @@ void send_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink
             // send local tree and all outgoing edges that end in receiver
             cp.enqueue(receiver, b->original_tree_);
             cp.enqueue(receiver, b->vertex_to_deepest_);
-            cp.enqueue(receiver, b->get_deepest_vertices());
+            cp.enqueue(receiver, b->get_original_deepest_vertices());
             cp.enqueue(receiver, b->get_all_outgoing_edges());
             cp.enqueue(receiver, b->get_original_link_gids());
 
@@ -549,29 +550,31 @@ int main(int argc, char** argv)
 
     // threshold
     Real rho = 81.66;
+    Real integral_rho = 0.0;
 
     using namespace opts;
 
     opts::Options ops(argc, argv);
     ops
-            >> Option('b', "blocks", nblocks, "number of blocks to use")
-            >> Option('m', "memory", in_memory, "maximum blocks to store in memory")
-            >> Option('j', "jobs", threads, "threads to use during the computation")
-            >> Option('s', "storage", prefix, "storage prefix")
-            >> Option('t', "threshold", rho, "threshold")
-            >> Option('p', "profile", profile_path, "path to keep the execution profile")
-            >> Option('l', "log", log_level, "log level");
+            >> Option('b', "blocks",       nblocks,      "number of blocks to use")
+            >> Option('m', "memory",       in_memory,    "maximum blocks to store in memory")
+            >> Option('j', "jobs",         threads,      "threads to use during the computation")
+            >> Option('s', "storage",      prefix,       "storage prefix")
+            >> Option('t', "threshold",    rho,          "threshold")
+            >> Option(     "intthreshold", integral_rho, "integral threshold")
+            >> Option('p', "profile",      profile_path, "path to keep the execution profile")
+            >> Option('l', "log",          log_level,    "log level");
 
     bool absolute =
             ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
     bool negate = ops >> opts::Present('n', "negate", "sweep superlevel sets");
     bool split = ops >> Present("split", "use split IO");
 
-    std::string infn, outfn, outdiagfn;
+    std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
 
     if (ops >> Present('h', "help", "show help message") or
-        not(ops >> PosOption(infn))
-        or not(ops >> PosOption(outfn)))
+        not(ops >> PosOption(input_filename))
+        or not(ops >> PosOption(output_filename)))
     {
         if (world.rank() == 0)
         {
@@ -582,7 +585,15 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    bool write_diag = (ops >> PosOption(outdiagfn));
+    bool write_diag = (ops >> PosOption(output_diagrams_filename));
+
+    bool write_integral = (ops >> PosOption(output_integral_filename));
+
+    if (write_integral)
+    {
+        if ((negate and integral_rho < rho) or (not negate and integral_rho > rho))
+            throw std::runtime_error("Bad integral threshold");
+    }
 
     diy::FileStorage storage(prefix);
 
@@ -599,11 +610,11 @@ int main(int argc, char** argv)
 
     world.barrier();
     dlog::Timer timer;
-    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, infn = " << infn << ", nblocks = " << nblocks
+    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = " << nblocks
                                                                            << ", rho = " << rho;
     world.barrier();
 
-    read_from_file(infn, world, master_reader, assigner, header, domain, nblocks);
+    read_from_file(input_filename, world, master_reader, assigner, header, domain, nblocks);
 
     world.barrier();
 
@@ -646,14 +657,14 @@ int main(int argc, char** argv)
         master.foreach([&rho](Block* b, const diy::Master::ProxyWithLink& cp) {
             cp.collectives()->clear();
             cp.all_reduce(b->sum_, std::plus<Real>());
-            cp.all_reduce(b->n_unmasked_, std::plus<size_t>());
+            cp.all_reduce(static_cast<Real>(b->n_unmasked_) / static_cast<Real>(b->refinement()), std::plus<Real>());
         });
 
         master.exchange();
 
         const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
 
-        Real mean = proxy.get<Real>() / proxy.get<size_t>();
+        Real mean = proxy.get<Real>() / proxy.get<Real>();
         rho *= mean;                                            // now rho contains absolute threshold
 
         world.barrier();
@@ -770,12 +781,12 @@ int main(int argc, char** argv)
     //    fmt::print("----------------------------------------\n");
 
     // save the result
-    if (outfn != "none")
+    if (output_filename != "none")
     {
         if (!split)
-            diy::io::write_blocks(outfn, world, master);
+            diy::io::write_blocks(output_filename, world, master);
         else
-            diy::io::split::write_blocks(outfn, world, master);
+            diy::io::split::write_blocks(output_filename, world, master);
     }
 
     world.barrier();
@@ -786,16 +797,39 @@ int main(int argc, char** argv)
 
     if (write_diag)
     {
-        OutputPairsR::ExtraInfo extra(outdiagfn, verbose);
+        bool ignore_zero_persistence = true;
+        OutputPairsR::ExtraInfo extra(output_diagrams_filename, verbose);
         IsAmrVertexLocal test_local;
-        master.foreach([&extra, &test_local](Block* b, const diy::Master::ProxyWithLink& cp) {
-            output_persistence(b, cp, extra, test_local);
+        master.foreach([&extra, &test_local, ignore_zero_persistence, rho](Block* b, const diy::Master::ProxyWithLink& cp) {
+            output_persistence(b, cp, extra, test_local, rho, ignore_zero_persistence);
         });
     }
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
+
+    if (write_integral)
+    {
+        Real rho_min, rho_max;
+        if (negate) {
+            rho_min = rho;
+            rho_max = integral_rho;
+        } else {
+            rho_min = integral_rho;
+            rho_max = rho;
+        }
+
+        master.foreach([rho_min, rho_max, output_integral_filename] (Block* b, const diy::Master::ProxyWithLink& cp) {
+            LocalIntegral<Real> li = get_local_integral(b, rho_min, rho_max, output_integral_filename);
+            std::string integral_local_fname = fmt::format("{}-b{}.integral", output_integral_filename, b->gid);
+            std::ofstream  ofs;
+            ofs.open(integral_local_fname.c_str());
+            for(const auto& root_value_pair : li) {
+                fmt::print(ofs, "{} {}\n", root_value_pair.first, root_value_pair.second);
+            }
+        });
+    }
 
     return 0;
 }

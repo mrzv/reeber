@@ -23,6 +23,7 @@
 #include "reader-interfaces.h"
 #include "edges.h"
 #include "triplet-merge-tree-block.h"
+#include "output_persistence.h"
 
 typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
 
@@ -69,16 +70,6 @@ struct OutputPairs
     const ExtraInfo&                   extra;
     mutable std::ofstream              ofs;
 };
-
-void output_persistence(TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp, const OutputPairs::ExtraInfo& extra)
-{
-    LOG_SEV(debug) << "Block:   " << cp.gid();
-    LOG_SEV(debug) << " Tree:   " << b->mt.size();
-    LOG_SEV(debug) << " Local:  " << b->local.from()  << " - " << b->local.to();
-    LOG_SEV(debug) << " Global: " << b->global.from() << " - " << b->global.to();
-
-    r::traverse_persistence(b->mt, OutputPairs(*b, extra));
-}
 
 // Load the specified chunk of data, compute local merge tree, add block to diy::Master
 struct LoadAdd
@@ -368,12 +359,15 @@ int main(int argc, char** argv)
     std::string log_level = "info";
     int         threads = r::task_scheduler_init::automatic;
 
+    Real rho = 81.66;
+
     Options ops(argc, argv);
     ops
         >> Option('b', "blocks",    nblocks,      "number of blocks to use")
         >> Option('m', "memory",    in_memory,    "maximum blocks to store in memory")
         >> Option('j', "jobs",      jobs,         "threads to use during the computation")
         >> Option('s', "storage",   prefix,       "storage prefix")
+        >> Option('t', "threshold", rho, "threshold")
         >> Option('p', "profile",   profile_path, "path to keep the execution profile")
         >> Option('l', "log",       log_level,    "log level")
         >> Option('t', "threads",   threads,      "number of threads to use (with TBB)")
@@ -381,6 +375,7 @@ int main(int argc, char** argv)
     bool        negate      = ops >> Present('n', "negate", "sweep superlevel sets");
     bool        wrap_       = ops >> Present('w', "wrap",   "periodic boundary conditions");
     bool        split       = ops >> Present(     "split",  "use split IO");
+//    bool     absolute       = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
 
     std::string infn, outfn, outdiag;
     if (  ops >> Present('h', "help", "show help message") ||
@@ -541,9 +536,10 @@ int main(int argc, char** argv)
     if (write_diag) {
         // output persistence
         bool verbose = false;
+        bool ignore_zero_persistence = true;
         OutputPairs::ExtraInfo extra(outdiag, decomposer, verbose);
-        master.foreach([&extra](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
-            output_persistence(b, cp, extra);
+        master.foreach([&extra, ignore_zero_persistence](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
+            output_persistence(b, cp, extra, ignore_zero_persistence);
         });
     }
 }

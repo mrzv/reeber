@@ -60,6 +60,8 @@ struct FabTmtBlock
     using GidContainer = std::set<int>;
     using GidVector = std::vector<int>;
 
+    using RealType = Real;
+
     template<class Vertex_, class Node>
     struct TmtConnectedComponent
     {
@@ -371,7 +373,8 @@ struct FabTmtBlock
 
 #endif
 
-    std::vector<AmrVertexId> get_deepest_vertices() const;
+    std::vector<AmrVertexId> get_original_deepest_vertices() const;
+    std::vector<AmrVertexId> get_current_deepest_vertices() const;
 
     const AmrEdgeContainer& get_all_outgoing_edges()
     { return initial_edges_; }

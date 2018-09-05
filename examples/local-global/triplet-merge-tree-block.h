@@ -30,6 +30,8 @@ struct TripletMergeTreeBlock
     using EdgeMap  = reeber::EdgeMap<Index, Value>;
     using EdgeMaps = reeber::EdgeMaps<Index, Value>;
 
+    using RealType = Real;
+
     static void*            create()                                        { return new TripletMergeTreeBlock; }
     static void             destroy(void* b)                                { delete static_cast<TripletMergeTreeBlock*>(b); }
     static void             save(const void* b, diy::BinaryBuffer& bb)      { diy::save(bb, *static_cast<const TripletMergeTreeBlock*>(b)); }

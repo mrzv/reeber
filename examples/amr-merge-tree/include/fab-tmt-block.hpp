@@ -358,11 +358,26 @@ r::AmrVertexId FabTmtBlock<Real, D>::deepest(const AmrVertexId& v) const
         throw std::runtime_error("Deepest not found for vertex");
 }
 
+// components_ are only computed once, return their roots
+// TODO: cache this in ctor?
 template<class Real, unsigned D>
-std::vector<r::AmrVertexId> FabTmtBlock<Real, D>::get_deepest_vertices() const
+std::vector<r::AmrVertexId> FabTmtBlock<Real, D>::get_original_deepest_vertices() const
 {
     std::vector<AmrVertexId> result(components_.size());
     std::transform(components_.begin(), components_.end(), result.begin(), [](const Component& c) { return c.root_; });
+    return result;
+}
+
+
+template<class Real, unsigned D>
+std::vector<r::AmrVertexId> FabTmtBlock<Real, D>::get_current_deepest_vertices() const
+{
+    std::set<AmrVertexId> result_set;
+    for(const auto& vertex_deepest_pair : vertex_to_deepest_)
+    {
+        result_set.insert(vertex_deepest_pair.second);
+    }
+    std::vector<AmrVertexId> result(result_set.begin(), result_set.end());
     return result;
 }
 
