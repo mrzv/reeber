@@ -367,6 +367,8 @@ struct FabTmtBlock
     void add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex);
 
     int is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check);
+    
+    Real scaling_factor() const;
 
 #ifdef SEND_COMPONENTS
 

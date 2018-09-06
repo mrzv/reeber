@@ -688,6 +688,16 @@ std::vector<r::AmrVertexId> FabTmtBlock<Real, D>::get_final_deepest_vertices() c
 
 
 template<class Real, unsigned D>
+Real FabTmtBlock<Real, D>::scaling_factor() const
+{
+    Real result = 1;
+    for(unsigned i = 0; i < D; ++i)
+        result /= refinement();
+    return result;
+}
+
+
+template<class Real, unsigned D>
 int FabTmtBlock<Real, D>::is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check)
 {
     // check that all edge outgoing from the current region

@@ -528,7 +528,7 @@ int main(int argc, char **argv)
 
     // threshold
     Real rho = 81.66;
-    Real integral_rho = 0.0;
+    Real integral_rho = 90.0;
 
     using namespace opts;
 
@@ -633,7 +633,7 @@ int main(int argc, char **argv)
         master.foreach([&rho](Block *b, const diy::Master::ProxyWithLink& cp) {
             cp.collectives()->clear();
             cp.all_reduce(b->sum_, std::plus<Real>());
-            cp.all_reduce(static_cast<Real>(b->n_unmasked_) / static_cast<Real>(b->refinement()), std::plus<Real>());
+            cp.all_reduce(static_cast<Real>(b->n_unmasked_) * b->scaling_factor(), std::plus<Real>());
         });
 
         master.exchange();
@@ -642,6 +642,7 @@ int main(int argc, char **argv)
 
         Real mean = proxy.get<Real>() / proxy.get<Real>();
         rho *= mean;                                            // now rho contains absolute threshold
+        integral_rho *= mean;
 
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
