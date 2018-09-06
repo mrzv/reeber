@@ -68,7 +68,7 @@ void send_edges_to_neighbors(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWi
 template<unsigned D>
 void delete_low_edges(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = true;
+    bool debug = false;
 
     if (debug) fmt::print("Called delete_low_edges for block = {}\n", b->gid);
 

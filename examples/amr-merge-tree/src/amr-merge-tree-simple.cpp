@@ -153,7 +153,6 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
     b->round_++;
     if (debug)
         fmt::print("In send_to_neighbors for block = {}, b->done = {}, b->round = {}\n", b->gid, done, b->round_);
-    cp.all_reduce(done, std::logical_and<int>());
 }
 
 /**
@@ -394,9 +393,9 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
                    b->mt_.size());
 
     b->done_ = b->is_done_simple(vertices_to_check);
-    int done = b->done_;
+    int n_undone = 1 - b->done_;
 
-    cp.all_reduce(done, std::logical_and<int>());
+    cp.all_reduce(n_undone, std::plus<int>());
 
     if (debug)
         fmt::print("In get_from_neighbors_and_merge for block = {}, is_done_simple OK, vertices_to_check.size = {}\n",
@@ -664,7 +663,7 @@ int main(int argc, char **argv)
         timer.restart();
     }
 
-    int global_done = 0;
+    int global_n_undone = 1;
 
     master.foreach(&send_edges_to_neighbors<DIM>);
     master.exchange();
@@ -718,14 +717,14 @@ int main(int argc, char **argv)
 
 
     int rounds = 0;
-    while (!global_done) {
+    while (global_n_undone) {
         rounds++;
         master.foreach(&send_to_neighbors<DIM>);
         master.exchange();
         master.foreach(&get_from_neighbors_and_merge<DIM>);
         master.exchange();
-        global_done = master.proxy(master.loaded_block()).read<int>();
-        LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", global_done = " << global_done;
+        global_n_undone = master.proxy(master.loaded_block()).read<int>();
+        LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", global_n_undone = " << global_n_undone;
     }
 
     world.barrier();

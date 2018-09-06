@@ -16,7 +16,7 @@ LocalIntegral<reeber::AmrVertexId, Real> get_local_integral(FabTmtBlock<Real, D>
     using Node = typename Block::Node;
 
     Real refinement_factor = static_cast<Real>(1.0);
-    for(int i = 0; i < D; ++i)
+    for(unsigned int i = 0; i < D; ++i)
         refinement_factor /= b->refinement();
 
     auto deepest_vertices = b->get_final_deepest_vertices();
