@@ -185,7 +185,8 @@ struct FabTmtBlock
     bool negate_;
 
     // to store information about local connected component in a serializable way
-    VertexVertexMap vertex_to_deepest_;
+    VertexVertexMap original_vertex_to_deepest_;
+    VertexVertexMap final_vertex_to_deepest_;
 
     // tracking how connected components merge - disjoint sets data structure
     VertexVertexMap components_disjoint_set_parent_;
@@ -275,7 +276,7 @@ struct FabTmtBlock
 
         if (debug) fmt::print("{} outgoing edges computed, vertex_to_otgoing_edges.size = {}\n", debug_prefix, vertex_to_outgoing_edges.size());
 
-        compute_connected_components(vertex_to_outgoing_edges);
+        compute_original_connected_components(vertex_to_outgoing_edges);
 
         if (debug) fmt::print("{} connected components computed\n", debug_prefix);
 
@@ -320,13 +321,16 @@ struct FabTmtBlock
     // and the other is outside
     bool edge_goes_out(const AmrEdge& e) const;
 
-    // diy stuff
-
     bool deepest_computed(Neighbor n) const
     { return deepest_computed(n->vertex); }
 
     bool deepest_computed(const AmrVertexId& v) const
-    { return vertex_to_deepest_.find(v) != vertex_to_deepest_.cend(); }
+    { return original_vertex_to_deepest_.find(v) != original_vertex_to_deepest_.cend(); }
+
+    bool final_deepest_computed(const AmrVertexId& v) const
+    { return final_vertex_to_deepest_.find(v) != final_vertex_to_deepest_.cend(); }
+
+    AmrVertexContainer get_final_deepest_vertices() const;
 
     AmrVertexId deepest(Neighbor n) const
     { return deepest(n->vertex); }
@@ -335,7 +339,7 @@ struct FabTmtBlock
 
 
     void set_deepest(const AmrVertexId& v, const AmrVertexId& deepest)
-    { vertex_to_deepest_[v] = deepest; }
+    { original_vertex_to_deepest_[v] = deepest; }
 
     void create_component(const AmrVertexId& deepest_vertex, const AmrEdgeContainer& edges);
 
@@ -343,7 +347,9 @@ struct FabTmtBlock
 
     void compute_outgoing_edges(diy::AMRLink* l, VertexEdgesMap& vertex_to_outgoing_edges);
 
-    void compute_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
+    void compute_original_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
+
+    void compute_final_connected_components();
 
     void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender);
 

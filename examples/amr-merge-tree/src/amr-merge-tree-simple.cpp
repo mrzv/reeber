@@ -56,7 +56,7 @@ constexpr bool abort_on_segfault = true;
 
 struct IsAmrVertexLocal
 {
-    bool operator()(const Block &b, const Neighbor &from) const
+    bool operator()(const Block& b, const Neighbor& from) const
     {
         return from->vertex.gid == b.gid;
     }
@@ -97,7 +97,7 @@ bool link_contains_gid(Link *link, int gid)
 
 
 template<unsigned D>
-void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink &cp)
+void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
     bool debug = false;
@@ -113,7 +113,7 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
                    receivers.size());
 
 
-    for (const diy::BlockID &receiver : receivers) {
+    for (const diy::BlockID& receiver : receivers) {
         int receiver_gid = receiver.gid;
 
 
@@ -131,7 +131,7 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
         if (n_trees) {
             // send local tree and all outgoing edges that end in receiver
             cp.enqueue(receiver, b->original_tree_);
-            cp.enqueue(receiver, b->vertex_to_deepest_);
+            cp.enqueue(receiver, b->original_vertex_to_deepest_);
             cp.enqueue(receiver, b->get_original_deepest_vertices());
             cp.enqueue(receiver, b->get_all_outgoing_edges());
             cp.enqueue(receiver, b->get_original_link_gids());
@@ -140,7 +140,7 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
                 fmt::print("In send_to_neighbors for block = {}, receiver = {}, enqueued original_link_gids = {}\n",
                            b->gid, receiver.gid, container_to_string(b->get_original_link_gids()));
 
-            diy::MemoryBuffer &out = cp.outgoing(receiver);
+            diy::MemoryBuffer& out = cp.outgoing(receiver);
             diy::LinkFactory::save(out, l);
 
             // mark receiver_gid as processed
@@ -165,8 +165,8 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
  * @param received_original_gids
  */
 void
-expand_link(Block *b, const diy::Master::ProxyWithLink &cp, AMRLink *l, std::vector<AMRLink> &received_links,
-            std::vector<std::vector<int>> &received_original_gids)
+expand_link(Block *b, const diy::Master::ProxyWithLink& cp, AMRLink *l, std::vector<AMRLink>& received_links,
+            std::vector<std::vector<int>>& received_original_gids)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
     bool debug = false;
@@ -176,7 +176,7 @@ expand_link(Block *b, const diy::Master::ProxyWithLink &cp, AMRLink *l, std::vec
     std::set<int> added_gids;
 
     for (size_t i = 0; i < received_links.size(); ++i) {
-        const AMRLink &received_link = received_links[i];
+        const AMRLink& received_link = received_links[i];
         assert(not received_original_gids[i].empty());
         if (debug)
             fmt::print("in expand_link for block = {}, i = {}, received_links[i].size = {}\n", b->gid, i,
@@ -226,7 +226,7 @@ expand_link(Block *b, const diy::Master::ProxyWithLink &cp, AMRLink *l, std::vec
  */
 
 template<unsigned D>
-void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink &cp)
+void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
     bool debug = false;
@@ -263,7 +263,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
 
     if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, # senders = {}\n", b->gid, senders.size());
 
-    for (const diy::BlockID &sender : senders) {
+    for (const diy::BlockID& sender : senders) {
         int n_trees;
         cp.dequeue(sender, n_trees);
 
@@ -294,7 +294,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
                         "In get_from_neighbors_and_merge for block = {}, dequeued from sender {} original link gids = {}\n",
                         b->gid, sender.gid, container_to_string(received_original_gids.back()));
 
-            diy::MemoryBuffer &in = cp.incoming(sender.gid);
+            diy::MemoryBuffer& in = cp.incoming(sender.gid);
             AMRLink *l = static_cast<AMRLink *>(diy::LinkFactory::load(in));
             received_links.push_back(*l);
             delete l;
@@ -331,7 +331,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
     for (size_t i = 0; i < received_trees.size(); ++i) {
         if (received_edges[i].empty())
             continue;
-        AmrTripletMergeTree &rt = received_trees[i];
+        AmrTripletMergeTree& rt = received_trees[i];
         r::merge(b->mt_, rt, received_edges[i], true);
         r::repair(b->mt_);
         if (debug)
@@ -341,10 +341,10 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
                     sender_gids_debug[i], b->mt_.size());
 
         // save information about vertex-component relation and component merging in block
-        b->vertex_to_deepest_.insert(received_vertex_to_deepest[i].begin(), received_vertex_to_deepest[i].end());
+        b->original_vertex_to_deepest_.insert(received_vertex_to_deepest[i].begin(), received_vertex_to_deepest[i].end());
 
         // make_set in disjoint-sets of components
-        for (const AmrVertexId &new_deepest_vertex : received_deepest_vertices[i]) {
+        for (const AmrVertexId& new_deepest_vertex : received_deepest_vertices[i]) {
             b->add_component_to_disjoint_sets(new_deepest_vertex);
         }
 
@@ -353,11 +353,11 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
         // update receivers - if a block from the 1-neighbourhood of sender has not received a tree from us
         // we must send it to this block in the next round
 
-        for (const AMRLink &rl : received_links) {
+        for (const AMRLink& rl : received_links) {
             for (int k = 0; k < rl.size(); ++k) {
                 int sender_neighbor_gid = rl.target(k).gid;
 
-                auto &original_gids = received_original_gids[i];
+                auto& original_gids = received_original_gids[i];
 
                 bool is_in_original_gids = std::find(original_gids.begin(), original_gids.end(), sender_neighbor_gid) !=
                                            original_gids.end();
@@ -377,7 +377,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
 
     // update disjoint sets data structure (some components are now connected to each other)
     for (size_t i = 0; i < received_trees.size(); ++i) {
-        for (const AmrEdge &e : received_edges[i]) {
+        for (const AmrEdge& e : received_edges[i]) {
             if (b->edge_exists(e)) {
                 // edge e connects two vertices that we have, connect their components
                 AmrVertexId deepest_a = b->deepest(std::get<0>(e));
@@ -416,7 +416,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
 }
 
 
-inline bool ends_with(const std::string &s, const std::string &suffix)
+inline bool ends_with(const std::string& s, const std::string& suffix)
 {
     if (suffix.size() > s.size())
         return false;
@@ -424,11 +424,11 @@ inline bool ends_with(const std::string &s, const std::string &suffix)
 }
 
 void read_from_file(std::string infn,
-                    diy::mpi::communicator &world,
-                    diy::Master &master_reader,
-                    diy::ContiguousAssigner &assigner,
-                    diy::MemoryBuffer &header,
-                    diy::DiscreteBounds &domain,
+                    diy::mpi::communicator& world,
+                    diy::Master& master_reader,
+                    diy::ContiguousAssigner& assigner,
+                    diy::MemoryBuffer& header,
+                    diy::DiscreteBounds& domain,
                     int nblocks)
 {
     if (ends_with(infn, ".npy")) {
@@ -606,7 +606,7 @@ int main(int argc, char **argv)
     // FabBlock can be safely discarded afterwards
 
     master_reader.foreach(
-            [&master, &assigner, domain, rho, negate, absolute](FabBlockR *b, const diy::Master::ProxyWithLink &cp) {
+            [&master, &assigner, domain, rho, negate, absolute](FabBlockR *b, const diy::Master::ProxyWithLink& cp) {
                 auto *l = static_cast<AMRLink *>(cp.link());
                 AMRLink *new_link = new AMRLink(*l);
 
@@ -631,7 +631,7 @@ int main(int argc, char **argv)
                 << dlog::clock_to_string(timer.elapsed());
         timer.restart();
 
-        master.foreach([&rho](Block *b, const diy::Master::ProxyWithLink &cp) {
+        master.foreach([&rho](Block *b, const diy::Master::ProxyWithLink& cp) {
             cp.collectives()->clear();
             cp.all_reduce(b->sum_, std::plus<Real>());
             cp.all_reduce(static_cast<Real>(b->n_unmasked_) / static_cast<Real>(b->refinement()), std::plus<Real>());
@@ -639,7 +639,7 @@ int main(int argc, char **argv)
 
         master.exchange();
 
-        const diy::Master::ProxyWithLink &proxy = master.proxy(master.loaded_block());
+        const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
 
         Real mean = proxy.get<Real>() / proxy.get<Real>();
         rho *= mean;                                            // now rho contains absolute threshold
@@ -650,7 +650,7 @@ int main(int argc, char **argv)
                                                             << dlog::clock_to_string(timer.elapsed());
         timer.restart();
 
-        master.foreach([rho](Block *b, const diy::Master::ProxyWithLink &cp) {
+        master.foreach([rho](Block *b, const diy::Master::ProxyWithLink& cp) {
             AMRLink *l = static_cast<AMRLink *>(cp.link());
             b->init(rho, l);
             cp.collectives()->clear();
@@ -674,7 +674,7 @@ int main(int argc, char **argv)
             << dlog::clock_to_string(timer.elapsed());
     timer.restart();
 
-    master.foreach([](Block *b, const diy::Master::ProxyWithLink &cp) {
+    master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
         auto *l = static_cast<AMRLink *>(cp.link());
 
         std::set<diy::BlockID> receivers;
@@ -684,7 +684,7 @@ int main(int argc, char **argv)
             }
         }
 
-        for (const diy::BlockID &receiver : receivers) {
+        for (const diy::BlockID& receiver : receivers) {
             int receiver_gid = receiver.gid;
             cp.enqueue(receiver, (int) (b->new_receivers_.count(receiver_gid)));
         }
@@ -692,7 +692,7 @@ int main(int argc, char **argv)
 
     master.exchange();
 
-    master.foreach([](Block *b, const diy::Master::ProxyWithLink &cp) {
+    master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
         auto *l = static_cast<AMRLink *>(cp.link());
         std::set<diy::BlockID> senders;
         for (int i = 0; i < l->size(); ++i) {
@@ -701,7 +701,7 @@ int main(int argc, char **argv)
             }
         }
 
-        for (const diy::BlockID &sender : senders) {
+        for (const diy::BlockID& sender : senders) {
             int t;
             cp.dequeue(sender, t);
 
@@ -772,7 +772,7 @@ int main(int argc, char **argv)
         OutputPairsR::ExtraInfo extra(output_diagrams_filename, verbose);
         IsAmrVertexLocal test_local;
         master.foreach(
-                [&extra, &test_local, ignore_zero_persistence, rho](Block *b, const diy::Master::ProxyWithLink &cp) {
+                [&extra, &test_local, ignore_zero_persistence, rho](Block *b, const diy::Master::ProxyWithLink& cp) {
                     output_persistence(b, cp, extra, test_local, rho, ignore_zero_persistence);
                 });
     }
@@ -791,7 +791,9 @@ int main(int argc, char **argv)
             rho_max = rho;
         }
 
-        master.foreach([rho_min, rho_max, output_integral_filename](Block *b, const diy::Master::ProxyWithLink &cp) {
+        master.foreach([rho_min, rho_max, output_integral_filename](Block *b, const diy::Master::ProxyWithLink& cp) {
+
+            b->compute_final_connected_components();
 
             AmrLocalIntegral li = get_local_integral(b, rho_min, rho_max, output_integral_filename);
 
@@ -809,12 +811,12 @@ int main(int argc, char **argv)
 
         master.exchange();
 
-        master.foreach([rho_min, rho_max, output_integral_filename](Block *b, const diy::Master::ProxyWithLink &cp) {
+        master.foreach([rho_min, rho_max, output_integral_filename](Block *b, const diy::Master::ProxyWithLink& cp) {
             AMRLink *l = static_cast<AMRLink *>(cp.link());
             auto senders = link_unique(l, b->gid);
             std::vector<AmrLocalIntegral> received_local_integrals(senders.size());
             int i = 0;
-            for(const auto& sender : senders) {
+            for (const auto& sender : senders) {
                 int n_received_integrals;
                 cp.dequeue(sender, n_received_integrals);
                 if (n_received_integrals)
@@ -823,8 +825,8 @@ int main(int argc, char **argv)
             }
 
             AmrLocalIntegral li;
-            for(const AmrLocalIntegral& received_local_integral : received_local_integrals) {
-                for(const auto& root_value_pair : received_local_integral) {
+            for (const AmrLocalIntegral& received_local_integral : received_local_integrals) {
+                for (const auto& root_value_pair : received_local_integral) {
                     auto root = root_value_pair.first;
                     if (root.gid != b->gid)
                         continue;
@@ -834,7 +836,7 @@ int main(int argc, char **argv)
 
             std::string integral_local_fname = fmt::format("{}-b{}.integral", output_integral_filename, b->gid);
             std::ofstream ofs(integral_local_fname);
-            for (const auto &root_value_pair : li) {
+            for (const auto& root_value_pair : li) {
                 fmt::print(ofs, "{} {}\n", root_value_pair.first, root_value_pair.second);
             }
         });

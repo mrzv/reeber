@@ -15,9 +15,11 @@ LocalIntegral<reeber::AmrVertexId, Real> get_local_integral(FabTmtBlock<Real, D>
     using Block = FabTmtBlock<Real, D>;
     using Node = typename Block::Node;
 
-    const Real refinement_factor = static_cast<Real>(1.0) / b->refinement();
+    Real refinement_factor = static_cast<Real>(1.0);
+    for(int i = 0; i < D; ++i)
+        refinement_factor /= b->refinement();
 
-    auto deepest_vertices = b->get_current_deepest_vertices();
+    auto deepest_vertices = b->get_final_deepest_vertices();
     std::map<AmrVertexId, Real> local_integral;
     const bool negate = b->negate_;
     const auto& nodes = b->get_merge_tree().nodes();
@@ -31,7 +33,7 @@ LocalIntegral<reeber::AmrVertexId, Real> get_local_integral(FabTmtBlock<Real, D>
             continue;
 
         Node* current_node = vertex_node_pair.second;
-        AmrVertexId root = b->vertex_to_deepest_[current_vertex];
+        AmrVertexId root = b->final_vertex_to_deepest_[current_vertex];
         // save only information about local vertices
 
         Real root_value = nodes.at(root)->value;

@@ -163,7 +163,7 @@ void send_to_neighbors_main(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWit
                 }
             }
 
-            cp.enqueue(receiver, b->vertex_to_deepest_);
+            cp.enqueue(receiver, b->original_vertex_to_deepest_);
 
             diy::MemoryBuffer& out = cp.outgoing(receiver);
             diy::LinkFactory::save(out, l);
@@ -248,7 +248,7 @@ void receive_main(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
             VertexVertexMap received_vertex_to_deepest;
             cp.dequeue(sender, received_vertex_to_deepest);
             // save information about vertex-component relation and component merging in block
-            b->vertex_to_deepest_.insert(received_vertex_to_deepest.begin(),
+            b->original_vertex_to_deepest_.insert(received_vertex_to_deepest.begin(),
                                          received_vertex_to_deepest.end());
 
             diy::MemoryBuffer& in = cp.incoming(sender.gid);
