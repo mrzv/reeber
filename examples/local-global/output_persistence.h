@@ -22,7 +22,7 @@ struct OutputPairs
 
     };
 
-    using Neighbor = typename Block::TripletMergeTree::Neighbor;
+    using Neighbor = typename Block::Neighbor;
 
     OutputPairs(const Block& _block, const ExtraInfo& _extra, const LocalFunctor& _test_local, RealType _threshold, bool _ignore_zero_persistence):
         negate(_block.get_merge_tree().negate()),

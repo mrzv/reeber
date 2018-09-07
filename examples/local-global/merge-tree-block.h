@@ -15,6 +15,7 @@ namespace r = reeber;
 
 struct MergeTreeBlock
 {
+    typedef     Real                            RealType;
     typedef     r::Grid<Real, 3>                Grid;
     typedef     r::OffsetGrid<Real, 3>          OffsetGrid;
     typedef     r::GridRestriction<Real, 3>     GridRestriction;
@@ -24,6 +25,7 @@ struct MergeTreeBlock
     typedef     r::Box<3>                       Box;
     typedef     r::MergeTree<Index, Value>      MergeTree;
     typedef     std::vector<Real>               Size;
+    typedef     MergeTree::Neighbor             Neighbor;
 
     static void*            create()                                        { return new MergeTreeBlock; }
     static void             destroy(void* b)                                { delete static_cast<MergeTreeBlock*>(b); }
@@ -31,6 +33,8 @@ struct MergeTreeBlock
     static void             load(      void* b, diy::BinaryBuffer& bb)      { diy::load(bb, *static_cast<MergeTreeBlock*>(b)); }
 
     inline void             compute_average(const diy::Master::ProxyWithLink& cp);
+
+    const MergeTree&        get_merge_tree() const { return mt; }
 
     int                     gid;
     Box                     core;

@@ -23,6 +23,7 @@ struct TripletMergeTreeBlock
     typedef     Grid::Value                       Value;
     typedef     r::Box<3>                         Box;
     typedef     r::TripletMergeTree<Index, Value> TripletMergeTree;
+    typedef     TripletMergeTree::Neighbor        Neighbor;
     typedef     std::vector<Real>                 Size;
 
     typedef     std::tuple<Index, Index>          Edge;

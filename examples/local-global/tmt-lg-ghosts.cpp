@@ -35,7 +35,7 @@ struct LocalFunctorDecomposer
     LocalFunctorDecomposer(const Decomposer& _decomposer) : decomposer(_decomposer)
     {}
 
-    bool operator()(const TripletMergeTreeBlock& b, const Neighbor &from) const
+    bool operator()(const Block& b, const Neighbor &from) const
     {
         auto from_position = b.global.position(from->vertex);
         return decomposer.lowest_gid(from_position) == b.gid;
