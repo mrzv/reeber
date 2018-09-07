@@ -461,6 +461,11 @@ reeber::traverse_persistence(const TripletMergeTree<Vertex, Value>& mt, const Fu
     for (auto x : mt.nodes())
     {
         u = x.second;
+
+        // removed degree 2 vertices still sit in the map, we must ignore them
+        if (x.first != u->vertex)
+            continue;
+
         std::tie(s, v) = u->parent();
         if (u != s || u == v) f(u, s, v);
     }

@@ -11,7 +11,7 @@
 #include "format.h"
 
 #include "triplet-merge-tree-block.h"
-#include "output_persistence.h"
+#include "output-persistence.h"
 
 typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
 

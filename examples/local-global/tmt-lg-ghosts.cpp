@@ -23,7 +23,7 @@
 #include "reader-interfaces.h"
 #include "edges.h"
 #include "triplet-merge-tree-block.h"
-#include "output_persistence.h"
+#include "output-persistence.h"
 
 typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
 
@@ -500,11 +500,11 @@ int main(int argc, char** argv)
                             //       Need to eventually fix this.
     dlog::stats.flush();
 
-//    master.foreach([](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
-//        fmt::print("--------------------\n", b->gid, b->mt.size());
-//        fmt::print("Block {} done, #nodes = {}\n", b->gid, b->mt.size());
-//        fmt::print("--------------------\n", b->gid, b->mt.size());
-//    });
+    master.foreach([](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
+        fmt::print("--------------------\n", b->gid, b->mt.size());
+        fmt::print("Block {} done, #nodes = {}\n", b->gid, b->mt.size());
+        fmt::print("--------------------\n", b->gid, b->mt.size());
+    });
 
     if (write_diag) {
         // output persistence

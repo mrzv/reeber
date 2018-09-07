@@ -19,7 +19,7 @@
 #include "reader-interfaces.h"
 #include "ghosts.h"
 #include "merge-tree-block.h"
-#include "output_persistence.h"
+#include "output-persistence.h"
 #include "prune.h"
 
 typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;

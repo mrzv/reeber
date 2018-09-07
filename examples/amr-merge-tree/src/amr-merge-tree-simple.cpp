@@ -21,9 +21,8 @@
 #include "diy/vertices.hpp"
 #include "reeber/grid.h"
 #include "amr-merge-tree-helper.h"
-#include "amr-persistent-integral.h"
 
-#include "../../local-global/output_persistence.h"
+#include "../../local-global/output-persistence.h"
 
 #include "read-npy.h"
 
@@ -49,8 +48,6 @@ using MaskedBox = Block::MaskedBox;
 using GidVector = Block::GidVector;
 
 using Neighbor = AmrTripletMergeTree::Neighbor;
-
-using AmrLocalIntegral = LocalIntegral<AmrVertexId, Real>;
 
 constexpr bool abort_on_segfault = true;
 
@@ -795,17 +792,17 @@ int main(int argc, char **argv)
 
             b->compute_final_connected_components();
 
-            AmrLocalIntegral li = get_local_integral(b, rho_min, rho_max, output_integral_filename);
+            b->compute_local_integral(rho_min, rho_max);
 
             AMRLink *l = static_cast<AMRLink *>(cp.link());
 
-            auto receivers = link_unique(l, b->gid);
-
-            for (const auto& receiver : receivers) {
-                int n_integrals = b->processed_receivers_.count(receiver.gid);
-                cp.enqueue(receiver, n_integrals);
-                if (n_integrals)
-                    cp.enqueue(receiver, li);
+            for(const auto& vertex_value_pair : b->local_integral_)
+            {
+                int receiver_gid = vertex_value_pair.first.gid;
+                if (receiver_gid == b->gid)
+                    continue;
+                auto receiver = l->target(l->find(receiver_gid));
+                cp.enqueue(receiver, vertex_value_pair);
             }
         });
 
@@ -813,35 +810,50 @@ int main(int argc, char **argv)
 
         master.foreach([rho_min, rho_max, output_integral_filename](Block *b, const diy::Master::ProxyWithLink& cp) {
             AMRLink *l = static_cast<AMRLink *>(cp.link());
-            auto senders = link_unique(l, b->gid);
-            std::vector<AmrLocalIntegral> received_local_integrals(senders.size());
-            int i = 0;
-            for (const auto& sender : senders) {
-                int n_received_integrals;
-                cp.dequeue(sender, n_received_integrals);
-                if (n_received_integrals)
-                    cp.dequeue(sender, received_local_integrals[i]);
-                i++;
-            }
-
-            AmrLocalIntegral li;
-            for (const AmrLocalIntegral& received_local_integral : received_local_integrals) {
-                for (const auto& root_value_pair : received_local_integral) {
-                    auto root = root_value_pair.first;
-                    if (root.gid != b->gid)
-                        continue;
-                    li[root] += root_value_pair.second;
+            for(auto bid : l->neighbors())
+            {
+                while(cp.incoming(bid.gid))
+                {
+                    Block::LocalIntegral::value_type x;
+                    cp.dequeue(bid, x);
+                    assert(x.first.gid == b->gid);
+                    b->local_integral_[x.first] += x.second;
                 }
             }
 
             std::string integral_local_fname = fmt::format("{}-b{}.integral", output_integral_filename, b->gid);
             std::ofstream ofs(integral_local_fname);
-            for (const auto& root_value_pair : li) {
+            for (const auto& root_value_pair : b->local_integral_) {
                 AmrVertexId root = root_value_pair.first;
+                if (root.gid != b->gid)
+                    continue;
                 fmt::print(ofs, "{} {} {}\n", b->local_.global_position(root), root_value_pair.second, root);
         }
         });
+
+        world.barrier();
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  " << dlog::clock_to_string(timer.elapsed());
+        timer.restart();
     }
+
+    master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
+        auto sum_n_vertices_pair = b->get_local_stats();
+        cp.collectives()->clear();
+        cp.all_reduce(sum_n_vertices_pair.first, std::plus<Real>());
+        cp.all_reduce(sum_n_vertices_pair.second, std::plus<size_t>());
+
+    });
+
+    master.exchange();
+
+    world.barrier();
+
+    const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+
+    Real total_value = proxy.get<Real>();
+    size_t total_vertices = proxy.get<size_t>();
+
+    LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = " << total_vertices;
 
     return 0;
 }

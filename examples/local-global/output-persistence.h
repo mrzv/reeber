@@ -57,7 +57,8 @@ struct OutputPairs
                 if (birth_time < threshold)
                     return;
                 if (death_time < threshold)
-                    death_time = -std::numeric_limits<RealType>::infinity();
+                    //death_time = -std::numeric_limits<RealType>::infinity();
+                    death_time = threshold;
             } else
             {
                 birth_time = from->value;
@@ -65,7 +66,8 @@ struct OutputPairs
                 if (birth_time > threshold)
                     return;
                 if (death_time > threshold)
-                    death_time = std::numeric_limits<RealType>::infinity();
+                    //death_time = std::numeric_limits<RealType>::infinity();
+                    death_time = threshold;
             }
 
             if (ignore_zero_persistence and birth_time == death_time)

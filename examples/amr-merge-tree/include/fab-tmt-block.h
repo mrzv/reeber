@@ -57,6 +57,8 @@ struct FabTmtBlock
 
     using RealType = Real;
 
+    using LocalIntegral = std::map<AmrVertexId, Real>;
+
     template<class Vertex_, class Node>
     struct TmtConnectedComponent
     {
@@ -194,6 +196,8 @@ struct FabTmtBlock
 
     int round_ { 0 };
 
+    LocalIntegral local_integral_;
+
     // methods
 
     // simple getters/setters
@@ -300,6 +304,13 @@ struct FabTmtBlock
         assert(mt_.size() == original_tree_.size());
     }
 
+
+    // compare w.r.t negate_ flag
+    bool precedes(Real a, Real b) const;
+    bool succeeds(Real a, Real b) const;
+    bool precedes_eq(Real a, Real b) const;
+    bool succeeds_eq(Real a, Real b) const;
+
     void set_low(const diy::Point<int, D>& v_bounds,
                  const Real& absolute_rho);
 
@@ -367,7 +378,9 @@ struct FabTmtBlock
     void add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex);
 
     int is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check);
-    
+
+    void  compute_local_integral(Real rho_min, Real rho_max);
+
     Real scaling_factor() const;
 
 #ifdef SEND_COMPONENTS
@@ -387,6 +400,9 @@ struct FabTmtBlock
     AmrVertexId find_component_in_disjoint_sets(AmrVertexId v);
 
     bool gid_must_be_in_link(int gid) const;
+
+    std::pair<Real, size_t> get_local_stats() const;
+
 
     static void* create()
     {
