@@ -837,8 +837,9 @@ int main(int argc, char **argv)
             std::string integral_local_fname = fmt::format("{}-b{}.integral", output_integral_filename, b->gid);
             std::ofstream ofs(integral_local_fname);
             for (const auto& root_value_pair : li) {
-                fmt::print(ofs, "{} {}\n", root_value_pair.first, root_value_pair.second);
-            }
+                AmrVertexId root = root_value_pair.first;
+                fmt::print(ofs, "{} {} {}\n", b->local_.global_position(root), root_value_pair.second, root);
+        }
         });
     }
 
