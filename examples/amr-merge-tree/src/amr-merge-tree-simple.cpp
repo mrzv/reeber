@@ -376,8 +376,8 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
         for (const AmrEdge& e : received_edges[i]) {
             if (b->edge_exists(e)) {
                 // edge e connects two vertices that we have, connect their components
-                AmrVertexId deepest_a = b->deepest(std::get<0>(e));
-                AmrVertexId deepest_b = b->deepest(std::get<1>(e));
+                AmrVertexId deepest_a = b->original_deepest(std::get<0>(e));
+                AmrVertexId deepest_b = b->original_deepest(std::get<1>(e));
                 b->connect_components(deepest_a, deepest_b);
             } else {
                 vertices_to_check.push_back(std::get<0>(e));
@@ -827,7 +827,7 @@ int main(int argc, char **argv)
                 AmrVertexId root = root_value_pair.first;
                 if (root.gid != b->gid)
                     continue;
-                fmt::print(ofs, "{} {} {}\n", b->local_.global_position(root), root_value_pair.second, root);
+                fmt::print(ofs, "{} {}\n", b->local_.global_position(root), root_value_pair.second);
         }
         });
 

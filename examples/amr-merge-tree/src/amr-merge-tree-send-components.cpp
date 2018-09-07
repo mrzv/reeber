@@ -262,8 +262,8 @@ void receive_main(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
     for (const AmrEdge& e : all_received_edges) {
         if (b->edge_exists(e)) {
             // edge e connects two vertices that we have, connect their components
-            AmrVertexId deepest_a = b->deepest(std::get<0>(e));
-            AmrVertexId deepest_b = b->deepest(std::get<1>(e));
+            AmrVertexId deepest_a = b->original_deepest(std::get<0>(e));
+            AmrVertexId deepest_b = b->original_deepest(std::get<1>(e));
             b->connect_components(deepest_a, deepest_b);
         } else {
             assert(b->edge_goes_out(e));

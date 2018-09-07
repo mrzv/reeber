@@ -64,7 +64,7 @@ struct FabTmtBlock
     {
         // types
         using Vertex = Vertex_;
-        using Neighbor = Node*;
+        using Neighbor = Node *;
 
         // fields
         AmrVertexId root_;
@@ -86,7 +86,7 @@ struct FabTmtBlock
                 root_(root),
                 current_neighbors_({ root.gid })
 #ifdef SEND_COMPONENTS
-                , outgoing_edges_(_edges.cbegin(), _edges.cend())
+        , outgoing_edges_(_edges.cbegin(), _edges.cend())
 #endif
         {
 #ifdef SEND_COMPONENTS
@@ -201,10 +201,17 @@ struct FabTmtBlock
     // methods
 
     // simple getters/setters
-    const diy::DiscreteBounds& domain() const { return domain_; }
-    int refinement() const { return local_.refinement(); }
-    int level() const { return local_.level(); }
-    const GidVector& get_original_link_gids() const { return original_link_gids_; }
+    const diy::DiscreteBounds& domain() const
+    { return domain_; }
+
+    int refinement() const
+    { return local_.refinement(); }
+
+    int level() const
+    { return local_.level(); }
+
+    const GidVector& get_original_link_gids() const
+    { return original_link_gids_; }
 
     FabTmtBlock(diy::GridRef<Real, D>& fab_grid,
                 int _ref,
@@ -213,7 +220,7 @@ struct FabTmtBlock
                 const diy::DiscreteBounds& bounds,
                 const diy::DiscreteBounds& core,
                 int _gid,
-                diy::AMRLink* amr_link,
+                diy::AMRLink *amr_link,
                 Real rho,                                           // threshold for LOW value
                 bool _negate,
                 bool is_absolute_threshold) :
@@ -253,10 +260,10 @@ struct FabTmtBlock
     }
 
     FabTmtBlock() :
-    fab_(nullptr, diy::Point<int, D>::zero())
+            fab_(nullptr, diy::Point<int, D>::zero())
     {}
 
-    void init(Real absolute_rho, diy::AMRLink* amr_link)
+    void init(Real absolute_rho, diy::AMRLink *amr_link)
     {
         bool debug = false;
 
@@ -278,14 +285,16 @@ struct FabTmtBlock
 
         compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
 
-        if (debug) fmt::print("{} outgoing edges computed, vertex_to_otgoing_edges.size = {}\n", debug_prefix, vertex_to_outgoing_edges.size());
+        if (debug)
+            fmt::print("{} outgoing edges computed, vertex_to_otgoing_edges.size = {}\n", debug_prefix,
+                       vertex_to_outgoing_edges.size());
 
         compute_original_connected_components(vertex_to_outgoing_edges);
 
         if (debug) fmt::print("{} connected components computed\n", debug_prefix);
 
         // TODO: delete this? we are going to overwrite this in adjust_outgoing_edges anyway
-        for(int i = 0; i < amr_link->size(); ++i)
+        for (int i = 0; i < amr_link->size(); ++i)
         {
             if (amr_link->target(i).gid != gid)
             {
@@ -307,8 +316,11 @@ struct FabTmtBlock
 
     // compare w.r.t negate_ flag
     bool precedes(Real a, Real b) const;
+
     bool succeeds(Real a, Real b) const;
+
     bool precedes_eq(Real a, Real b) const;
+
     bool succeeds_eq(Real a, Real b) const;
 
     void set_low(const diy::Point<int, D>& v_bounds,
@@ -316,7 +328,7 @@ struct FabTmtBlock
 
 
     void set_mask(const diy::Point<int, D>& v_bounds,
-                  diy::AMRLink* l,
+                  diy::AMRLink *l,
                   const Real& rho,
                   bool is_absolute_threshold);
 
@@ -332,31 +344,31 @@ struct FabTmtBlock
     // and the other is outside
     bool edge_goes_out(const AmrEdge& e) const;
 
-    bool deepest_computed(Neighbor n) const
-    { return deepest_computed(n->vertex); }
+    bool original_deepest_computed(Neighbor n) const { return original_deepest_computed(n->vertex); }
 
-    bool deepest_computed(const AmrVertexId& v) const
-    { return original_vertex_to_deepest_.find(v) != original_vertex_to_deepest_.cend(); }
+    bool original_deepest_computed(const AmrVertexId& v) const { return original_vertex_to_deepest_.find(v) != original_vertex_to_deepest_.cend(); }
 
-    bool final_deepest_computed(const AmrVertexId& v) const
-    { return final_vertex_to_deepest_.find(v) != final_vertex_to_deepest_.cend(); }
+    bool final_deepest_computed(Neighbor n) const { return final_deepest_computed(n->vertex); }
 
-    AmrVertexContainer get_final_deepest_vertices() const;
+    bool final_deepest_computed(const AmrVertexId& v) const { return final_vertex_to_deepest_.find(v) != final_vertex_to_deepest_.cend(); }
 
-    AmrVertexId deepest(Neighbor n) const
-    { return deepest(n->vertex); }
+    AmrVertexId original_deepest(Neighbor n) const { return original_deepest(n->vertex); }
 
-    AmrVertexId deepest(const AmrVertexId& v) const;
+    AmrVertexId original_deepest(const AmrVertexId& v) const;
+
+    AmrVertexId final_deepest(Neighbor n) const { return final_deepest(n->vertex); }
+
+    AmrVertexId final_deepest(const AmrVertexId& v) const;
 
 
-    void set_deepest(const AmrVertexId& v, const AmrVertexId& deepest)
+    void set_original_deepest(const AmrVertexId& v, const AmrVertexId& deepest)
     { original_vertex_to_deepest_[v] = deepest; }
 
     void create_component(const AmrVertexId& deepest_vertex, const AmrEdgeContainer& edges);
 
     Component& find_component(const AmrVertexId& deepest_vertex);
 
-    void compute_outgoing_edges(diy::AMRLink* l, VertexEdgesMap& vertex_to_outgoing_edges);
+    void compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMap& vertex_to_outgoing_edges);
 
     void compute_original_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
 
@@ -379,7 +391,7 @@ struct FabTmtBlock
 
     int is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check);
 
-    void  compute_local_integral(Real rho_min, Real rho_max);
+    void compute_local_integral(Real rho_min, Real rho_max);
 
     Real scaling_factor() const;
 
@@ -390,6 +402,7 @@ struct FabTmtBlock
 #endif
 
     std::vector<AmrVertexId> get_original_deepest_vertices() const;
+
     std::vector<AmrVertexId> get_current_deepest_vertices() const;
 
     const AmrEdgeContainer& get_all_outgoing_edges()
@@ -404,19 +417,19 @@ struct FabTmtBlock
     std::pair<Real, size_t> get_local_stats() const;
 
 
-    static void* create()
+    static void *create()
     {
         return new FabTmtBlock;
     }
 
-    static void destroy(void* b)
+    static void destroy(void *b)
     {
-        delete static_cast<FabTmtBlock*>(b);
+        delete static_cast<FabTmtBlock *>(b);
     }
 
-    static void save(const void* b, diy::BinaryBuffer& bb);
+    static void save(const void *b, diy::BinaryBuffer& bb);
 
-    static void load(void* b, diy::BinaryBuffer& bb);
+    static void load(void *b, diy::BinaryBuffer& bb);
 };
 
 

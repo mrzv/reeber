@@ -506,7 +506,8 @@ int main(int argc, char** argv)
         fmt::print("--------------------\n", b->gid, b->mt.size());
     });
 
-    if (write_diag) {
+    if (write_diag)
+    {
         // output persistence
         bool verbose = false;
         bool ignore_zero_persistence = true;

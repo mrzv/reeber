@@ -420,10 +420,20 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
 }
 
 template<class Real, unsigned D>
-r::AmrVertexId FabTmtBlock<Real, D>::deepest(const AmrVertexId& v) const
+r::AmrVertexId FabTmtBlock<Real, D>::original_deepest(const AmrVertexId& v) const
 {
     auto iter = original_vertex_to_deepest_.find(v);
     if (original_vertex_to_deepest_.cend() != iter)
+        return iter->second;
+    else
+        throw std::runtime_error("Deepest not found for vertex");
+}
+
+template<class Real, unsigned D>
+r::AmrVertexId FabTmtBlock<Real, D>::final_deepest(const AmrVertexId& v) const
+{
+    auto iter = final_vertex_to_deepest_.find(v);
+    if (final_vertex_to_deepest_.cend() != iter)
         return iter->second;
     else
         throw std::runtime_error("Deepest not found for vertex");
@@ -486,7 +496,7 @@ void FabTmtBlock<Real, D>::create_component(const AmrVertexId& deepest_vertex, c
         fmt::print("Entered create_component, gid = {}, deepest_vertex = {}, #edges = {}\n", gid, deepest_vertex,
                    edges.size());
 
-    set_deepest(deepest_vertex, deepest_vertex);
+    set_original_deepest(deepest_vertex, deepest_vertex);
 
     if (debug)
         fmt::print("In create_component, gid = {}, deepest_vertex = {}, before emplace, size = {}\n", gid,
@@ -525,7 +535,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
         component_nodes[vert_neighb_pair.first] = vert_neighb_pair.second;
         Neighbor u = vert_neighb_pair.second;
 
-        if (!deepest_computed(u->vertex))
+        if (!original_deepest_computed(u->vertex))
         {
 
             if (debug) fmt::print("in compute_connected_compponent, gid = {}, deepest not computed, traversing\n", gid);
@@ -541,7 +551,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
             visited_neighbors.push_back(v->vertex);
             visited_neighbors.push_back(s->vertex);
 
-            while (u_ != v and not deepest_computed(v->vertex))
+            while (u_ != v and not original_deepest_computed(v->vertex))
             {
 
                 visited_neighbors.push_back(u_->vertex);
@@ -558,7 +568,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
 
             }
 
-            AmrVertexId deepest_vertex = (deepest_computed(v)) ? deepest(v) : v->vertex;
+            AmrVertexId deepest_vertex = (original_deepest_computed(v)) ? original_deepest(v) : v->vertex;
 
             AmrEdgeContainer edges;
             for (const AmrVertexId& v : visited_neighbors)
@@ -570,7 +580,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
                 }
             }
 
-            if (not deepest_computed(v))
+            if (not original_deepest_computed(v))
             {
                 // create new component
                 if (debug)
@@ -595,14 +605,14 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
                     fmt::print(
                             "in compute_connected_compponent, gid = {}, deepest = {}, setting to visited neighbor {}\n",
                             gid, deepest_vertex, v);
-                set_deepest(v, deepest_vertex);
+                set_original_deepest(v, deepest_vertex);
             }
         }
     }
 
     //assert(std::accumulate(const_tree.nodes().cbegin(), const_tree.nodes().cend(), true,
     //                       [this](const bool& prev, const typename VertexNeighborMap::value_type& vn) {
-    //                           return prev and this->deepest_computed(vn.second);
+    //                           return prev and this->original_deepest_computed(vn.second);
     //                       }));
 #ifdef SEND_COMPONENTS
     // copy nodes from local merge tree of block to merge trees of components
@@ -639,9 +649,7 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
 
     for (const auto& vert_neighb_pair : const_tree.nodes())
     {
-        if (debug)
-            fmt::print("in compute_final_connected_component, gid = {} processing vertex = {}\n", gid,
-                       vert_neighb_pair.first);
+        if (debug) fmt::print("in compute_final_connected_component, gid = {} processing vertex = {}\n", gid, vert_neighb_pair.first);
 
         Neighbor u = vert_neighb_pair.second;
 
@@ -660,7 +668,7 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
             visited_neighbors.push_back(v->vertex);
             visited_neighbors.push_back(s->vertex);
 
-            while (u_ != v and not deepest_computed(v->vertex))
+            while (u_ != v and not final_deepest_computed(v->vertex))
             {
 
                 visited_neighbors.push_back(u_->vertex);
@@ -677,9 +685,9 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
 
             }
 
-            AmrVertexId deepest_vertex = (deepest_computed(v)) ? deepest(v) : v->vertex;
+            AmrVertexId deepest_vertex = (final_deepest_computed(v)) ? final_deepest(v) : v->vertex;
 
-            if (not deepest_computed(v))
+            if (not final_deepest_computed(v))
             {
                 final_vertex_to_deepest_[deepest_vertex] = deepest_vertex;
             }
@@ -766,18 +774,6 @@ void FabTmtBlock<Real, D>::connect_components(const FabTmtBlock::AmrVertexId& de
 
     components_disjoint_set_parent_[b_root] = a_root;
     components_disjoint_set_size_[a_root] += b_size;
-}
-
-template<class Real, unsigned D>
-std::vector<r::AmrVertexId> FabTmtBlock<Real, D>::get_final_deepest_vertices() const
-{
-    std::set<AmrVertexId> result_set;
-    for (const auto& vertex_deepest_pair : final_vertex_to_deepest_)
-    {
-        result_set.insert(vertex_deepest_pair.second);
-    }
-    std::vector<AmrVertexId> result(result_set.begin(), result_set.end());
-    return result;
 }
 
 
@@ -879,7 +875,6 @@ void  FabTmtBlock<Real, D>::compute_local_integral(Real rho_min, Real rho_max)
 
     Real sf = scaling_factor();
 
-    auto deepest_vertices = get_final_deepest_vertices();
     const bool negate = negate_;
     const auto& nodes = get_merge_tree().nodes();
     for(const auto& vertex_node_pair : nodes)
@@ -900,6 +895,7 @@ void  FabTmtBlock<Real, D>::compute_local_integral(Real rho_min, Real rho_max)
             continue;
         local_integral_[root] += sf * current_node->value;
         for(const auto& value_vertex_pair : current_node->vertices) {
+            assert(value_vertex_pair.second.gid == gid);
             local_integral_[root] += sf * value_vertex_pair.first;
         }
     }

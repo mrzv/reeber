@@ -42,17 +42,6 @@ struct TripletMergeTreeBlock
 
     const TripletMergeTree& get_merge_tree()          const                  { return mt; }
 
-    template<class LocalFunctor>
-    int                     get_n_vertices(const LocalFunctor& test_local, Real rho)  const
-    {
-        for(const auto& vertex_node_pair : mt.nodes()) {
-            auto vertex = vertex_node_pair.first;
-            auto node = vertex_node_pair
-            if (node-
-        }
-
-    }
-
     int                     gid;
     Box                     local;
     Box                     global;
