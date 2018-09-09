@@ -12,7 +12,6 @@ if (NOT CMAKE_BUILD_TYPE)
 endif (NOT CMAKE_BUILD_TYPE)
 
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb  -D_GLIBCXX_DEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 ")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} -O2 -g -ggdb -pg")
@@ -42,16 +41,16 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 foreach(real   float double)
 
 add_executable(amr_merge_tree_simple_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-merge-tree-simple.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
-set_target_properties(amr_merge_tree_simple_${real}   PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
+set_target_properties(amr_merge_tree_simple_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")
 
 add_executable(amr_merge_tree_send_components_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-merge-tree-send-components.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
-set_target_properties(amr_merge_tree_send_components_${real} PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
+set_target_properties(amr_merge_tree_send_components_${real} PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")
 
 add_executable(amr_merge_tree_test_${real} ${CMAKE_CURRENT_SOURCE_DIR}/tests/tests_main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_amr_merge_tree.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
-set_target_properties(amr_merge_tree_test_${real} PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
+set_target_properties(amr_merge_tree_test_${real} PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")
 
 add_executable(write_refined_amr_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/write-refined-amr.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
-set_target_properties(write_refined_amr_${real}  PROPERTIES COMPILE_FLAGS "-DREEBER_REAL=${real}")
+set_target_properties(write_refined_amr_${real}  PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")
 
 #add_executable(my_tests ${CMAKE_CURRENT_SOURCE_DIR}/src/tests.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
 
