@@ -309,7 +309,7 @@ TEST_CASE("Check blocks constructor in simplest case", "[FabTmtBlock][dim2]")
 
     SECTION("2x2 cell structure, simplest case") {
 
-        int blocks_size_1 = 2;
+        int blocks_size_1 = 4;
         int n_blocks = 4;
 
         for (int i = 0; i < n_blocks; ++i) {
@@ -318,7 +318,6 @@ TEST_CASE("Check blocks constructor in simplest case", "[FabTmtBlock][dim2]")
         }
 
         Vertex grid_shape { blocks_size_1, blocks_size_1 };
-        Vertex mask_shape { grid_shape + Vertex::one() + Vertex::one() };
 
         double rho = 20000.0;
 
@@ -450,6 +449,21 @@ TEST_CASE("Check blocks constructor in simplest case", "[FabTmtBlock][dim2]")
 
         for (int i = 0; i < n_blocks; ++i) {
             REQUIRE(blocks[i].components_.size() == 1);
+            if (correct_masks[i] != blocks[i].local_.mask_grid())
+            {
+                fmt::print("ACHTUNG!, i = {}\n", i);
+                for(int kkk = 0; kkk < correct_masks[i].size(); ++kkk) {
+                    AmrVertexId v;
+                    v.gid = i;
+                    v.vertex = kkk;
+                    MaskedBox::Position local_pos = blocks[i].local_.local_position(v);
+                    MaskedBox::Position global_pos = blocks[i].local_.global_position(v);
+                    auto my_value = blocks[i].local_.mask_grid()(v);
+                    auto correct_value = correct_masks[i](v);
+                    if (my_value != correct_value)
+                        fmt::print("i = {}, local pos = {}, global pos = {}, correct = {}, my = {}\n", i, local_pos, global_pos, correct_value, my_value);
+                }
+            }
             REQUIRE(correct_masks[i] == blocks[i].local_.mask_grid());
         }
 
