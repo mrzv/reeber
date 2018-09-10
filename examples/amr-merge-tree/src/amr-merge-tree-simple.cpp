@@ -877,10 +877,7 @@ int main(int argc, char **argv)
     Real total_value = proxy.get<Real>();
     size_t total_vertices = proxy.get<size_t>();
 
-    LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = " << total_vertices;
-
-
-    LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = " << total_vertices;
+    LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = " << total_vertices << ", mean = " << mean;
 
     std::string final_timings = fmt::format("read: {} local: {} exchange: {} output: {}\n", time_to_read_data, time_for_local_computation, time_for_communication, time_for_output);
     LOG_SEV_IF(world.rank() == 0, info) << final_timings;
