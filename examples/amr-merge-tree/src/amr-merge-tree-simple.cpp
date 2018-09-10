@@ -413,6 +413,12 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
     if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, expand_link OK\n", b->gid);
 }
 
+inline bool file_exists(const std::string& s)
+{
+    std::ifstream ifs(s);
+    return ifs.good();
+
+}
 
 inline bool ends_with(const std::string& s, const std::string& suffix)
 {
@@ -429,11 +435,12 @@ void read_from_file(std::string infn,
                     diy::DiscreteBounds& domain,
                     int nblocks)
 {
+    if (not file_exists(infn))
+        throw std::runtime_error("Cannot read file " + infn);
+
     if (ends_with(infn, ".npy")) {
-//        fmt::print("read npy\n");
         read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
     } else {
-//        fmt::print("read amr\n");
         diy::io::read_blocks(infn, world, assigner, master_reader, header, FabBlockR::load);
         diy::load(header, domain);
     }
@@ -545,6 +552,8 @@ int main(int argc, char **argv)
     bool absolute =
             ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
     bool negate = ops >> opts::Present('n', "negate", "sweep superlevel sets");
+    // ignored for now, wrap is always assumed
+    bool wrap = ops >> opts::Present('w', "wrap", "wrap");
     bool split = ops >> Present("split", "use split IO");
 
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
@@ -593,6 +602,7 @@ int main(int argc, char **argv)
 
     world.barrier();
 
+    auto time_to_read_data = timer.elapsed();
     LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master.size();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
@@ -620,6 +630,10 @@ int main(int argc, char **argv)
             });
 
 
+    auto time_for_local_computation = timer.elapsed();
+
+    Real mean;
+
     if (absolute) {
         LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  "
                 << dlog::clock_to_string(timer.elapsed());
@@ -639,7 +653,7 @@ int main(int argc, char **argv)
 
         const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
 
-        Real mean = proxy.get<Real>() / proxy.get<Real>();
+        mean = proxy.get<Real>() / proxy.get<Real>();
         rho *= mean;                                            // now rho contains absolute threshold
         integral_rho *= mean;
 
@@ -647,6 +661,8 @@ int main(int argc, char **argv)
         LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
                                                             << ", time to compute average: "
                                                             << dlog::clock_to_string(timer.elapsed());
+
+        time_for_local_computation += timer.elapsed();
         timer.restart();
 
         master.foreach([rho](Block *b, const diy::Master::ProxyWithLink& cp) {
@@ -658,6 +674,7 @@ int main(int argc, char **argv)
 
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Time to initialize FabTmtBlocks (low vertices, local trees, components, outgoing edges): " << timer.elapsed();
+        time_for_local_computation += timer.elapsed();
         timer.restart();
     }
 
@@ -669,6 +686,7 @@ int main(int argc, char **argv)
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info)  << "edges symmetrized, time elapsed " << timer.elapsed();
+    auto time_for_communication = timer.elapsed();
     timer.restart();
 
     master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
@@ -711,6 +729,7 @@ int main(int argc, char **argv)
 
     LOG_SEV_IF(world.rank() == 0, info)  << "Symmetry checked in "
             << dlog::clock_to_string(timer.elapsed());
+    time_for_communication += timer.elapsed();
     timer.restart();
 
 
@@ -731,6 +750,7 @@ int main(int argc, char **argv)
     //    fmt::print("world.rank = {}, time for exchange = {}\n", world.rank(), dlog::clock_to_string(timer.elapsed()));
 
     LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
+    time_for_communication += timer.elapsed();
     timer.restart();
 
     //    fmt::print("----------------------------------------\n");
@@ -761,6 +781,7 @@ int main(int argc, char **argv)
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
+    auto time_for_output = timer.elapsed();
     timer.restart();
 
     bool verbose = false;
@@ -777,6 +798,7 @@ int main(int argc, char **argv)
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
+    time_for_output += timer.elapsed();
     timer.restart();
 
     if (write_integral) {
@@ -834,6 +856,7 @@ int main(int argc, char **argv)
 
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  " << dlog::clock_to_string(timer.elapsed());
+        time_for_output += timer.elapsed();
         timer.restart();
     }
 
@@ -855,6 +878,12 @@ int main(int argc, char **argv)
     size_t total_vertices = proxy.get<size_t>();
 
     LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = " << total_vertices;
+
+
+    LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = " << total_vertices;
+
+    std::string final_timings = fmt::format("read: {} local: {} exchange: {} output: {}\n", time_to_read_data, time_for_local_computation, time_for_communication, time_for_output);
+    LOG_SEV_IF(world.rank() == 0, info) << final_timings;
 
     return 0;
 }
