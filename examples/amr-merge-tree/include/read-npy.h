@@ -59,7 +59,7 @@ void read_from_npy_file(std::string infn,
                           wrap,
                           Decomposer::CoordinateVector { 1, 1, 1 });        // ghosts
 
-    decomposer.decompose(world.rank(), assigner, [&master_reader, &wrap, &reader, &world, one](int gid,
+    decomposer.decompose(world.rank(), assigner, [&master_reader, &wrap, &reader, one](int gid,
                                                                        const Decomposer::Bounds& core,
                                                                        const Decomposer::Bounds& bounds,
                                                                        const Decomposer::Bounds& domain,

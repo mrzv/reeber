@@ -385,6 +385,8 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
         }
     }
 
+    b->sparsify_local_tree();
+
     if (debug)
         fmt::print("In get_from_neighbors_and_merge for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid,
                    b->mt_.size());
@@ -602,7 +604,7 @@ int main(int argc, char **argv)
     // FabBlock can be safely discarded afterwards
 
     master_reader.foreach(
-            [&master, &assigner, domain, rho, negate, absolute](FabBlockR *b, const diy::Master::ProxyWithLink& cp) {
+            [&master, domain, rho, negate, absolute](FabBlockR *b, const diy::Master::ProxyWithLink& cp) {
                 auto *l = static_cast<AMRLink *>(cp.link());
                 AMRLink *new_link = new AMRLink(*l);
 
@@ -627,7 +629,7 @@ int main(int argc, char **argv)
                 << dlog::clock_to_string(timer.elapsed());
         timer.restart();
 
-        master.foreach([&rho](Block *b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
             cp.collectives()->clear();
             cp.all_reduce(b->sum_, std::plus<Real>());
             cp.all_reduce(static_cast<Real>(b->n_unmasked_) * b->scaling_factor(), std::plus<Real>());
@@ -655,9 +657,7 @@ int main(int argc, char **argv)
 
 
         world.barrier();
-        LOG_SEV_IF(world.rank() == 0, info) <<
-        "Time to initializee FabTmtBlocks (low vertices, local trees, components, outgoing edges): "
-                << dlog::clock_to_string(timer.elapsed());
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to initialize FabTmtBlocks (low vertices, local trees, components, outgoing edges): " << timer.elapsed();
         timer.restart();
     }
 
@@ -667,8 +667,8 @@ int main(int argc, char **argv)
     master.exchange();
     master.foreach(&delete_low_edges<DIM>);
 
-    LOG_SEV_IF(world.rank() == 0, info)  << "edges symmetrized, time elapsed "
-            << dlog::clock_to_string(timer.elapsed());
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info)  << "edges symmetrized, time elapsed " << timer.elapsed();
     timer.restart();
 
     master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
@@ -721,6 +721,7 @@ int main(int argc, char **argv)
         master.exchange();
         master.foreach(&get_from_neighbors_and_merge<DIM>);
         master.exchange();
+        // to compute total number of undone blocks
         global_n_undone = master.proxy(master.loaded_block()).read<int>();
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", global_n_undone = " << global_n_undone;
     }
@@ -788,7 +789,7 @@ int main(int argc, char **argv)
             rho_max = rho;
         }
 
-        master.foreach([rho_min, rho_max, output_integral_filename](Block *b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([rho_min, rho_max](Block *b, const diy::Master::ProxyWithLink& cp) {
 
             b->compute_final_connected_components();
 
@@ -808,7 +809,7 @@ int main(int argc, char **argv)
 
         master.exchange();
 
-        master.foreach([rho_min, rho_max, output_integral_filename](Block *b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([output_integral_filename](Block *b, const diy::Master::ProxyWithLink& cp) {
             AMRLink *l = static_cast<AMRLink *>(cp.link());
             for(auto bid : l->neighbors())
             {

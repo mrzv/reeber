@@ -240,7 +240,7 @@ struct FabTmtBlock
 
         if (debug) fmt::print("{} setting mask\n", debug_prefix);
 
-        diy::for_each(local_.mask_shape(), [this, amr_link, &fab_grid, rho, is_absolute_threshold](const Vertex& v) {
+        diy::for_each(local_.mask_shape(), [this, amr_link, rho, is_absolute_threshold](const Vertex& v) {
             this->set_mask(v, amr_link, rho, is_absolute_threshold);
         });
 
@@ -267,7 +267,7 @@ struct FabTmtBlock
     {
         bool debug = false;
 
-        diy::for_each(local_.mask_shape(), [this, amr_link, absolute_rho](const Vertex& v) {
+        diy::for_each(local_.mask_shape(), [this, absolute_rho](const Vertex& v) {
             this->set_low(v, absolute_rho);
         });
 
@@ -288,6 +288,12 @@ struct FabTmtBlock
         if (debug)
             fmt::print("{} outgoing edges computed, vertex_to_otgoing_edges.size = {}\n", debug_prefix,
                        vertex_to_outgoing_edges.size());
+
+
+
+//        r::sparsify(original_tree_, [&vertex_to_outgoing_edges](AmrVertexId u) { return vertex_to_outgoing_edges.find(u) != vertex_to_outgoing_edges.end(); });
+
+        sparsify_prune_original_tree();
 
         compute_original_connected_components(vertex_to_outgoing_edges);
 
@@ -310,7 +316,29 @@ struct FabTmtBlock
             fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}\n",
                        debug_prefix, mt_.size(), new_receivers_.size());
 
-        assert(mt_.size() == original_tree_.size());
+        assert(mt_.size() >= original_tree_.size());
+    }
+
+    void sparsify_prune_original_tree()
+    {
+        std::unordered_set<AmrVertexId> special;
+        for (const AmrEdge& out_edge : get_all_outgoing_edges())
+        {
+            special.insert(std::get<0>(out_edge));
+        }
+        r::remove_degree_two(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
+        r::sparsify(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
+    }
+
+    void sparsify_local_tree()
+    {
+//        std::unordered_set<AmrVertexId> special;
+//        for (const AmrEdge& out_edge : get_all_outgoing_edges())
+//        {
+//            special.insert(std::get<0>(out_edge));
+//        }
+////        r::remove_degree_two(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
+//        r::sparsify(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
     }
 
 
