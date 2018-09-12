@@ -320,16 +320,16 @@ void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMa
     }
 }
 
-template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::adjust_original_gids(int sender_gid, FabTmtBlock::GidVector& edges_from_sender)
-{
-    auto iter = std::find(original_link_gids_.begin(), original_link_gids_.end(), sender_gid);
-    bool i_talk_to_sender = iter != original_link_gids_.end();
-    bool sender_talks_to_me =
-            std::find(edges_from_sender.begin(), edges_from_sender.end(), gid) != edges_from_sender.end();
-    if (i_talk_to_sender and not sender_talks_to_me)
-        original_link_gids_.erase(iter);
-}
+//template<class Real, unsigned D>
+//void FabTmtBlock<Real, D>::adjust_original_gids(int sender_gid, FabTmtBlock::GidVector& edges_from_sender)
+//{
+//    auto iter = std::find(original_link_gids_.begin(), original_link_gids_.end(), sender_gid);
+//    bool i_talk_to_sender = iter != original_link_gids_.end();
+//    bool sender_talks_to_me =
+//            std::find(edges_from_sender.begin(), edges_from_sender.end(), gid) != edges_from_sender.end();
+//    if (i_talk_to_sender and not sender_talks_to_me)
+//        original_link_gids_.erase(iter);
+//}
 
 // delete edges from this block that end in a low vertex of a neighbor block.
 // edges_from_gid: outogoing eddes we receive from a neigbor block
@@ -407,8 +407,8 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
 
     int orig_link_old_size = original_link_gids_.size();
 
-    original_link_gids_ = GidVector(neighbor_gids.begin(), neighbor_gids.end());
-    new_receivers_ = neighbor_gids;
+//    original_link_gids_ = GidVector(neighbor_gids.begin(), neighbor_gids.end());
+//    new_receivers_ = neighbor_gids;
 
     if (debug)
         fmt::print(
