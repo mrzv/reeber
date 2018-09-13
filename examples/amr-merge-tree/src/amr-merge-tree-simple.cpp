@@ -96,8 +96,8 @@ bool link_contains_gid(Link *link, int gid)
 template<unsigned D>
 void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
 {
-//    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = false;
+    bool debug = (b->gid == 0);
+//    bool debug = false;
     if (debug) fmt::print("Called send_to_neighbors for block = {}\n", b->gid);
 
     auto *l = static_cast<AMRLink *>(cp.link());
@@ -844,7 +844,7 @@ int main(int argc, char **argv)
                 }
             }
 
-            std::string integral_local_fname = fmt::format("{}-b{}.integral", output_integral_filename, b->gid);
+            std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
             std::ofstream ofs(integral_local_fname);
             for (const auto& root_value_pair : b->local_integral_) {
                 AmrVertexId root = root_value_pair.first;

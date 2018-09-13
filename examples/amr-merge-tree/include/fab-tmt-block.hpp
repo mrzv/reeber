@@ -407,8 +407,8 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
 
     int orig_link_old_size = original_link_gids_.size();
 
-//    original_link_gids_ = GidVector(neighbor_gids.begin(), neighbor_gids.end());
-//    new_receivers_ = neighbor_gids;
+    original_link_gids_ = GidVector(neighbor_gids.begin(), neighbor_gids.end());
+    new_receivers_ = neighbor_gids;
 
     if (debug)
         fmt::print(

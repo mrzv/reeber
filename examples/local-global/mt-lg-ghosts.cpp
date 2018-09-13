@@ -343,6 +343,7 @@ int main(int argc, char** argv)
     bool        compact     = ops >> Present('c', "compact", "compute compact representation (store only local minima)");
     bool        absolute    = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
 
+
     std::string infn, outfn, outdiag;
     if (  ops >> Present('h', "help", "show help message") ||
         !(ops >> PosOption(infn) >> PosOption(outfn)))
@@ -380,7 +381,7 @@ int main(int argc, char** argv)
 
     world.barrier();
     dlog::Timer timer;
-    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation";
+    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, infn = " << infn;
 
     diy::FileStorage            storage(prefix);
 

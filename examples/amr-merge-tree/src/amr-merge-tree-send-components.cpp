@@ -86,7 +86,7 @@ void
 expand_link(Block* b, const diy::Master::ProxyWithLink& cp, diy::AMRLink* l, std::vector<diy::AMRLink>& received_links)
 {
     bool debug = true;
-    if (debug) fmt::print("In receive_main for block = {}, started updating link", b->gid);
+    if (debug) fmt::print("In expand_link for block = {}, started updating link", b->gid);
     int n_added = 0;
     for (size_t i = 0; i < received_links.size(); ++i) {
         const diy::AMRLink& received_link = received_links[i];
@@ -109,7 +109,7 @@ expand_link(Block* b, const diy::Master::ProxyWithLink& cp, diy::AMRLink* l, std
     }
     if (debug)
         fmt::print(
-                "In receive_main for block = {}, b->done_ = {}, n_added = {}, new link size = {}, new link size_unqie = {}\n",
+                "In expand_link for block = {}, b->done_ = {}, n_added = {}, new link size = {}, new link size_unqie = {}\n",
                 b->gid, b->done_, n_added, l->size(), l->size_unique());
     cp.master()->add_expected(n_added);
 
@@ -300,6 +300,7 @@ void read_from_file(std::string infn,
 
 int main(int argc, char** argv)
 {
+
     diy::mpi::environment env(argc, argv);
     diy::mpi::communicator world;
 
@@ -316,7 +317,8 @@ int main(int argc, char** argv)
     std::string log_level = "info";
 
     // threshold
-    Real rho = 1E54;
+    Real rho = 81.66;
+    Real integral_rho = 90.0;
 
     using namespace opts;
 
@@ -327,23 +329,35 @@ int main(int argc, char** argv)
             >> Option('j', "jobs", threads, "threads to use during the computation")
             >> Option('s', "storage", prefix, "storage prefix")
             >> Option('t', "threshold", rho, "threshold")
+            >> Option("intthreshold", integral_rho, "integral threshold")
             >> Option('p', "profile", profile_path, "path to keep the execution profile")
             >> Option('l', "log", log_level, "log level");
 
-    bool negate = ops >> opts::Present('n', "negate", "sweep superlevel sets");
     bool absolute = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
+    bool negate = ops >> opts::Present('n', "negate", "sweep superlevel sets");
+    bool split = ops >> Present("split", "use split IO");
 
-    std::string infn;
+    std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
 
     if (ops >> Present('h', "help", "show help message") or
-        not(ops >> PosOption(infn))) {
+        not(ops >> PosOption(input_filename))
+        or not(ops >> PosOption(output_filename))) {
         if (world.rank() == 0) {
-            fmt::print("Usage: {} INPUT \n", argv[0]);
+            fmt::print("Usage: {} INPUT.AMR OUTPUT \n", argv[0]);
             fmt::print("Compute local-global tree from AMR data\n");
             fmt::print("{}", ops);
         }
         return 1;
     }
+
+    bool write_diag = (ops >> PosOption(output_diagrams_filename));
+    bool write_integral = (ops >> PosOption(output_integral_filename));
+
+    if (write_integral) {
+        if ((negate and integral_rho < rho) or (not negate and integral_rho > rho))
+            throw std::runtime_error("Bad integral threshold");
+    }
+
 
     diy::Master master_reader(world, 1, -1, FabBlockR::create);
     diy::Master master(world, 1, -1);
@@ -351,14 +365,14 @@ int main(int argc, char** argv)
     diy::MemoryBuffer header;
     diy::DiscreteBounds domain;
 
-    read_from_file(infn, world, master_reader, assigner, header, domain);
+    read_from_file(input_filename, world, master_reader, assigner, header, domain);
 
     // copy FabBlocks to FabTmtBlocks
     // in FabTmtConstructor mask will be set and local trees will be computed
     // FabBlock can be safely discarded afterwards
 
     master_reader.foreach(
-            [&master, &assigner, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
+            [&master, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
                 auto* l = static_cast<diy::AMRLink*>(cp.link());
                 diy::AMRLink* new_link = new diy::AMRLink(*l);
 
@@ -374,31 +388,25 @@ int main(int argc, char** argv)
 
     fmt::print("FabBlocks copied\n");
 
-    int global_done = false;
+    int global_n_undone = 1;
     int rounds = 0;
-    bool first = true;
+
+    // symmetrize edges
+    master.foreach(&send_edges_to_neighbors<3>);
+    master.exchange();
+    master.foreach(&delete_low_edges<3>);
+
     while (true) {
         rounds++;
-        if (rounds == 1) {
-            // remove non-existing edges that end in LOW vertex in neighbouring block
-            master.foreach(&send_edges_to_neighbors<3>);
-            master.exchange();
-            master.foreach(&delete_low_edges<3>);
-        } else {
-            master.foreach([&](Block* b, const diy::Master::ProxyWithLink& cp) {
-                if (!first) {
-                    receive_main(b, cp);
-                }
-                send_to_neighbors_main<3>(b, cp);
-            });
-            first = false;
-            master.exchange();
-            global_done = master.proxy(master.loaded_block()).read<int>();
-            if (global_done)
-                break;
-            if (master.communicator().rank() == 0) {
-                fmt::print("MASTER round {}, global_done = {}\n", rounds, global_done);
-            }
+        master.foreach(&send_to_neighbors_main<3>);
+        master.exchange();
+        master.foreach(&receive_main<3>);
+        master.exchange();
+        global_n_undone = master.proxy(master.loaded_block()).read<int>();
+        if (0 == global_n_undone)
+            break;
+        if (master.communicator().rank() == 0) {
+            fmt::print("MASTER round {}, global_n_undone = {}\n", rounds, global_n_undone);
         }
     }
     return 0;
