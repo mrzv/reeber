@@ -97,7 +97,7 @@ template<unsigned D>
 void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
 {
     //bool debug = (b->gid == 0);
-    bool debug = true;
+    bool debug = false;
     if (debug) fmt::print("Called send_to_neighbors for block = {}\n", b->gid);
 
     auto *l = static_cast<AMRLink *>(cp.link());
@@ -108,9 +108,9 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
     if (debug) fmt::print("In send_to_neighbors for block = {}, link size = {}, unique = {}\n", b->gid, l->size(), receivers.size());
 
 
+    b->current_senders_.clear();
     for (const diy::BlockID& receiver : receivers) {
         int receiver_gid = receiver.gid;
-
 
         // if we have sent our tree to this receiver before, only send n_trees = 0
         // else send the tree and all outgoing edges
@@ -119,9 +119,8 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
 
         //if (debug) fmt::print("In send_to_neighbors for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid, n_trees);
 
-        cp.enqueue(receiver, n_trees);
-
         if (n_trees) {
+            cp.enqueue(receiver, n_trees);
             // send local tree and all outgoing edges that end in receiver
             cp.enqueue(receiver, b->original_tree_);
             cp.enqueue(receiver, b->original_vertex_to_deepest_);
@@ -137,6 +136,7 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
             // mark receiver_gid as processed
             b->new_receivers_.erase(receiver_gid);
             b->processed_receivers_.insert(receiver_gid);
+            b->current_senders_.insert(receiver);
         }
     }
 
@@ -158,7 +158,7 @@ expand_link(Block *b, const diy::Master::ProxyWithLink& cp, AMRLink *l, std::vec
             std::vector<std::vector<int>>& received_original_gids)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = true;
+    bool debug = false;
     if (debug) fmt::print("in expand_link for block = {}, round = {}, started updating link\n", b->gid, b->round_);
     int n_added = 0;
     assert(received_links.size() == received_original_gids.size());
@@ -209,7 +209,7 @@ template<unsigned D>
 void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = true;
+    bool debug = false;
 
     //    if (debug) fmt::print("Called get_from_neighbors_and_merge for block = {}\n", b->gid);
 
@@ -225,14 +225,6 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
 
     cp.collectives()->clear();
 
-    auto senders = link_unique(l, b->gid);
-
-    // TODO: delete this
-    std::vector<int> sender_gids_debug;
-
-    // TODO: delete this
-    std::vector<int> debug_received_ntrees;
-
     std::vector<AmrTripletMergeTree> received_trees;
     std::vector<VertexVertexMap> received_vertex_to_deepest;
     std::vector<AmrEdgeVector> received_edges;
@@ -241,19 +233,16 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
 
     LinkVector received_links;
 
-    if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, # senders = {}\n", b->gid, senders.size());
+    if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, # senders = {}\n", b->gid, b->current_senders_.size());
 
-    for (const diy::BlockID& sender : senders) {
+    for (const diy::BlockID& sender : b->current_senders_) {
         int n_trees;
         cp.dequeue(sender, n_trees);
-
-        debug_received_ntrees.push_back(n_trees);
 
         //if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, dequeued from sender {} n_trees = {} \n", b->gid, sender.gid, n_trees);
 
         if (n_trees > 0) {
             assert(n_trees == 1);
-            sender_gids_debug.push_back(sender.gid);
 
             received_trees.emplace_back();
             received_vertex_to_deepest.emplace_back();
@@ -340,8 +329,8 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
                     b->new_receivers_.insert(sender_neighbor_gid);
             }
         }
-        if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, processed_receiveres_ OK\n", b->gid);
     }
+    if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, processed_receiveres_ OK\n", b->gid);
 
     // update disjoint sets data structure (some components are now connected to each other)
     for (size_t i = 0; i < received_trees.size(); ++i) {
@@ -357,7 +346,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
         }
     }
 
-    b->sparsify_local_tree();
+   b->sparsify_local_tree();
 
     //if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->mt_.size());
 
