@@ -96,8 +96,8 @@ bool link_contains_gid(Link *link, int gid)
 template<unsigned D>
 void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = (b->gid == 0);
-//    bool debug = false;
+    //bool debug = (b->gid == 0);
+    bool debug = true;
     if (debug) fmt::print("Called send_to_neighbors for block = {}\n", b->gid);
 
     auto *l = static_cast<AMRLink *>(cp.link());
@@ -105,9 +105,7 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
 
     auto receivers = link_unique(l, b->gid);
 
-    if (debug)
-        fmt::print("In send_to_neighbors for block = {}, link size = {}, unique = {}\n", b->gid, l->size(),
-                   receivers.size());
+    if (debug) fmt::print("In send_to_neighbors for block = {}, link size = {}, unique = {}\n", b->gid, l->size(), receivers.size());
 
 
     for (const diy::BlockID& receiver : receivers) {
@@ -119,9 +117,7 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
         int n_trees = (b->processed_receivers_.count(receiver_gid) == 0 and
                        b->new_receivers_.count(receiver_gid) == 1);
 
-        if (debug)
-            fmt::print("In send_to_neighbors for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid,
-                       n_trees);
+        //if (debug) fmt::print("In send_to_neighbors for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid, n_trees);
 
         cp.enqueue(receiver, n_trees);
 
@@ -133,9 +129,7 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
             cp.enqueue(receiver, b->get_all_outgoing_edges());
             cp.enqueue(receiver, b->get_original_link_gids());
 
-            if (debug)
-                fmt::print("In send_to_neighbors for block = {}, receiver = {}, enqueued original_link_gids = {}\n",
-                           b->gid, receiver.gid, container_to_string(b->get_original_link_gids()));
+            //if (debug) fmt::print("In send_to_neighbors for block = {}, receiver = {}, enqueued original_link_gids = {}\n", b->gid, receiver.gid, container_to_string(b->get_original_link_gids()));
 
             diy::MemoryBuffer& out = cp.outgoing(receiver);
             diy::LinkFactory::save(out, l);
@@ -148,8 +142,7 @@ void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink
 
     int done = b->done_;
     b->round_++;
-    if (debug)
-        fmt::print("In send_to_neighbors for block = {}, b->done = {}, b->round = {}\n", b->gid, done, b->round_);
+    if (debug) fmt::print("Exit send_to_neighbors for block = {}, b->done = {}, b->round = {}\n", b->gid, done, b->round_);
 }
 
 /**
@@ -165,7 +158,7 @@ expand_link(Block *b, const diy::Master::ProxyWithLink& cp, AMRLink *l, std::vec
             std::vector<std::vector<int>>& received_original_gids)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = false;
+    bool debug = true;
     if (debug) fmt::print("in expand_link for block = {}, round = {}, started updating link\n", b->gid, b->round_);
     int n_added = 0;
     assert(received_links.size() == received_original_gids.size());
@@ -174,9 +167,7 @@ expand_link(Block *b, const diy::Master::ProxyWithLink& cp, AMRLink *l, std::vec
     for (size_t i = 0; i < received_links.size(); ++i) {
         const AMRLink& received_link = received_links[i];
         assert(not received_original_gids[i].empty());
-        if (debug)
-            fmt::print("in expand_link for block = {}, i = {}, received_links[i].size = {}\n", b->gid, i,
-                       received_links[i].size());
+        //if (debug) fmt::print("in expand_link for block = {}, i = {}, received_links[i].size = {}\n", b->gid, i, received_links[i].size());
 
         for (int j = 0; j < received_link.size(); ++j) {
             // if we are already sending to this block, skip it
@@ -184,17 +175,12 @@ expand_link(Block *b, const diy::Master::ProxyWithLink& cp, AMRLink *l, std::vec
             if (link_contains_gid(l, candidate_gid))
                 continue;
 
-            if (debug)
-                fmt::print("in expand_link for block = {}, candidate_gid = {}, received_original_links[{}] = {}\n",
-                           b->gid,
-                           candidate_gid, i, container_to_string(received_original_gids[i]));
+            //if (debug) fmt::print("in expand_link for block = {}, candidate_gid = {}, received_original_links[{}] = {}\n", b->gid, candidate_gid, i, container_to_string(received_original_gids[i]));
 
             // skip non-original gids (we only include the original link)
             if (std::find(received_original_gids[i].begin(), received_original_gids[i].end(), candidate_gid) ==
                 received_original_gids[i].end()) {
-                if (debug)
-                    fmt::print("in expand_link for block = {}, gid = {} not in original gids, skipping\n", b->gid,
-                               candidate_gid);
+                //if (debug) fmt::print("in expand_link for block = {}, gid = {} not in original gids, skipping\n", b->gid, candidate_gid);
                 continue;
             }
 
@@ -203,14 +189,12 @@ expand_link(Block *b, const diy::Master::ProxyWithLink& cp, AMRLink *l, std::vec
             added_gids.insert(candidate_gid);
             l->add_bounds(received_link.level(j), received_link.refinement(j), received_link.core(j),
                           received_link.bounds(j));
-            if (debug) fmt::print("in expand_link for block = {}, added gid = {}\n", b->gid, candidate_gid);
+            //if (debug) fmt::print("in expand_link for block = {}, added gid = {}\n", b->gid, candidate_gid);
         }
     }
 
-    if (debug)
-        fmt::print(
-                "In expand_link for block = {}, round = {}, b->done_ = {}, n_added = {}, new link size = {}, new link size_unqie = {}, added_gids = {}\n",
-                b->gid, b->round_, b->done_, n_added, l->size(), l->size_unique(), container_to_string(added_gids));
+    //if (debug) fmt::print( "In expand_link for block = {}, round = {}, b->done_ = {}, n_added = {}, new link size = {}, new link size_unqie = {}, added_gids = {}\n", b->gid, b->round_, b->done_, n_added, l->size(), l->size_unique(), container_to_string(added_gids));
+    if (debug) fmt::print( "In expand_link for block = {}, round = {}, b->done_ = {}, n_added = {}, new link size = {}, new link size_unqie = {}\n", b->gid, b->round_, b->done_, n_added, l->size(), l->size_unique());
     cp.master()->add_expected(n_added);
 }
 
@@ -225,7 +209,7 @@ template<unsigned D>
 void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = false;
+    bool debug = true;
 
     //    if (debug) fmt::print("Called get_from_neighbors_and_merge for block = {}\n", b->gid);
 
@@ -265,9 +249,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
 
         debug_received_ntrees.push_back(n_trees);
 
-        if (debug)
-            fmt::print("In get_from_neighbors_and_merge for block = {}, dequeued from sender {} n_trees = {} \n",
-                       b->gid, sender.gid, n_trees);
+        //if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, dequeued from sender {} n_trees = {} \n", b->gid, sender.gid, n_trees);
 
         if (n_trees > 0) {
             assert(n_trees == 1);
@@ -285,10 +267,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
             cp.dequeue(sender, received_edges.back());
             cp.dequeue(sender, received_original_gids.back());
 
-            if (debug)
-                fmt::print(
-                        "In get_from_neighbors_and_merge for block = {}, dequeued from sender {} original link gids = {}\n",
-                        b->gid, sender.gid, container_to_string(received_original_gids.back()));
+            //if (debug) fmt::print( "In get_from_neighbors_and_merge for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
 
             diy::MemoryBuffer& in = cp.incoming(sender.gid);
             AMRLink *l = static_cast<AMRLink *>(diy::LinkFactory::load(in));
@@ -330,11 +309,8 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
         AmrTripletMergeTree& rt = received_trees[i];
         r::merge(b->mt_, rt, received_edges[i], true);
         r::repair(b->mt_);
-        if (debug)
-            fmt::print(
-                    "In get_from_neighbors_and_merge for block = {}, merge and repair OK for sender = {}, tree size = {}\n",
-                    b->gid,
-                    sender_gids_debug[i], b->mt_.size());
+
+        //if (debug) fmt::print( "In get_from_neighbors_and_merge for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid, sender_gids_debug[i], b->mt_.size());
 
         // save information about vertex-component relation and component merging in block
         b->original_vertex_to_deepest_.insert(received_vertex_to_deepest[i].begin(), received_vertex_to_deepest[i].end());
@@ -344,8 +320,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
             b->add_component_to_disjoint_sets(new_deepest_vertex);
         }
 
-        if (debug)
-            fmt::print("In get_from_neighbors_and_merge for block = {}, add_component_to_disjoint_sets OK\n", b->gid);
+        //if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, add_component_to_disjoint_sets OK\n", b->gid);
         // update receivers - if a block from the 1-neighbourhood of sender has not received a tree from us
         // we must send it to this block in the next round
 
@@ -359,10 +334,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
                                            original_gids.end();
                 bool is_not_processed = b->processed_receivers_.count(sender_neighbor_gid) == 0;
 
-                if (debug)
-                    fmt::print(
-                            "In get_from_neighbors_and_merge for block = {}, round = {}, sender_neighbor_gid = {}, is_in_original_gids = {}, is_not_processed = {}\n",
-                            b->gid, b->round_, sender_neighbor_gid, is_in_original_gids, is_not_processed);
+                //if (debug) fmt::print( "In get_from_neighbors_and_merge for block = {}, round = {}, sender_neighbor_gid = {}, is_in_original_gids = {}, is_not_processed = {}\n", b->gid, b->round_, sender_neighbor_gid, is_in_original_gids, is_not_processed);
 
                 if (is_not_processed and is_in_original_gids)
                     b->new_receivers_.insert(sender_neighbor_gid);
@@ -387,30 +359,23 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
 
     b->sparsify_local_tree();
 
-    if (debug)
-        fmt::print("In get_from_neighbors_and_merge for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid,
-                   b->mt_.size());
+    //if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->mt_.size());
 
     b->done_ = b->is_done_simple(vertices_to_check);
     int n_undone = 1 - b->done_;
 
     cp.all_reduce(n_undone, std::plus<int>());
 
-    if (debug)
-        fmt::print("In get_from_neighbors_and_merge for block = {}, is_done_simple OK, vertices_to_check.size = {}\n",
-                   b->gid, vertices_to_check.size());
+    if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, is_done_simple OK, vertices_to_check.size = {}\n", b->gid, vertices_to_check.size());
 
     int old_size_unique = l->size_unique();
     int old_size = l->size();
 
-    if (debug)
-        fmt::print(
-                "In get_from_neighbors_and_merge for block = {}, b->done_ = {}, old link size = {}, old link size_unqie = {}\n",
-                b->gid, b->done_, old_size, old_size_unique);
+    //if (debug) fmt::print( "In get_from_neighbors_and_merge for block = {}, b->done_ = {}, old link size = {}, old link size_unqie = {}\n", b->gid, b->done_, old_size, old_size_unique);
 
     expand_link(b, cp, l, received_links, received_original_gids);
 
-    if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, expand_link OK\n", b->gid);
+    if (debug) fmt::print("Exit get_from_neighbors_and_merge for block = {}, expand_link OK\n", b->gid);
 }
 
 inline bool file_exists(const std::string& s)
@@ -433,6 +398,7 @@ void read_from_file(std::string infn,
                     diy::ContiguousAssigner& assigner,
                     diy::MemoryBuffer& header,
                     diy::DiscreteBounds& domain,
+                    bool split,
                     int nblocks)
 {
     if (not file_exists(infn))
@@ -441,7 +407,10 @@ void read_from_file(std::string infn,
     if (ends_with(infn, ".npy")) {
         read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
     } else {
-        diy::io::read_blocks(infn, world, assigner, master_reader, header, FabBlockR::load);
+        if (split)
+            diy::io::split::read_blocks(infn, world, assigner, master_reader, header, FabBlockR::load);
+        else
+            diy::io::read_blocks(infn, world, assigner, master_reader, header, FabBlockR::load);
         diy::load(header, domain);
     }
 }
@@ -598,7 +567,7 @@ int main(int argc, char **argv)
                                                                                      << ", rho = " << rho;
     world.barrier();
 
-    read_from_file(input_filename, world, master_reader, assigner, header, domain, nblocks);
+    read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
 
     world.barrier();
 
@@ -737,8 +706,12 @@ int main(int argc, char **argv)
     while (global_n_undone) {
         rounds++;
         master.foreach(&send_to_neighbors<DIM>);
+        LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", send OK";
+        world.barrier();
         master.exchange();
         master.foreach(&get_from_neighbors_and_merge<DIM>);
+        world.barrier();
+        LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", get OK";
         master.exchange();
         // to compute total number of undone blocks
         global_n_undone = master.proxy(master.loaded_block()).read<int>();
