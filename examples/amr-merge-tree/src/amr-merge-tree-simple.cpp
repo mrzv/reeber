@@ -1,3 +1,5 @@
+//#define SEND_COMPONENTS
+
 #include "reeber-real.h"
 
 // to print nice backtrace on segfault signal
@@ -46,6 +48,7 @@ using VertexNeighborMap = Block::TripletMergeTree::VertexNeighborMap;
 using AmrTripletMergeTree = Block::TripletMergeTree;
 using MaskedBox = Block::MaskedBox;
 using GidVector = Block::GidVector;
+using GidContainer = Block::GidContainer;
 
 using Neighbor = AmrTripletMergeTree::Neighbor;
 
@@ -94,65 +97,58 @@ bool link_contains_gid(Link *link, int gid)
 
 
 template<unsigned D>
-void send_to_neighbors(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
+void send_simple(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
 {
     //bool debug = (b->gid == 0);
     bool debug = false;
-    if (debug) fmt::print("Called send_to_neighbors for block = {}\n", b->gid);
+    if (debug) fmt::print("Called send_simple for block = {}\n", b->gid);
 
     auto *l = static_cast<AMRLink *>(cp.link());
 
 
     auto receivers = link_unique(l, b->gid);
 
-    if (debug) fmt::print("In send_to_neighbors for block = {}, link size = {}, unique = {}\n", b->gid, l->size(), receivers.size());
+    if (debug) fmt::print("In send_simple for block = {}, link size = {}, unique = {}\n", b->gid, l->size(), receivers.size());
 
 
-    b->current_senders_.clear();
     for (const diy::BlockID& receiver : receivers) {
         int receiver_gid = receiver.gid;
+
+        cp.enqueue(receiver, b->get_original_link_gids());
+
+        //if (debug) fmt::print("In send_simple for block = {}, receiver = {}, enqueued original_link_gids = {}\n", b->gid, receiver.gid, container_to_string(b->get_original_link_gids()));
+
+        diy::MemoryBuffer& out = cp.outgoing(receiver);
+        diy::LinkFactory::save(out, l);
 
         // if we have sent our tree to this receiver before, only send n_trees = 0
         // else send the tree and all outgoing edges
         int n_trees = (b->processed_receivers_.count(receiver_gid) == 0 and
                        b->new_receivers_.count(receiver_gid) == 1);
 
-        //if (debug) fmt::print("In send_to_neighbors for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid, n_trees);
+
+        //if (debug) fmt::print("In send_simple for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid, n_trees);
+
+        cp.enqueue(receiver, n_trees);
 
         if (n_trees) {
-            cp.enqueue(receiver, n_trees);
             // send local tree and all outgoing edges that end in receiver
             cp.enqueue(receiver, b->original_tree_);
             cp.enqueue(receiver, b->original_vertex_to_deepest_);
             cp.enqueue(receiver, b->get_original_deepest_vertices());
             cp.enqueue(receiver, b->get_all_outgoing_edges());
-            cp.enqueue(receiver, b->get_original_link_gids());
-
-            //if (debug) fmt::print("In send_to_neighbors for block = {}, receiver = {}, enqueued original_link_gids = {}\n", b->gid, receiver.gid, container_to_string(b->get_original_link_gids()));
-
-            diy::MemoryBuffer& out = cp.outgoing(receiver);
-            diy::LinkFactory::save(out, l);
 
             // mark receiver_gid as processed
             b->new_receivers_.erase(receiver_gid);
             b->processed_receivers_.insert(receiver_gid);
-            b->current_senders_.insert(receiver);
         }
     }
 
     int done = b->done_;
     b->round_++;
-    if (debug) fmt::print("Exit send_to_neighbors for block = {}, b->done = {}, b->round = {}\n", b->gid, done, b->round_);
+    if (debug) fmt::print("Exit send_simple for block = {}, b->done = {}, b->round = {}\n", b->gid, done, b->round_);
 }
 
-/**
- *
- * @param b FabTmtBlock, used only to print debug information
- * @param cp communication proxy
- * @param l link of b, to be updated
- * @param received_links links received
- * @param received_original_gids
- */
 void
 expand_link(Block *b, const diy::Master::ProxyWithLink& cp, AMRLink *l, std::vector<AMRLink>& received_links,
             std::vector<std::vector<int>>& received_original_gids)
@@ -198,20 +194,14 @@ expand_link(Block *b, const diy::Master::ProxyWithLink& cp, AMRLink *l, std::vec
     cp.master()->add_expected(n_added);
 }
 
-/**
- *
- * @tparam D dimension, unsigned int template parameter
- * @param b FabTmtBlock
- * @param cp Communication proxy
- */
 
 template<unsigned D>
-void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
+void receive_simple(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
     bool debug = false;
 
-    //    if (debug) fmt::print("Called get_from_neighbors_and_merge for block = {}\n", b->gid);
+    //    if (debug) fmt::print("Called receive_simple for block = {}\n", b->gid);
 
     using Block = FabTmtBlock<Real, D>;
     using AmrTripletMergeTree = typename Block::TripletMergeTree;
@@ -233,13 +223,24 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
 
     LinkVector received_links;
 
-    if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, # senders = {}\n", b->gid, b->current_senders_.size());
 
-    for (const diy::BlockID& sender : b->current_senders_) {
+    auto senders = link_unique(l, b->gid);
+
+    if (debug) fmt::print("In receive_simple for block = {}, # senders = {}\n", b->gid, senders.size());
+
+    for (const diy::BlockID& sender : senders) {
         int n_trees;
+
+        received_original_gids.emplace_back();
+        cp.dequeue(sender, received_original_gids.back());
+        diy::MemoryBuffer& in = cp.incoming(sender.gid);
+        AMRLink *l = static_cast<AMRLink *>(diy::LinkFactory::load(in));
+        received_links.push_back(*l);
+        delete l;
+
         cp.dequeue(sender, n_trees);
 
-        //if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, dequeued from sender {} n_trees = {} \n", b->gid, sender.gid, n_trees);
+        //if (debug) fmt::print("In receive_simple for block = {}, dequeued from sender {} n_trees = {} \n", b->gid, sender.gid, n_trees);
 
         if (n_trees > 0) {
             assert(n_trees == 1);
@@ -248,27 +249,21 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
             received_vertex_to_deepest.emplace_back();
             received_deepest_vertices.emplace_back();
             received_edges.emplace_back();
-            received_original_gids.emplace_back();
 
             cp.dequeue(sender, received_trees.back());
             cp.dequeue(sender, received_vertex_to_deepest.back());
             cp.dequeue(sender, received_deepest_vertices.back());
             cp.dequeue(sender, received_edges.back());
-            cp.dequeue(sender, received_original_gids.back());
 
-            //if (debug) fmt::print( "In get_from_neighbors_and_merge for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
+            //if (debug) fmt::print( "In receive_simple for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
 
-            diy::MemoryBuffer& in = cp.incoming(sender.gid);
-            AMRLink *l = static_cast<AMRLink *>(diy::LinkFactory::load(in));
-            received_links.push_back(*l);
-            delete l;
+
         }
     }
 
     assert(received_trees.size() == received_vertex_to_deepest.size() and
            received_trees.size() == received_edges.size() and
-           received_trees.size() == received_deepest_vertices.size() and
-           received_trees.size() == received_original_gids.size());
+           received_trees.size() == received_deepest_vertices.size());
 
     //#ifdef DEBUG
     //    // just for debug - check all received edges
@@ -285,7 +280,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
     //    }
     //#endif
 
-    //if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, dequeed all, edges checked OK\n", b->gid);
+    //if (debug) fmt::print("In receive_simple for block = {}, dequeed all, edges checked OK\n", b->gid);
 
     // vertices in our processed neighbourhood, from which there is an edge going out to blocks we have not communicated with
     // if any of these vertices is in a connected component of original tree, we are not done
@@ -299,7 +294,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
         r::merge(b->mt_, rt, received_edges[i], true);
         r::repair(b->mt_);
 
-        //if (debug) fmt::print( "In get_from_neighbors_and_merge for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid, sender_gids_debug[i], b->mt_.size());
+        //if (debug) fmt::print( "In receive_simple for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid, sender_gids_debug[i], b->mt_.size());
 
         // save information about vertex-component relation and component merging in block
         b->original_vertex_to_deepest_.insert(received_vertex_to_deepest[i].begin(), received_vertex_to_deepest[i].end());
@@ -309,7 +304,7 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
             b->add_component_to_disjoint_sets(new_deepest_vertex);
         }
 
-        //if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, add_component_to_disjoint_sets OK\n", b->gid);
+        //if (debug) fmt::print("In receive_simple for block = {}, add_component_to_disjoint_sets OK\n", b->gid);
         // update receivers - if a block from the 1-neighbourhood of sender has not received a tree from us
         // we must send it to this block in the next round
 
@@ -323,14 +318,14 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
                                            original_gids.end();
                 bool is_not_processed = b->processed_receivers_.count(sender_neighbor_gid) == 0;
 
-                //if (debug) fmt::print( "In get_from_neighbors_and_merge for block = {}, round = {}, sender_neighbor_gid = {}, is_in_original_gids = {}, is_not_processed = {}\n", b->gid, b->round_, sender_neighbor_gid, is_in_original_gids, is_not_processed);
+                //if (debug) fmt::print( "In receive_simple for block = {}, round = {}, sender_neighbor_gid = {}, is_in_original_gids = {}, is_not_processed = {}\n", b->gid, b->round_, sender_neighbor_gid, is_in_original_gids, is_not_processed);
 
                 if (is_not_processed and is_in_original_gids)
                     b->new_receivers_.insert(sender_neighbor_gid);
             }
         }
     }
-    if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, processed_receiveres_ OK\n", b->gid);
+    if (debug) fmt::print("In receive_simple for block = {}, processed_receiveres_ OK\n", b->gid);
 
     // update disjoint sets data structure (some components are now connected to each other)
     for (size_t i = 0; i < received_trees.size(); ++i) {
@@ -348,23 +343,23 @@ void get_from_neighbors_and_merge(FabTmtBlock<Real, D> *b, const diy::Master::Pr
 
    b->sparsify_local_tree();
 
-    //if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->mt_.size());
+    //if (debug) fmt::print("In receive_simple for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->mt_.size());
 
     b->done_ = b->is_done_simple(vertices_to_check);
     int n_undone = 1 - b->done_;
 
     cp.all_reduce(n_undone, std::plus<int>());
 
-    if (debug) fmt::print("In get_from_neighbors_and_merge for block = {}, is_done_simple OK, vertices_to_check.size = {}\n", b->gid, vertices_to_check.size());
+    if (debug) fmt::print("In receive_simple for block = {}, is_done_simple OK, vertices_to_check.size = {}\n", b->gid, vertices_to_check.size());
 
     int old_size_unique = l->size_unique();
     int old_size = l->size();
 
-    //if (debug) fmt::print( "In get_from_neighbors_and_merge for block = {}, b->done_ = {}, old link size = {}, old link size_unqie = {}\n", b->gid, b->done_, old_size, old_size_unique);
+    //if (debug) fmt::print( "In receive_simple for block = {}, b->done_ = {}, old link size = {}, old link size_unqie = {}\n", b->gid, b->done_, old_size, old_size_unique);
 
     expand_link(b, cp, l, received_links, received_original_gids);
 
-    if (debug) fmt::print("Exit get_from_neighbors_and_merge for block = {}, expand_link OK\n", b->gid);
+    if (debug) fmt::print("Exit receive_simple for block = {}, expand_link OK\n", b->gid);
 }
 
 inline bool file_exists(const std::string& s)
@@ -404,6 +399,173 @@ void read_from_file(std::string infn,
     }
 }
 
+#ifdef SEND_COMPONENTS
+
+template<unsigned D>
+void send_componentwise(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
+{
+    bool debug = true;
+    if (debug) fmt::print("Called send_componentwise for block = {}\n", b->gid);
+
+    auto* l = static_cast<diy::AMRLink*>(cp.link());
+
+    cp.collectives()->clear();
+
+    // get unique receivers
+    std::set<diy::BlockID> receivers;
+    for (int i = 0; i < l->size(); ++i) {
+        if (l->target(i).gid != b->gid) {
+            receivers.insert(l->target(i));
+        }
+    }
+
+    std::map<int, int> componenents_per_gid;
+
+    for (const Component& c : b->components_) {
+        for (int component_receiver : c.current_neighbors_) {
+            componenents_per_gid[component_receiver]++;
+        }
+    }
+
+    //    if (debug) fmt::print("In send_simple for block = {}, link size = {}, unique = {}\n", b->gid, l->size(), receivers.size());
+    for (const diy::BlockID& receiver : receivers) {
+        int receiver_gid = receiver.gid;
+
+        // if we have sent our tree to this receiver before, only send n_trees = 0
+        // else send the tree and all outgoing edges
+        int n_trees = componenents_per_gid[receiver_gid];
+
+
+        if (n_trees) {
+            cp.enqueue(receiver, n_trees);
+            // send components that must communicate with the receiver
+            for (Component& c : b->components_) {
+                if (c.current_neighbors_.count(receiver_gid) == 1 and c.processed_neighbors_.count(receiver_gid) == 0) {
+                    cp.enqueue(receiver, c.merge_tree_);
+                    cp.enqueue(receiver, c.root_);
+                    cp.enqueue(receiver, c.outgoing_edges_);
+                    cp.enqueue(receiver, c.current_neighbors_);
+                    c.processed_neighbors_.insert(receiver_gid);
+                }
+            }
+
+            cp.enqueue(receiver, b->original_vertex_to_deepest_);
+
+            diy::MemoryBuffer& out = cp.outgoing(receiver);
+            diy::LinkFactory::save(out, l);
+        }
+    }
+
+    int done = b->are_all_components_done();
+    b->round_++;
+    if (debug) fmt::print("In send_simple for block = {}, done = {}, b->round = {}\n", b->gid, done, b->round_);
+    cp.all_reduce(done, std::logical_and<int>());
+}
+
+template<unsigned D>
+void receive_componentwise(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
+{
+    bool debug = true;
+    //    if (debug) fmt::print("Called receive_componentwise for block = {}\n", b->gid);
+    using Block = FabTmtBlock<Real, D>;
+    using AmrTripletMergeTree = typename Block::TripletMergeTree;
+    using AmrEdgeVector = typename Block::AmrEdgeContainer;
+    using VertexVertexMap = typename Block::VertexVertexMap;
+    using LinkVector = std::vector<diy::AMRLink>;
+
+
+    auto* l = static_cast<diy::AMRLink*>(cp.link());
+
+
+    AmrEdgeContainer all_received_edges;
+    LinkVector received_links;
+
+    if (debug) fmt::print("In receive_componentwise for block = {}, # senders = {}\n", b->gid, b->current_senders_.size());
+
+    std::map<AmrVertexId, std::set<int>> component_to_neighbors;
+
+    for (const diy::BlockID& sender : b->current_senders_) {
+        int n_trees;
+        cp.dequeue(sender, n_trees);
+        if (n_trees > 0) {
+            for (int tree_idx = 0; tree_idx < n_trees; ++tree_idx) {
+                AmrTripletMergeTree received_tree;
+                cp.dequeue(sender, received_tree);
+
+                AmrVertexId received_root;
+                cp.dequeue(sender, received_root);
+
+                AmrEdgeVector received_edges;
+                cp.dequeue(sender, received_edges);
+                all_received_edges.insert(all_received_edges.end(), received_edges.begin(), received_edges.end());
+
+                GidContainer received_current_gids;
+                cp.dequeue(sender, received_current_gids);
+
+                // just for debug - check all received edges
+                for (const AmrEdge& e : received_edges) {
+                    AmrVertexId my_vertex = std::get<1>(e);
+                    assert(my_vertex.gid != b->gid or
+                           b->local_.mask_by_index(my_vertex) == MaskedBox::ACTIVE or
+                           b->local_.mask_by_index(my_vertex) == MaskedBox::LOW);
+                }
+
+                // merge received trees
+                r::merge(b->mt_, received_tree, received_edges, true);
+                r::repair(b->mt_);
+                if (debug) fmt::print("In receive_componentwise for block = {}, repair OK\n", b->gid);
+
+                // make_set in disjoint-sets of components
+                b->add_component_to_disjoint_sets(received_root);
+
+                // add gids from sender
+                component_to_neighbors[received_root].insert(received_current_gids.begin(),
+                                                             received_current_gids.end());
+
+
+            } // loop over all trees received from current sender
+
+            VertexVertexMap received_vertex_to_deepest;
+            cp.dequeue(sender, received_vertex_to_deepest);
+            // save information about vertex-component relation and component merging in block
+            b->original_vertex_to_deepest_.insert(received_vertex_to_deepest.begin(),
+                                         received_vertex_to_deepest.end());
+
+            diy::MemoryBuffer& in = cp.incoming(sender.gid);
+            diy::AMRLink* l = static_cast<diy::AMRLink*>(diy::LinkFactory::load(in));
+            received_links.push_back(*l);
+            delete l;
+        }
+    }
+
+    // all tree from all senders were processed, now we can connect components in the disjoint sets data structure
+    for (const AmrEdge& e : all_received_edges) {
+        if (b->edge_exists(e)) {
+            // edge e connects two vertices that we have, connect their components
+            AmrVertexId deepest_a = b->original_deepest(std::get<0>(e));
+            AmrVertexId deepest_b = b->original_deepest(std::get<1>(e));
+            b->connect_components(deepest_a, deepest_b);
+        } else {
+            assert(b->edge_goes_out(e));
+        }
+    }
+    all_received_edges.clear();
+
+    // expand current neighbourhood of each component
+    for (Component& c : b->components_) {
+        for (const auto& sent_component_gids_pair : component_to_neighbors) {
+            AmrVertexId sent_root = sent_component_gids_pair.first;
+            const std::set<int>& sent_gids = sent_component_gids_pair.second;
+            if (b->are_components_connected(c.root_, sent_root)) {
+                c.current_neighbors_.insert(sent_gids.begin(), sent_gids.end());
+            }
+        }
+    }
+
+    expand_link(b, cp, l, received_links);
+}
+
+#endif
 
 void catch_sig(int signum)
 {
@@ -690,16 +852,18 @@ int main(int argc, char **argv)
     time_for_communication += timer.elapsed();
     timer.restart();
 
-
     int rounds = 0;
     while (global_n_undone) {
         rounds++;
-        master.foreach(&send_to_neighbors<DIM>);
-        LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", send OK";
-        world.barrier();
+#ifdef SEND_COMPONENTS
+        master.foreach(&send_componentwise<DIM>);
         master.exchange();
-        master.foreach(&get_from_neighbors_and_merge<DIM>);
-        world.barrier();
+        master.foreach(&receive_componentwise<DIM>);
+#else
+        master.foreach(&send_simple<DIM>);
+        master.exchange();
+        master.foreach(&receive_simple<DIM>);
+#endif
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", get OK";
         master.exchange();
         // to compute total number of undone blocks

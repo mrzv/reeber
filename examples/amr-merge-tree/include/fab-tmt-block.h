@@ -181,7 +181,6 @@ struct FabTmtBlock
 
     std::set<int> new_receivers_;
     std::set<int> processed_receivers_;
-    std::set<diy::BlockID> current_senders_;
 
     GidVector original_link_gids_;
 
