@@ -447,13 +447,22 @@ void send_componentwise(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLin
 
     cp.collectives()->clear();
 
-    // get unique receivers
-    std::set<diy::BlockID> receivers;
-    for (int i = 0; i < l->size(); ++i) {
-        if (l->target(i).gid != b->gid) {
-            receivers.insert(l->target(i));
+    auto receivers = link_unique(l, b->gid);
+    for (Component& c : b->components_)
+    {
+        for(diy::BlockID receiver : receivers)
+        {
+            if (not c.must_send_to_gid(receiver.gid))
+                continue;
+            cp.enqueue(receiver, c.merge_tree_);
+            cp.enqueue(receiver, c.root_);
+            cp.enqueue(receiver, c.outgoing_edges_);
+            cp.enqueue(receiver, c.current_neighbors_);
+            c.mark_neighbor_processed(receiver.gid);
         }
     }
+
+
 
     std::map<int, int> componenents_per_gid;
 
@@ -1103,12 +1112,14 @@ int main(int argc, char **argv)
         });
 
         master.foreach([output_diagrams_filename](Block *b, const diy::Master::ProxyWithLink &cp) {
-            int dgm_idx = 0;
             for (const auto &root_diagram_pair : b->local_diagrams_) {
-                if (root_diagram_pair.first.gid != b->gid)
+                AmrVertexId root = root_diagram_pair.first;
+                if (root.gid != b->gid)
                     continue;
-                std::string dgm_fname = fmt::format("{0}-gid-{1}-halo-{2}", output_diagrams_filename, b->gid,
-                                                    dgm_idx++);
+                std::string pos_str = fmt::format("{}", b->local_.global_position(root));
+                Real integral_value = b->local_integral_[root];
+                std::string dgm_fname = fmt::format("{0}-gid-{1}-root-{2}-integral-{3}-halo.txt", output_diagrams_filename, b->gid, pos_str, integral_value);
+
                 std::ofstream ofs(dgm_fname);
                 if (not ofs.good())
                     throw std::runtime_error("Cannot write to " + dgm_fname);

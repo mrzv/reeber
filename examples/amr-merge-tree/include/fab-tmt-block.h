@@ -95,7 +95,6 @@ struct FabTmtBlock
             bool debug = false;
 
             fill_current_neighbors();
-
             if (debug)
                 fmt::print("entered TmtConnectedComponentConstructor, root = {}, #edges = {}\n", root,
                            outgoing_edges_.size());
@@ -141,6 +140,17 @@ struct FabTmtBlock
         int is_done() const
         {
             return current_neighbors_ == processed_neighbors_;
+        }
+
+        bool must_send_to_gid(int gid) const
+        {
+            return current_neighbors_.count(gid) == 1 and processed_neighbors_.count(gid) == 0;
+        }
+
+        void mark_neighbor_processed(int gid)
+        {
+            assert(current_neighbors_.count(gid));
+            processed_neighbors_.insert(gid);
         }
 
     };
