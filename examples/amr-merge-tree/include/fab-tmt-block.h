@@ -58,6 +58,8 @@ struct FabTmtBlock
     using RealType = Real;
 
     using LocalIntegral = std::map<AmrVertexId, Real>;
+    using DiagramPoint = std::pair<Real, Real>;
+    using Diagram = std::vector<DiagramPoint>;
 
     template<class Vertex_, class Node>
     struct TmtConnectedComponent
@@ -196,8 +198,11 @@ struct FabTmtBlock
 
     int round_ { 0 };
 
+    // for persistent integral
     LocalIntegral local_integral_;
 
+    // for diagrams of connected components
+    std::map<AmrVertexId, Diagram> local_diagrams_;
     // methods
 
     // simple getters/setters

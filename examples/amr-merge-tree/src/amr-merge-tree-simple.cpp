@@ -52,6 +52,8 @@ using GidContainer = Block::GidContainer;
 
 using Neighbor = AmrTripletMergeTree::Neighbor;
 
+using Diagram = Block::Diagram;
+
 constexpr bool abort_on_segfault = true;
 
 struct IsAmrVertexLocal
@@ -60,6 +62,40 @@ struct IsAmrVertexLocal
     {
         return from->vertex.gid == b.gid;
     }
+};
+
+template<class Real, class LocalFunctor>
+struct ComponentDiagramsFunctor
+{
+
+    ComponentDiagramsFunctor(Block* b, const LocalFunctor& lf) :
+        block_(b),
+        negate_(b->get_merge_tree().negate()),
+        ignore_zero_persistence_(true),
+        test_local(lf)
+    {}
+
+    void operator()(Neighbor from, Neighbor through, Neighbor to) const
+    {
+        if (!test_local(*block_, from))
+            return;
+
+        AmrVertexId current_vertex = from->vertex;
+
+        Real birth_time = from->value;
+        Real death_time = through->value;
+
+        if (ignore_zero_persistence_ and birth_time == death_time)
+            return;
+
+        AmrVertexId root = block_->final_vertex_to_deepest_[current_vertex];
+        block_->local_diagrams_[root].emplace_back(birth_time, death_time);
+    }
+
+    Block* block_;
+    const bool negate_;
+    const bool ignore_zero_persistence_;
+    LocalFunctor test_local;
 };
 
 using OutputPairsR = OutputPairs<Block, IsAmrVertexLocal>;
@@ -570,6 +606,7 @@ void receive_componentwise(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWith
 void catch_sig(int signum)
 {
     LOG_SEV_IF(true, fatal) << "caught signal " << signum;
+    dlog::flush();
     //    << ",  local group = " << pro {}, local rank = {}", signum, active_puppet, proc_map->group(), proc_map->local_rank());
 
     // print backtrace
@@ -611,14 +648,17 @@ void catch_sig(int signum)
             if (status == 0) {
                 funcname = ret; // use possibly realloc()-ed string
                 LOG_SEV_IF(true, fatal) << "  " << strs[i] << " : " << funcname << "+" << begin_offset;
+                dlog::flush();
             } else {
                 // demangling failed. Output function name as a C function with no arguments.
                 //                logger->critical("  {} : {}()+{}", strs[i], begin_name, begin_offset);
                 LOG_SEV_IF(true, fatal)  << "  " << strs[i] << " : " << funcname << "+" << begin_offset;
+                dlog::flush();
             }
         } else {
             // couldn't parse the line? print the whole line.
             LOG_SEV_IF(true, fatal)  << "  " << strs[i];
+            dlog::flush();
             //            logger->critical("  {}", strs[i]);
         }
     }
@@ -674,7 +714,8 @@ int main(int argc, char **argv)
     bool negate = ops >> opts::Present('n', "negate", "sweep superlevel sets");
     // ignored for now, wrap is always assumed
     bool wrap = ops >> opts::Present('w', "wrap", "wrap");
-    bool split = ops >> Present("split", "use split IO");
+    bool split = ops >> opts::Present("split", "use split IO");
+    bool write_halo_diagrams = ops >> opts::Present("write-halo-diagrams", "Write diagrams of each halo");
 
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
 
@@ -716,6 +757,7 @@ int main(int argc, char **argv)
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
                                                                                      << nblocks
                                                                                      << ", rho = " << rho;
+    dlog::flush();
     world.barrier();
 
     read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
@@ -725,6 +767,7 @@ int main(int argc, char **argv)
     auto time_to_read_data = timer.elapsed();
     LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master.size();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
+    dlog::flush();
     timer.restart();
 
     world.barrier();
@@ -757,10 +800,12 @@ int main(int argc, char **argv)
     if (absolute) {
         LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  "
                 << dlog::clock_to_string(timer.elapsed());
+        dlog::flush();
         timer.restart();
     } else {
         LOG_SEV_IF(world.rank() == 0, info) << "Time to construct FabTmtBlocks: "
                 << dlog::clock_to_string(timer.elapsed());
+        dlog::flush();
         timer.restart();
 
         master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
@@ -783,6 +828,7 @@ int main(int argc, char **argv)
                                                             << dlog::clock_to_string(timer.elapsed());
 
         time_for_local_computation += timer.elapsed();
+        dlog::flush();
         timer.restart();
 
         master.foreach([rho](Block *b, const diy::Master::ProxyWithLink& cp) {
@@ -795,6 +841,7 @@ int main(int argc, char **argv)
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Time to initialize FabTmtBlocks (low vertices, local trees, components, outgoing edges): " << timer.elapsed();
         time_for_local_computation += timer.elapsed();
+        dlog::flush();
         timer.restart();
     }
 
@@ -807,6 +854,7 @@ int main(int argc, char **argv)
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info)  << "edges symmetrized, time elapsed " << timer.elapsed();
     auto time_for_communication = timer.elapsed();
+    dlog::flush();
     timer.restart();
 
     master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
@@ -850,6 +898,7 @@ int main(int argc, char **argv)
     LOG_SEV_IF(world.rank() == 0, info)  << "Symmetry checked in "
             << dlog::clock_to_string(timer.elapsed());
     time_for_communication += timer.elapsed();
+    dlog::flush();
     timer.restart();
 
     int rounds = 0;
@@ -865,10 +914,12 @@ int main(int argc, char **argv)
         master.foreach(&receive_simple<DIM>);
 #endif
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", get OK";
+        dlog::flush();
         master.exchange();
         // to compute total number of undone blocks
         global_n_undone = master.proxy(master.loaded_block()).read<int>();
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", global_n_undone = " << global_n_undone;
+        dlog::flush();
     }
 
     world.barrier();
@@ -877,6 +928,7 @@ int main(int argc, char **argv)
 
     LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
     time_for_communication += timer.elapsed();
+    dlog::flush();
     timer.restart();
 
     //    fmt::print("----------------------------------------\n");
@@ -908,6 +960,7 @@ int main(int argc, char **argv)
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
     auto time_for_output = timer.elapsed();
+    dlog::flush();
     timer.restart();
 
     bool verbose = false;
@@ -925,6 +978,7 @@ int main(int argc, char **argv)
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
     time_for_output += timer.elapsed();
+    dlog::flush();
     timer.restart();
 
     if (write_integral) {
@@ -983,6 +1037,7 @@ int main(int argc, char **argv)
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  " << dlog::clock_to_string(timer.elapsed());
         time_for_output += timer.elapsed();
+        dlog::flush();
         timer.restart();
     }
 
@@ -1004,9 +1059,68 @@ int main(int argc, char **argv)
     size_t total_vertices = proxy.get<size_t>();
 
     LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = " << total_vertices << ", mean = " << mean;
+    dlog::flush();
 
     std::string final_timings = fmt::format("read: {} local: {} exchange: {} output: {}\n", time_to_read_data, time_for_local_computation, time_for_communication, time_for_output);
     LOG_SEV_IF(world.rank() == 0, info) << final_timings;
+    dlog::flush();
+
+
+    // output diagrams componentwise
+    if (write_halo_diagrams) {
+        timer.restart();
+        master.foreach([](Block *b, const diy::Master::ProxyWithLink &cp) {
+            cp.collectives()->clear();
+            IsAmrVertexLocal test_local;
+            reeber::traverse_persistence(b->get_merge_tree(),
+                                         ComponentDiagramsFunctor<Real, IsAmrVertexLocal>(b, test_local));
+            auto *l = static_cast<AMRLink *>(cp.link());
+            for (auto &root_diagram_pair : b->local_diagrams_) {
+                auto root_gid = root_diagram_pair.first.gid;
+                if (root_gid == b->gid)
+                    continue;
+                diy::BlockID root_block = l->target(l->find(root_gid));
+                cp.enqueue(root_block, root_diagram_pair.first);
+                cp.enqueue(root_block, root_diagram_pair.second);
+
+            }
+        });
+
+        master.exchange();
+
+        master.foreach([](Block *b, const diy::Master::ProxyWithLink &cp) {
+            auto *l = static_cast<AMRLink *>(cp.link());
+            for (const diy::BlockID &sender : link_unique(l, b->gid)) {
+                while (cp.incoming(sender.gid)) {
+                    AmrVertexId component_root;
+                    Diagram received_diagram;
+                    cp.dequeue(sender, component_root);
+                    cp.dequeue(sender, received_diagram);
+                    b->local_diagrams_[component_root].insert(b->local_diagrams_[component_root].end(),
+                                                              received_diagram.begin(), received_diagram.end());
+                }
+            }
+        });
+
+        master.foreach([output_diagrams_filename](Block *b, const diy::Master::ProxyWithLink &cp) {
+            int dgm_idx = 0;
+            for (const auto &root_diagram_pair : b->local_diagrams_) {
+                std::string dgm_fname = fmt::format("{0}-gid-{1}-halo-{2}", output_diagrams_filename, b->gid,
+                                                    dgm_idx++);
+                std::ofstream ofs(dgm_fname);
+                if (not ofs.good())
+                    throw std::runtime_error("Cannot write to " + dgm_fname);
+                for (const auto dgm_point : root_diagram_pair.second) {
+                    ofs << dgm_point.first << " " << dgm_point.second << "\n";
+                }
+                ofs.close();
+            }
+        });
+
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to write individual halo diagrams: " << dlog::clock_to_string(timer.elapsed());
+        dlog::flush();
+        timer.restart();
+    }
 
     return 0;
 }

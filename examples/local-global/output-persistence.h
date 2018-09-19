@@ -50,10 +50,10 @@ struct OutputPairs
         } else
         {
             RealType birth_time, death_time;
+            birth_time = from->value;
+            death_time = through->value;
             if (negate)
             {
-                birth_time = from->value;
-                death_time = through->value;
                 if (birth_time < threshold)
                     return;
                 if (death_time < threshold)
@@ -61,8 +61,6 @@ struct OutputPairs
                     death_time = threshold;
             } else
             {
-                birth_time = from->value;
-                death_time = through->value;
                 if (birth_time > threshold)
                     return;
                 if (death_time > threshold)
