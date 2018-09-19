@@ -1105,6 +1105,8 @@ int main(int argc, char **argv)
         master.foreach([output_diagrams_filename](Block *b, const diy::Master::ProxyWithLink &cp) {
             int dgm_idx = 0;
             for (const auto &root_diagram_pair : b->local_diagrams_) {
+                if (root_diagram_pair.first.gid != b->gid)
+                    continue;
                 std::string dgm_fname = fmt::format("{0}-gid-{1}-halo-{2}", output_diagrams_filename, b->gid,
                                                     dgm_idx++);
                 std::ofstream ofs(dgm_fname);
