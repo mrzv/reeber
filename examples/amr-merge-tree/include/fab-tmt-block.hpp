@@ -636,6 +636,11 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
         mt.link(n_u, n_s, n_v);
     }
 #endif
+
+    for(const auto& vertex_deepest_pair : original_vertex_to_deepest_) {
+        original_deepest_.insert(vertex_deepest_pair.second);
+    }
+    current_deepest_ = original_deepest_;
 }
 
 template<class Real, unsigned D>
@@ -812,6 +817,13 @@ int FabTmtBlock<Real, D>::is_done_simple(const std::vector<FabTmtBlock::AmrVerte
 }
 
 #ifdef SEND_COMPONENTS
+template<class Real, unsigned D>
+void FabTmtBlock<Real, D>::add_received_original_vertices(const VertexVertexMap& received_vertex_to_deepest)
+{
+    original_vertex_to_deepest_.insert(received_vertex_to_deepest.begin(), received_vertex_to_deepest.end());
+    for(const auto& vertex_root_pair : received_vertex_to_deepest)
+        current_deepest_.insert(vertex_root_pair.second);
+}
 
 template<class Real, unsigned D>
 int FabTmtBlock<Real, D>::are_all_components_done() const

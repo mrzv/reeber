@@ -202,6 +202,9 @@ struct FabTmtBlock
     VertexVertexMap original_vertex_to_deepest_;
     VertexVertexMap final_vertex_to_deepest_;
 
+    std::set<AmrVertexId> original_deepest_;
+    std::set<AmrVertexId> current_deepest_;
+
     // tracking how connected components merge - disjoint sets data structure
     VertexVertexMap components_disjoint_set_parent_;
     VertexSizeMap components_disjoint_set_size_;
@@ -431,6 +434,10 @@ struct FabTmtBlock
     void connect_components(const AmrVertexId& deepest_a, const AmrVertexId& deepest_b);
 
     void add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex);
+
+#ifdef SEND_COMPONENTS
+    void add_received_original_vertices(const VertexVertexMap& received_vertex_to_deepest);
+#endif
 
     int is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check);
 
