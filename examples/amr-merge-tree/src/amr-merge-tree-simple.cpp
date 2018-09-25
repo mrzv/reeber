@@ -112,16 +112,6 @@ std::set<diy::BlockID> link_unique(AMRLink *amr_link, int gid)
     return result;
 }
 
-/**
- *
- * @param link *AMRLink
- * Link in which the block is searched
- *
- * @param gid int
- * gid of the block
- *
- * @return true, if link contains a block with given gid
- */
 template<class Link>
 bool link_contains_gid(Link *link, int gid)
 {
@@ -160,7 +150,8 @@ void send_simple(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink& cp)
         // if we have sent our tree to this receiver before, only send n_trees = 0
         // else send the tree and all outgoing edges
         int n_trees = (b->processed_receivers_.count(receiver_gid) == 0 and
-                       b->new_receivers_.count(receiver_gid) == 1);
+                       b->new_receivers_.count(receiver_gid) == 1
+                       and b->done_ == 0);
 
 
         //if (debug) fmt::print("In send_simple for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid, n_trees);
