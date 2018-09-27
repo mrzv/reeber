@@ -3,6 +3,7 @@
 #include <string>
 
 #include <diy/master.hpp>
+#include <diy/io/shared.hpp>
 #include <dlog/log.h>
 
 #include <reeber/triplet-merge-tree.h>
@@ -14,12 +15,12 @@ struct OutputPairs
 
     struct ExtraInfo
     {
-        ExtraInfo(const std::string& outfn_, bool verbose_):
-            outfn(outfn_), verbose(verbose_)   {}
+        ExtraInfo(const std::string& outfn_, bool verbose_, diy::mpi::communicator& _world):
+            outfn(outfn_), verbose(verbose_), world(_world)   {}
 
         std::string         outfn;
         bool                verbose;
-
+        diy::mpi::communicator& world;
     };
 
     using Neighbor = typename Block::Neighbor;
@@ -30,10 +31,9 @@ struct OutputPairs
         threshold(_threshold),
         block(_block),
         extra(_extra),
-        test_local(_test_local)
+        test_local(_test_local),
+        ofs(extra.outfn, extra.world)
     {
-        std::string   dgm_fn = fmt::format("{}-b{}.dgm", extra.outfn, block.gid);
-        ofs.open(dgm_fn.c_str());
     }
 
     void    operator()(Neighbor from, Neighbor through, Neighbor to) const
@@ -43,10 +43,12 @@ struct OutputPairs
 
         if (extra.verbose)
         {
+            std::string s;
             if (from != to)
-                fmt::print(ofs, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
+                s = fmt::format("{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
             else
-                fmt::print(ofs, "{} {} {} --\n",       from->vertex,  from->value, (block.get_merge_tree().negate() ? "-inf" : "inf"));
+                s = fmt::format("{} {} {} --\n",       from->vertex,  from->value, (block.get_merge_tree().negate() ? "-inf" : "inf"));
+            ofs << s;
         } else
         {
             RealType birth_time, death_time;
@@ -70,7 +72,7 @@ struct OutputPairs
 
             if (ignore_zero_persistence and birth_time == death_time)
                 return;
-            fmt::print(ofs, "{} {}\n", birth_time, death_time);
+            ofs <<  birth_time <<  death_time << "\n";
         }
     }
 
@@ -80,7 +82,7 @@ struct OutputPairs
     const Block&           block;
     const ExtraInfo&       extra;
     const LocalFunctor&    test_local;
-    mutable std::ofstream  ofs;
+    mutable diy::io::SharedOutFile ofs;
 
 };
 

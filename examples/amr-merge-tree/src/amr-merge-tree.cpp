@@ -9,26 +9,22 @@
 
 #include <diy/master.hpp>
 #include <diy/io/block.hpp>
+#include <diy/io/shared.hpp>
 #include <diy/decomposition.hpp>
 
 #include <dlog/stats.h>
 #include <dlog/log.h>
 #include <opts/opts.h>
 
-//#include <reeber/box.h>
-
 #include "fab-block.h"
 #include "fab-tmt-block.h"
 #include "reader-interfaces.h"
-//#include "diy/vertices.hpp"
-//#include "reeber/grid.h"
-//#include "amr-merge-tree-helper.h"
 
 #include "../../local-global/output-persistence.h"
 
 #include "read-npy.h"
 
-#ifdef SEND_COMPONENTS
+#ifdef AMR_MT_SEND_COMPONENTS
 #include "amr-merge-tree-send-componentwise.h"
 #else
 #include "amr-merge-tree-send-simple.h"
@@ -529,7 +525,7 @@ int main(int argc, char** argv)
     if (write_diag)
     {
         bool ignore_zero_persistence = true;
-        OutputPairsR::ExtraInfo extra(output_diagrams_filename, verbose);
+        OutputPairsR::ExtraInfo extra(output_diagrams_filename, verbose, world);
         IsAmrVertexLocal test_local;
         master.foreach(
                 [&extra, &test_local, ignore_zero_persistence, rho](Block* b, const diy::Master::ProxyWithLink& cp) {
@@ -576,7 +572,9 @@ int main(int argc, char** argv)
 
         master.exchange();
 
-        master.foreach([output_integral_filename](Block* b, const diy::Master::ProxyWithLink& cp) {
+        diy::io::SharedOutFile integral_file(output_integral_filename, world);
+
+        master.foreach([&integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
             AMRLink* l = static_cast<AMRLink*>(cp.link());
             for(auto bid : l->neighbors())
             {
@@ -589,14 +587,13 @@ int main(int argc, char** argv)
                 }
             }
 
-            std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
-            std::ofstream ofs(integral_local_fname);
             for(const auto& root_value_pair : b->local_integral_)
             {
                 AmrVertexId root = root_value_pair.first;
                 if (root.gid != b->gid)
                     continue;
-                fmt::print(ofs, "{} {}\n", b->local_.global_position(root), root_value_pair.second);
+
+                integral_file << fmt::format("{} {}\n", b->local_.global_position(root), root_value_pair.second);
             }
         });
 
@@ -675,26 +672,24 @@ int main(int argc, char** argv)
             }
         });
 
-        master.foreach([output_diagrams_filename](Block* b, const diy::Master::ProxyWithLink& cp) {
+        std::string halos_dgm_fname = fmt::format("{0}-halo-diagrams.txt", output_diagrams_filename);
+
+        diy::io::SharedOutFile halo_diagrams_file(halos_dgm_fname, world);
+
+        master.foreach([&halo_diagrams_file](Block* b, const diy::Master::ProxyWithLink& cp) {
             for(const auto& root_diagram_pair : b->local_diagrams_)
             {
                 AmrVertexId root = root_diagram_pair.first;
                 if (root.gid != b->gid)
                     continue;
-                std::string pos_str = fmt::format("{}", b->local_.global_position(root));
                 Real integral_value = b->local_integral_[root];
-                std::string dgm_fname = fmt::format("{0}-gid-{1}-root-{2}-integral-{3}-halo.txt",
-                                                    output_diagrams_filename, b->gid, pos_str, integral_value);
-
-                std::ofstream ofs(dgm_fname);
-                if (not ofs.good())
-                    throw std::runtime_error("Cannot write to " + dgm_fname);
                 for(const auto dgm_point : root_diagram_pair.second)
                 {
-                    ofs << dgm_point.first << " " << dgm_point.second << "\n";
+                    std::string s = fmt::format("{}\t{}\t{}\t{}\t{}", integral_value, b->gid, b->local_.global_position(root), dgm_point.first, dgm_point.second);
+                    halo_diagrams_file << s << "\n";
                 }
-                ofs.close();
             }
+            halo_diagrams_file.flush();
         });
 
         LOG_SEV_IF(world.rank() == 0, info) << "Time to write individual halo diagrams: "
