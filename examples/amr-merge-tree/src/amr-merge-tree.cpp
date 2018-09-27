@@ -15,18 +15,24 @@
 #include <dlog/log.h>
 #include <opts/opts.h>
 
-#include <reeber/box.h>
+//#include <reeber/box.h>
 
 #include "fab-block.h"
 #include "fab-tmt-block.h"
 #include "reader-interfaces.h"
-#include "diy/vertices.hpp"
-#include "reeber/grid.h"
-#include "amr-merge-tree-helper.h"
+//#include "diy/vertices.hpp"
+//#include "reeber/grid.h"
+//#include "amr-merge-tree-helper.h"
 
 #include "../../local-global/output-persistence.h"
 
 #include "read-npy.h"
+
+#ifdef SEND_COMPONENTS
+#include "amr-merge-tree-send-componentwise.h"
+#else
+#include "amr-merge-tree-send-simple.h"
+#endif
 
 
 // block-independent types
@@ -35,7 +41,6 @@ using AMRLink = diy::AMRLink;
 using Bounds = diy::DiscreteBounds;
 using AmrVertexId = r::AmrVertexId;
 using AmrEdge = reeber::AmrEdge;
-
 
 #define DIM 3
 
@@ -101,334 +106,6 @@ struct ComponentDiagramsFunctor
 using OutputPairsR = OutputPairs<Block, IsAmrVertexLocal>;
 
 
-std::set<diy::BlockID> link_unique(AMRLink* amr_link, int gid)
-{
-    std::set<diy::BlockID> result;
-    for(int i = 0; i < amr_link->size(); ++i)
-    {
-        if (amr_link->target(i).gid != gid)
-        {
-            result.insert(amr_link->target(i));
-        }
-    }
-    return result;
-}
-
-template<class Link>
-bool link_contains_gid(Link* link, int gid)
-{
-    for(int i = 0; i < link->size(); ++i)
-        if (link->target(i).gid == gid)
-            return true;
-    return false;
-}
-
-#ifndef SEND_COMPONENTS
-template<unsigned D>
-void send_simple(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
-{
-    //bool debug = (b->gid == 0);
-    bool debug = false;
-    if (debug) fmt::print("Called send_simple for block = {}\n", b->gid);
-
-    auto* l = static_cast<AMRLink*>(cp.link());
-
-
-    auto receivers = link_unique(l, b->gid);
-
-    if (debug)
-        fmt::print("In send_simple for block = {}, link size = {}, unique = {}\n", b->gid, l->size(), receivers.size());
-
-
-    for (const diy::BlockID& receiver : receivers)
-    {
-        int receiver_gid = receiver.gid;
-
-        cp.enqueue(receiver, b->get_original_link_gids());
-
-        //if (debug) fmt::print("In send_simple for block = {}, receiver = {}, enqueued original_link_gids = {}\n", b->gid, receiver.gid, container_to_string(b->get_original_link_gids()));
-
-        diy::MemoryBuffer& out = cp.outgoing(receiver);
-        diy::LinkFactory::save(out, l);
-
-        // if we have sent our tree to this receiver before, only send n_trees = 0
-        // else send the tree and all outgoing edges
-        int n_trees = (b->processed_receivers_.count(receiver_gid) == 0 and
-                       b->new_receivers_.count(receiver_gid) == 1
-                       and b->done_ == 0);
-
-
-        //if (debug) fmt::print("In send_simple for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid, n_trees);
-
-        cp.enqueue(receiver, n_trees);
-
-        if (n_trees)
-        {
-            // send local tree and all outgoing edges that end in receiver
-            cp.enqueue(receiver, b->original_tree_);
-            cp.enqueue(receiver, b->original_vertex_to_deepest_);
-            cp.enqueue(receiver, b->get_original_deepest_vertices());
-            cp.enqueue(receiver, b->get_all_outgoing_edges());
-
-            // mark receiver_gid as processed
-            b->new_receivers_.erase(receiver_gid);
-            b->processed_receivers_.insert(receiver_gid);
-        }
-    }
-
-    int done = b->done_;
-    b->round_++;
-    if (debug) fmt::print("Exit send_simple for block = {}, b->done = {}, b->round = {}\n", b->gid, done, b->round_);
-}
-#endif
-
-void expand_link(Block* b,
-                 const diy::Master::ProxyWithLink& cp,
-                 AMRLink* l,
-                 std::vector<AMRLink>& received_links,
-                 std::vector<std::vector<int>>& received_original_gids)
-{
-//    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = false;
-    if (debug) fmt::print("in expand_link for block = {}, round = {}, started updating link\n", b->gid, b->round_);
-    int n_added = 0;
-    assert(received_links.size() == received_original_gids.size());
-    std::set<int> added_gids;
-
-    for(size_t i = 0; i < received_links.size(); ++i)
-    {
-        const AMRLink& received_link = received_links[i];
-        assert(not received_original_gids[i].empty());
-        //if (debug) fmt::print("in expand_link for block = {}, i = {}, received_links[i].size = {}\n", b->gid, i, received_links[i].size());
-
-        for(int j = 0; j < received_link.size(); ++j)
-        {
-            // if we are already sending to this block, skip it
-            int candidate_gid = received_link.target(j).gid;
-            if (link_contains_gid(l, candidate_gid))
-                continue;
-
-            //if (debug) fmt::print("in expand_link for block = {}, candidate_gid = {}, received_original_links[{}] = {}\n", b->gid, candidate_gid, i, container_to_string(received_original_gids[i]));
-#ifndef SEND_COMPONENTS
-            // skip non-original gids (we only include the original link)
-            if (std::find(received_original_gids[i].begin(), received_original_gids[i].end(), candidate_gid) ==
-                received_original_gids[i].end()) {
-                //if (debug) fmt::print("in expand_link for block = {}, gid = {} not in original gids, skipping\n", b->gid, candidate_gid);
-                continue;
-            }
-#endif
-            n_added++;
-            l->add_neighbor(received_link.target(j));
-            added_gids.insert(candidate_gid);
-            l->add_bounds(received_link.level(j), received_link.refinement(j), received_link.core(j),
-                          received_link.bounds(j));
-            //if (debug) fmt::print("in expand_link for block = {}, added gid = {}\n", b->gid, candidate_gid);
-        }
-    }
-
-    //if (debug) fmt::print( "In expand_link for block = {}, round = {}, b->done_ = {}, n_added = {}, new link size = {}, new link size_unqie = {}, added_gids = {}\n", b->gid, b->round_, b->done_, n_added, l->size(), l->size_unique(), container_to_string(added_gids));
-    if (debug)
-        fmt::print(
-                "In expand_link for block = {}, round = {}, b->done_ = {}, n_added = {}, new link size = {}, new link size_unqie = {}\n",
-                b->gid, b->round_, b->done_, n_added, l->size(), l->size_unique());
-    cp.master()->add_expected(n_added);
-}
-
-#ifdef SEND_COMPONENTS
-
-void expand_link(Block* b,
-                 const diy::Master::ProxyWithLink& cp,
-                 AMRLink* l,
-                 std::vector<AMRLink>& received_links)
-{
-    std::vector<std::vector<int>> dummy;
-    expand_link(b, cp, l, received_links, dummy);
-}
-
-#endif
-
-#ifndef SEND_COMPONENTS
-template<unsigned D>
-void receive_simple(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
-{
-//    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = false;
-
-    //    if (debug) fmt::print("Called receive_simple for block = {}\n", b->gid);
-
-    using Block = FabTmtBlock<Real, D>;
-    using AmrTripletMergeTree = typename Block::TripletMergeTree;
-    using AmrEdgeVector = typename Block::AmrEdgeContainer;
-    using VertexVertexMap = typename Block::VertexVertexMap;
-    //    using VertexSizeMap = typename Block::VertexSizeMap;
-    using LinkVector = std::vector<AMRLink>;
-
-
-    auto* l = static_cast<AMRLink*>(cp.link());
-
-    cp.collectives()->clear();
-
-    std::vector<AmrTripletMergeTree> received_trees;
-    std::vector<VertexVertexMap> received_vertex_to_deepest;
-    std::vector<AmrEdgeVector> received_edges;
-    std::vector<std::vector<AmrVertexId>> received_deepest_vertices;
-    std::vector<std::vector<int>> received_original_gids;
-
-    LinkVector received_links;
-
-
-    auto senders = link_unique(l, b->gid);
-
-    if (debug) fmt::print("In receive_simple for block = {}, # senders = {}\n", b->gid, senders.size());
-
-    for (const diy::BlockID& sender : senders)
-    {
-        int n_trees;
-
-        received_original_gids.emplace_back();
-        cp.dequeue(sender, received_original_gids.back());
-        diy::MemoryBuffer& in = cp.incoming(sender.gid);
-        AMRLink* l = static_cast<AMRLink*>(diy::LinkFactory::load(in));
-        received_links.push_back(*l);
-        delete l;
-
-        cp.dequeue(sender, n_trees);
-
-        //if (debug) fmt::print("In receive_simple for block = {}, dequeued from sender {} n_trees = {} \n", b->gid, sender.gid, n_trees);
-
-        if (n_trees > 0)
-        {
-            assert(n_trees == 1);
-
-            received_trees.emplace_back();
-            received_vertex_to_deepest.emplace_back();
-            received_deepest_vertices.emplace_back();
-            received_edges.emplace_back();
-
-            cp.dequeue(sender, received_trees.back());
-            cp.dequeue(sender, received_vertex_to_deepest.back());
-            cp.dequeue(sender, received_deepest_vertices.back());
-            cp.dequeue(sender, received_edges.back());
-
-            //if (debug) fmt::print( "In receive_simple for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
-
-
-        }
-    }
-
-    assert(received_trees.size() == received_vertex_to_deepest.size() and
-           received_trees.size() == received_edges.size() and
-           received_trees.size() == received_deepest_vertices.size());
-
-    //#ifdef DEBUG
-    //    // just for debug - check all received edges
-    //    for (const AmrEdgeContainer& ec : received_edges)
-    //    {
-    //        for (const AmrEdge& e : ec)
-    //        {
-    //            AmrVertexId my_vertex = std::get<1>(e);
-
-    //            assert(my_vertex.gid != b->gid or
-    //                   b->local_.mask_by_index(my_vertex) == MaskedBox::ACTIVE or
-    //                   b->local_.mask_by_index(my_vertex) == MaskedBox::LOW);
-    //        }
-    //    }
-    //#endif
-
-    //if (debug) fmt::print("In receive_simple for block = {}, dequeed all, edges checked OK\n", b->gid);
-
-    // vertices in our processed neighbourhood, from which there is an edge going out to blocks we have not communicated with
-    // if any of these vertices is in a connected component of original tree, we are not done
-    std::vector<AmrVertexId> vertices_to_check;
-
-    // merge all received trees
-    for (size_t i = 0; i < received_trees.size(); ++i)
-    {
-        if (received_edges[i].empty())
-            continue;
-        AmrTripletMergeTree& rt = received_trees[i];
-        r::merge(b->mt_, rt, received_edges[i], true);
-        r::repair(b->mt_);
-
-        //if (debug) fmt::print( "In receive_simple for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid, sender_gids_debug[i], b->mt_.size());
-
-        // save information about vertex-component relation and component merging in block
-        b->original_vertex_to_deepest_.insert(received_vertex_to_deepest[i].begin(),
-                                              received_vertex_to_deepest[i].end());
-
-        // make_set in disjoint-sets of components
-        for (const AmrVertexId& new_deepest_vertex : received_deepest_vertices[i])
-        {
-            b->add_component_to_disjoint_sets(new_deepest_vertex);
-        }
-
-        //if (debug) fmt::print("In receive_simple for block = {}, add_component_to_disjoint_sets OK\n", b->gid);
-        // update receivers - if a block from the 1-neighbourhood of sender has not received a tree from us
-        // we must send it to this block in the next round
-
-        for (const AMRLink& rl : received_links)
-        {
-            for (int k = 0; k < rl.size(); ++k)
-            {
-                int sender_neighbor_gid = rl.target(k).gid;
-
-                auto& original_gids = received_original_gids[i];
-
-                bool is_in_original_gids = std::find(original_gids.begin(), original_gids.end(), sender_neighbor_gid) !=
-                                           original_gids.end();
-                bool is_not_processed = b->processed_receivers_.count(sender_neighbor_gid) == 0;
-
-                //if (debug) fmt::print( "In receive_simple for block = {}, round = {}, sender_neighbor_gid = {}, is_in_original_gids = {}, is_not_processed = {}\n", b->gid, b->round_, sender_neighbor_gid, is_in_original_gids, is_not_processed);
-
-                if (is_not_processed and is_in_original_gids)
-                    b->new_receivers_.insert(sender_neighbor_gid);
-            }
-        }
-    }
-    if (debug) fmt::print("In receive_simple for block = {}, processed_receiveres_ OK\n", b->gid);
-
-    // update disjoint sets data structure (some components are now connected to each other)
-    for (size_t i = 0; i < received_trees.size(); ++i)
-    {
-        for (const AmrEdge& e : received_edges[i])
-        {
-            if (b->edge_exists(e))
-            {
-                // edge e connects two vertices that we have, connect their components
-                AmrVertexId deepest_a = b->original_deepest(std::get<0>(e));
-                AmrVertexId deepest_b = b->original_deepest(std::get<1>(e));
-                b->connect_components(deepest_a, deepest_b);
-            } else
-            {
-                vertices_to_check.push_back(std::get<0>(e));
-            }
-        }
-    }
-
-    b->sparsify_local_tree();
-
-    //if (debug) fmt::print("In receive_simple for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->mt_.size());
-
-    b->done_ = b->is_done_simple(vertices_to_check);
-    int n_undone = 1 - b->done_;
-
-    cp.all_reduce(n_undone, std::plus<int>());
-
-    if (debug)
-        fmt::print("In receive_simple for block = {}, is_done_simple OK, vertices_to_check.size = {}\n", b->gid,
-                   vertices_to_check.size());
-
-    int old_size_unique = l->size_unique();
-    int old_size = l->size();
-
-    //if (debug) fmt::print( "In receive_simple for block = {}, b->done_ = {}, old link size = {}, old link size_unqie = {}\n", b->gid, b->done_, old_size, old_size_unique);
-
-    expand_link(b, cp, l, received_links, received_original_gids);
-
-    if (debug) fmt::print("Exit receive_simple for block = {}, expand_link OK\n", b->gid);
-}
-#endif
-
 inline bool file_exists(const std::string& s)
 {
     std::ifstream ifs(s);
@@ -467,206 +144,6 @@ void read_from_file(std::string infn,
         diy::load(header, domain);
     }
 }
-
-#ifdef SEND_COMPONENTS
-
-template<unsigned D>
-void send_componentwise(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
-{
-    bool debug = true;
-    if (debug) fmt::print("Called send_componentwise for block = {}\n", b->gid);
-    auto* l = static_cast<diy::AMRLink*>(cp.link());
-    cp.collectives()->clear();
-    auto receivers = link_unique(l, b->gid);
-
-    // find out how many components we send to each gid
-    std::map<int, int> componenents_per_gid;
-    for(const Component& c : b->components_)
-    {
-        for(const auto& receiver : receivers)
-        {
-            if (c.must_send_to_gid(receiver.gid))
-                componenents_per_gid[receiver.gid]++;
-        }
-    }
-
-    //    if (debug) fmt::print("In send_simple for block = {}, link size = {}, unique = {}\n", b->gid, l->size(), receivers.size());
-    for(const diy::BlockID& receiver : receivers)
-    {
-        int n_trees = componenents_per_gid[receiver.gid];
-        cp.enqueue(receiver, n_trees);
-        if (n_trees == 0)
-            continue;
-        // send components that must communicate with the receiver
-        for(Component& c : b->components_)
-        {
-            if (not c.must_send_to_gid(receiver.gid))
-                continue;
-            cp.enqueue(receiver, c.merge_tree_);
-            cp.enqueue(receiver, c.root_);
-            cp.enqueue(receiver, c.outgoing_edges_);
-            cp.enqueue(receiver, c.current_neighbors_);
-            c.processed_neighbors_.insert(receiver.gid);
-        }
-        cp.enqueue(receiver, b->original_vertex_to_deepest_);
-
-        diy::MemoryBuffer& out = cp.outgoing(receiver);
-        diy::LinkFactory::save(out, l);
-    }
-}
-
-template<unsigned D>
-void receive_componentwise(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
-{
-    bool debug = true;
-    //    if (debug) fmt::print("Called receive_componentwise for block = {}\n", b->gid);
-//    using Block = FabTmtBlock<Real, D>;
-//    using AmrTripletMergeTree = typename Block::TripletMergeTree;
-//    using AmrEdgeVector = typename Block::AmrEdgeContainer;
-//    using VertexVertexMap = typename Block::VertexVertexMap;
-    using LinkVector = std::vector<diy::AMRLink>;
-
-
-    auto* l = static_cast<diy::AMRLink*>(cp.link());
-
-
-    AmrEdgeContainer all_received_edges;
-    LinkVector received_links;
-
-    auto senders = link_unique(l, b->gid);
-
-    if (debug) fmt::print("In receive_componentwise for block = {}, # senders = {}\n", b->gid, senders.size());
-
-    std::map<AmrVertexId, std::set<int>> component_to_neighbors;
-
-    for(const diy::BlockID& sender : senders)
-    {
-        int n_trees;
-        cp.dequeue(sender, n_trees);
-        if (n_trees == 0)
-            continue;
-        for(int tree_idx = 0; tree_idx < n_trees; ++tree_idx)
-        {
-            AmrTripletMergeTree received_tree;
-            cp.dequeue(sender, received_tree);
-
-            AmrVertexId received_root;
-            cp.dequeue(sender, received_root);
-
-            AmrEdgeContainer received_edges;
-            cp.dequeue(sender, received_edges);
-            all_received_edges.insert(all_received_edges.end(), received_edges.begin(), received_edges.end());
-
-            GidContainer received_current_gids;
-            cp.dequeue(sender, received_current_gids);
-
-            // just for debug - check all received edges
-            for(const AmrEdge& e : received_edges)
-            {
-                AmrVertexId my_vertex = std::get<1>(e);
-                assert(my_vertex.gid != b->gid or
-                       b->local_.mask_by_index(my_vertex) == MaskedBox::ACTIVE or
-                       b->local_.mask_by_index(my_vertex) == MaskedBox::LOW);
-            }
-
-            // merge received trees
-            r::merge(b->mt_, received_tree, received_edges, true);
-            r::repair(b->mt_);
-            if (debug) fmt::print("In receive_componentwise for block = {}, repair OK\n", b->gid);
-
-            // make_set in disjoint-sets of components
-            b->add_component_to_disjoint_sets(received_root);
-
-            // add gids from sender
-            component_to_neighbors[received_root].insert(received_current_gids.begin(),
-                                                         received_current_gids.end());
-
-
-        } // loop over all trees received from current sender
-
-        Block::VertexVertexMap received_vertex_to_deepest;
-        cp.dequeue(sender, received_vertex_to_deepest);
-        // save information about vertex-component relation and component merging in block
-        b->add_received_original_vertices(received_vertex_to_deepest);
-
-        diy::MemoryBuffer& in = cp.incoming(sender.gid);
-        diy::AMRLink* l = static_cast<diy::AMRLink*>(diy::LinkFactory::load(in));
-        received_links.push_back(*l);
-        delete l;
-    }
-
-    // all tree from all senders were processed, now we can connect components in the disjoint sets data structure
-    for(const AmrEdge& e : all_received_edges)
-    {
-        if (b->edge_exists(e))
-        {
-            // edge e connects two vertices that we have, connect their components
-            AmrVertexId deepest_a = b->original_deepest(std::get<0>(e));
-            AmrVertexId deepest_b = b->original_deepest(std::get<1>(e));
-            b->connect_components(deepest_a, deepest_b);
-        } else
-        {
-            assert(b->edge_goes_out(e));
-        }
-    }
-
-    all_received_edges.clear();
-
-    // expand current neighbourhood of each component
-    // first collect all incoming neighbourhoods
-    for(Component& c : b->components_)
-    {
-        for(const auto& deepest : b->current_deepest_)
-        {
-            if (deepest.gid == b->gid)
-                continue; // skip local roots for now
-            if (b->are_components_connected(c.root_, deepest))
-            {
-                c.current_neighbors_.insert(component_to_neighbors[deepest].begin(),
-                                            component_to_neighbors[deepest].end());
-            }
-        }
-    }
-
-    std::map<AmrVertexId, std::set<Component*>> m;
-    std::map<AmrVertexId, std::set<int>> new_neighborhoods;
-    std::set<AmrVertexId> s;
-    // now neighbourhoods of merged components must be united
-    for(Component& c : b->components_)
-    {
-        if (s.find(c.root_) != s.end())
-            continue;
-
-        if (m.find(c.root_) == m.end() and s.find(c.root_) == s.end())
-        {
-            m[c.root_].insert(&c);
-            new_neighborhoods[c.root_] = c.current_neighbors_;
-        }
-
-        for(Component& other_c : b->components_)
-        {
-            if (other_c.root_ <= c.root_)
-                continue; // skip yourself and already processed pairs
-            s.insert(other_c.root_);
-            if (b->are_components_connected(c.root_, other_c.root_))
-            {
-                m[c.root_].insert(&other_c);
-                new_neighborhoods[c.root_].insert(other_c.current_neighbors_.begin(), other_c.current_neighbors_.end());
-            }
-        }
-    }
-
-    for(auto& root_component_set_pair : m)
-    {
-        for(Component* c : root_component_set_pair.second)
-        {
-            c->current_neighbors_ = new_neighborhoods.at(root_component_set_pair.first);
-        }
-    }
-    expand_link(b, cp, l, received_links);
-}
-
-#endif
 
 void catch_sig(int signum)
 {
@@ -767,7 +244,7 @@ int main(int argc, char** argv)
 
     // threshold
     Real rho = 81.66;
-    Real integral_rho = 90.0;
+    Real theta = 90.0;
 
     using namespace opts;
 
@@ -777,8 +254,8 @@ int main(int argc, char** argv)
             >> Option('m', "memory", in_memory, "maximum blocks to store in memory")
             >> Option('j', "jobs", threads, "threads to use during the computation")
             >> Option('s', "storage", prefix, "storage prefix")
-            >> Option('t', "threshold", rho, "threshold")
-            >> Option("intthreshold", integral_rho, "integral threshold")
+            >> Option('i', "rho", rho, "iso threshold")
+            >> Option('x', "theta", theta, "integral threshold")
             >> Option('p', "profile", profile_path, "path to keep the execution profile")
             >> Option('l', "log", log_level, "log level");
 
@@ -811,7 +288,7 @@ int main(int argc, char** argv)
 
     if (write_integral)
     {
-        if ((negate and integral_rho < rho) or (not negate and integral_rho > rho))
+        if ((negate and theta < rho) or (not negate and theta > rho))
             throw std::runtime_error("Bad integral threshold");
     }
 
@@ -898,7 +375,7 @@ int main(int argc, char** argv)
 
         mean = proxy.get<Real>() / proxy.get<Real>();
         rho *= mean;                                            // now rho contains absolute threshold
-        integral_rho *= mean;
+        theta *= mean;
 
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
@@ -991,15 +468,11 @@ int main(int argc, char** argv)
     while (global_n_undone)
     {
         rounds++;
-#ifdef SEND_COMPONENTS
-        master.foreach(&send_componentwise<DIM>);
+
+        master.foreach(&amr_tmt_send<Real, DIM>);
         master.exchange();
-        master.foreach(&receive_componentwise<DIM>);
-#else
-        master.foreach(&send_simple<DIM>);
-        master.exchange();
-        master.foreach(&receive_simple<DIM>);
-#endif
+        master.foreach(&amr_tmt_receive<Real, DIM>);
+
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", get OK";
         dlog::flush();
         master.exchange();
@@ -1076,10 +549,10 @@ int main(int argc, char** argv)
         if (negate)
         {
             rho_min = rho;
-            rho_max = integral_rho;
+            rho_max = theta;
         } else
         {
-            rho_min = integral_rho;
+            rho_min = theta;
             rho_max = rho;
         }
 

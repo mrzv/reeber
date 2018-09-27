@@ -101,3 +101,25 @@ void delete_low_edges(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink&
     if (debug) fmt::print("Exit delete_low_edges for block = {}\n", b->gid);
 }
 
+template<class Link>
+bool link_contains_gid(Link* link, int gid)
+{
+    for(int i = 0; i < link->size(); ++i)
+        if (link->target(i).gid == gid)
+            return true;
+    return false;
+}
+
+std::set<diy::BlockID> link_unique(diy::AMRLink* amr_link, int gid)
+{
+    std::set<diy::BlockID> result;
+    for(int i = 0; i < amr_link->size(); ++i)
+    {
+        if (amr_link->target(i).gid != gid)
+        {
+            result.insert(amr_link->target(i));
+        }
+    }
+    return result;
+}
+
