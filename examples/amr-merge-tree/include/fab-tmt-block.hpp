@@ -359,13 +359,6 @@ void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdge
     std::set<AmrEdge> my_edges { iter->second.begin(), iter->second.end() };
     std::set<AmrEdge> neighbor_edges { edges_from_sender.begin(), edges_from_sender.end() };
 
-#ifdef SEND_COMPONENTS
-    for (Component& c : components_)
-    {
-        c.delete_low_edges(neighbor_edges);
-    }
-#endif
-
     int old_n_edges = my_edges.size();
 
     iter->second.clear();
@@ -391,13 +384,13 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
 
     size_t s = initial_edges_.size();
     initial_edges_.clear();
-//    initial_edges_.reserve(s);
 
     for (const auto& gid_edge_vector_pair : gid_to_outgoing_edges_)
     {
         std::copy(gid_edge_vector_pair.second.begin(), gid_edge_vector_pair.second.end(),
                   std::back_inserter(initial_edges_));
     }
+    std::sort(initial_edges_.begin(), initial_edges_.end());
 
     std::set<int> neighbor_gids;
     for (const AmrEdge& e : initial_edges_)
@@ -407,14 +400,12 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
 
     int orig_link_old_size = original_link_gids_.size();
 
-    //original_link_gids_ = GidVector(neighbor_gids.begin(), neighbor_gids.end());
-    //new_receivers_ = neighbor_gids;
+    if (debug) fmt::print( "In adjust_outgoing_edges for gid = {}, old #edges = {}, new #edges = {}, old link size = {}, new link size = {}, new link = {}\n", gid, s, initial_edges_.size(), orig_link_old_size, original_link_gids_.size(), container_to_string(new_receivers_));
 
-    if (debug)
-        fmt::print(
-                "In adjust_outgoing_edges for gid = {}, old #edges = {}, new #edges = {}, old link size = {}, new link size = {}, new link = {}\n",
-                gid, s, initial_edges_.size(), orig_link_old_size, original_link_gids_.size(),
-                container_to_string(new_receivers_));
+#ifdef AMR_MT_SEND_COMPONENTS
+    for(Component& c : components_)
+        c.adjust_edges(initial_edges_);
+#endif
 
     gid_to_outgoing_edges_.clear();
 }
@@ -449,32 +440,6 @@ std::vector<r::AmrVertexId> FabTmtBlock<Real, D>::get_original_deepest_vertices(
     return result;
 }
 
-
-template<class Real, unsigned D>
-std::vector<r::AmrVertexId> FabTmtBlock<Real, D>::get_current_deepest_vertices() const
-{
-    std::set<AmrVertexId> result_set;
-    for (const auto& vertex_deepest_pair : original_vertex_to_deepest_)
-    {
-        result_set.insert(vertex_deepest_pair.second);
-    }
-    std::vector<AmrVertexId> result(result_set.begin(), result_set.end());
-    return result;
-}
-
-
-template<class Real, unsigned D>
-typename FabTmtBlock<Real, D>::Component& FabTmtBlock<Real, D>::find_component(const AmrVertexId& deepest_vertex)
-{
-    for (Component& cc : components_)
-    {
-        if (cc.root_ == deepest_vertex)
-        {
-            return cc;
-        }
-    }
-    throw std::runtime_error("Connnected component not found");
-}
 
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex)
@@ -517,7 +482,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
 {
     bool debug = false;
 
-    const auto& const_tree = mt_;
+    const auto& const_tree = current_merge_tree_;
 
     if (debug) fmt::print("compute_original_connected_components called\n");
 
@@ -594,7 +559,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
                     fmt::print("in compute_connected_compponent, gid = {}, adding edges to existing cc, deepest = {}\n",
                                gid, deepest_vertex);
                 // add to existing components new block_ids
-#ifdef SEND_COMPONENTS
+#ifdef AMR_MT_SEND_COMPONENTS
                 find_component(deepest_vertex).add_edges(edges);
 #endif
             }
@@ -614,7 +579,9 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
     //                       [this](const bool& prev, const typename VertexNeighborMap::value_type& vn) {
     //                           return prev and this->original_deepest_computed(vn.second);
     //                       }));
-#ifdef SEND_COMPONENTS
+#ifdef AMR_MT_SEND_COMPONENTS
+    current_vertex_to_deepest_ = original_vertex_to_deepest_;
+
     // copy nodes from local merge tree of block to merge trees of components
     for (const auto& vertex_deepest_pair : original_vertex_to_deepest_)
     {
@@ -648,7 +615,7 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
 {
     bool debug = false;
 
-    const auto& const_tree = mt_;
+    const auto& const_tree = current_merge_tree_;
 
     if (debug) fmt::print("compute_final_connected_components called\n");
 
@@ -712,14 +679,14 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
 template<class Real, unsigned D>
 bool FabTmtBlock<Real, D>::edge_exists(const AmrEdge& e) const
 {
-    return mt_.contains(std::get<0>(e)) and mt_.contains(std::get<1>(e));
+    return current_merge_tree_.contains(std::get<0>(e)) and current_merge_tree_.contains(std::get<1>(e));
 }
 
 
 template<class Real, unsigned D>
 bool FabTmtBlock<Real, D>::edge_goes_out(const AmrEdge& e) const
 {
-    return mt_.contains(std::get<0>(e)) xor mt_.contains(std::get<1>(e));
+    return current_merge_tree_.contains(std::get<0>(e)) xor current_merge_tree_.contains(std::get<1>(e));
 }
 
 
@@ -816,38 +783,7 @@ int FabTmtBlock<Real, D>::is_done_simple(const std::vector<FabTmtBlock::AmrVerte
     return 1;
 }
 
-#ifdef SEND_COMPONENTS
-template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::add_received_original_vertices(const VertexVertexMap& received_vertex_to_deepest)
-{
-    original_vertex_to_deepest_.insert(received_vertex_to_deepest.begin(), received_vertex_to_deepest.end());
-    for(const auto& vertex_root_pair : received_vertex_to_deepest)
-        current_deepest_.insert(vertex_root_pair.second);
-}
 
-template<class Real, unsigned D>
-int FabTmtBlock<Real, D>::are_all_components_done() const
-{
-    bool debug = false;
-    if (debug) fmt::print("are_all_components_done, gid = {}\n", gid);
-
-    for (const Component& c : components_)
-        if (not c.is_done())
-            return 0;
-
-    if (debug) fmt::print("are_all_components_done, gid = {}, returning 1\n", gid);
-    return 1;
-}
-#endif
-
-template<class Real, unsigned D>
-bool FabTmtBlock<Real, D>::gid_must_be_in_link(int gid) const
-{
-    for (const Component& c : components_)
-        if (c.current_neighbors_.count(gid))
-            return true;
-    return false;
-}
 
 
 template<class Real, unsigned D>
@@ -913,6 +849,49 @@ void  FabTmtBlock<Real, D>::compute_local_integral(Real rho_min, Real rho_max)
     }
 }
 
+
+#ifdef AMR_MT_SEND_COMPONENTS
+
+template<class Real, unsigned D>
+std::vector<r::AmrVertexId> FabTmtBlock<Real, D>::get_current_deepest_vertices() const
+{
+    std::set<AmrVertexId> result_set;
+    for (const auto& vertex_deepest_pair : current_vertex_to_deepest_)
+    {
+        result_set.insert(vertex_deepest_pair.second);
+    }
+    std::vector<AmrVertexId> result(result_set.begin(), result_set.end());
+    return result;
+}
+
+template<class Real, unsigned D>
+typename FabTmtBlock<Real, D>::Component& FabTmtBlock<Real, D>::find_component(const AmrVertexId& deepest_vertex)
+{
+    for (Component& cc : components_)
+    {
+        if (cc.root_ == deepest_vertex)
+        {
+            return cc;
+        }
+    }
+    throw std::runtime_error("Connnected component not found");
+}
+
+template<class Real, unsigned D>
+int FabTmtBlock<Real, D>::are_all_components_done() const
+{
+    bool debug = false;
+    if (debug) fmt::print("are_all_components_done, gid = {}\n", gid);
+
+    for (const Component& c : components_)
+        if (not c.is_done())
+            return 0;
+
+    if (debug) fmt::print("are_all_components_done, gid = {}, returning 1\n", gid);
+    return 1;
+}
+#endif
+
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::save(const void *b, diy::BinaryBuffer& bb)
 {
@@ -920,7 +899,7 @@ void FabTmtBlock<Real, D>::save(const void *b, diy::BinaryBuffer& bb)
 
     diy::save(bb, block->gid);
 //        diy::save(bb, block->local_);
-    diy::save(bb, block->mt_);
+    diy::save(bb, block->current_merge_tree_);
     diy::save(bb, block->original_tree_);
     //            diy::save(bb, block->components_);
     diy::save(bb, block->domain_);
@@ -943,7 +922,7 @@ void FabTmtBlock<Real, D>::load(void *b, diy::BinaryBuffer& bb)
 
     diy::load(bb, block->gid);
 //        diy::load(bb, block->local_);
-    diy::load(bb, block->mt_);
+    diy::load(bb, block->current_merge_tree_);
     diy::load(bb, block->original_tree_);
     //            diy::load(bb, block->components_);
     diy::load(bb, block->domain_);

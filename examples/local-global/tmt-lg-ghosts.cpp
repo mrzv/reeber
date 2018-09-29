@@ -512,7 +512,7 @@ int main(int argc, char** argv)
         bool verbose = false;
         bool ignore_zero_persistence = true;
         LocalFunctorDecomposer local_functor(decomposer);
-        OutputPairs<TripletMergeTreeBlock, LocalFunctorDecomposer>::ExtraInfo extra(outdiag, verbose);
+        OutputPairs<TripletMergeTreeBlock, LocalFunctorDecomposer>::ExtraInfo extra(outdiag, verbose, world);
         master.foreach([&extra, &local_functor, ignore_zero_persistence, rho](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
             output_persistence(b, cp, extra, local_functor, rho, ignore_zero_persistence);
         });

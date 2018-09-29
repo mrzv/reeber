@@ -72,7 +72,7 @@ struct FabTmtBlock
         AmrVertexId root_;
         GidContainer current_neighbors_;
         GidContainer processed_neighbors_;
-#ifdef SEND_COMPONENTS
+#ifdef AMR_MT_SEND_COMPONENTS
         AmrEdgeContainer outgoing_edges_;
         TripletMergeTree merge_tree_;
 #endif
@@ -85,13 +85,12 @@ struct FabTmtBlock
 
         template<class EC>
         TmtConnectedComponent(const AmrVertexId& root, const EC& _edges) :
-                root_(root),
-                current_neighbors_({ root.gid })
-#ifdef SEND_COMPONENTS
-        , outgoing_edges_(_edges.cbegin(), _edges.cend())
+                root_(root)
+#ifdef AMR_MT_SEND_COMPONENTS
+                , outgoing_edges_(_edges.cbegin(), _edges.cend())
 #endif
         {
-#ifdef SEND_COMPONENTS
+#ifdef AMR_MT_SEND_COMPONENTS
             bool debug = false;
 
             fill_current_neighbors();
@@ -101,7 +100,7 @@ struct FabTmtBlock
 #endif
         }
 
-#ifdef SEND_COMPONENTS
+#ifdef AMR_MT_SEND_COMPONENTS
 
         template<class EC>
         void add_edges(const EC& more_edges)
@@ -116,8 +115,7 @@ struct FabTmtBlock
                            });
         }
 
-
-        void fill_current_neighbors()
+        void fill_current_neighbors(bool debug = false)
         {
             current_neighbors_.clear();
 
@@ -125,21 +123,39 @@ struct FabTmtBlock
                            std::inserter(current_neighbors_, current_neighbors_.begin()),
                            [this](const AmrEdge& e) {
                                assert(std::get<0>(e).gid == this->root_.gid);
+                               assert(std::get<1>(e).gid != this->root_.gid);
                                return std::get<1>(e).gid;
                            });
+            if (debug) fmt::print("In fill_current_neighbors for component = {}, current_neighbors_.size = {}\n", root_, current_neighbors_.size());
         }
 
         template<class EC>
-        void delete_low_edges(const EC& neighbor_edges)
+        void adjust_edges(const EC& initial_edges)
         {
-
+            bool debug = false;
+            if (outgoing_edges_.empty())
+                return;
+            std::set<AmrEdge> old_outgoing_edges(outgoing_edges_.begin(), outgoing_edges_.end());
+            std::vector<AmrEdge> new_outgoing_edges;
+            std::set_intersection(old_outgoing_edges.begin(), old_outgoing_edges.end(), initial_edges.begin(), initial_edges.end(), std::back_inserter(new_outgoing_edges));
+            if (debug) fmt::print("In delete_low_edges for component = {}, old outgoing_edges_.size = {}, new = {}\n", root_, outgoing_edges_.size(), new_outgoing_edges.size());
+            if (outgoing_edges_.size() > new_outgoing_edges.size())
+            {
+                outgoing_edges_ = new_outgoing_edges;
+                fill_current_neighbors(debug);
+            }
         }
 
-#endif
-
-        int is_done() const
+        int is_not_done() const
         {
-            return current_neighbors_ == processed_neighbors_;
+            if (!std::all_of(processed_neighbors_.begin(), processed_neighbors_.end(), [this](int i) { return this->current_neighbors_.count(i) == 1; }))
+            {
+                fmt::print("Error, gid = {}, processed_neighbours = {}, current_neighbours = {}\n", root_.gid,
+                           container_to_string(processed_neighbors_), container_to_string(current_neighbors_));
+                throw std::runtime_error("BUG");
+            }
+            assert(std::all_of(processed_neighbors_.begin(), processed_neighbors_.end(), [this](int i) { return this->current_neighbors_.count(i) == 1; }));
+            return current_neighbors_.size() > processed_neighbors_.size();
         }
 
         bool must_send_to_gid(int gid) const
@@ -147,11 +163,14 @@ struct FabTmtBlock
             return current_neighbors_.count(gid) == 1 and processed_neighbors_.count(gid) == 0;
         }
 
-        void mark_neighbor_processed(int gid)
-        {
-            assert(current_neighbors_.count(gid));
-            processed_neighbors_.insert(gid);
-        }
+//        void mark_neighbor_processed(int gid)
+//        {
+//            assert(current_neighbors_.count(gid));
+//            processed_neighbors_.insert(gid);
+//        }
+
+#endif
+
 
     };
 
@@ -162,7 +181,7 @@ struct FabTmtBlock
 
     int gid;
     MaskedBox local_;
-    TripletMergeTree mt_;
+    TripletMergeTree current_merge_tree_;
     TripletMergeTree original_tree_;
 
     // if relative threshold is given, we cannot determine
@@ -200,6 +219,7 @@ struct FabTmtBlock
 
     // to store information about local connected component in a serializable way
     VertexVertexMap original_vertex_to_deepest_;
+    VertexVertexMap current_vertex_to_deepest_;
     VertexVertexMap final_vertex_to_deepest_;
 
     std::set<AmrVertexId> original_deepest_;
@@ -245,7 +265,7 @@ struct FabTmtBlock
             gid(_gid),
             local_(project_point<D>(core.min), project_point<D>(core.max), project_point<D>(bounds.min),
                    project_point<D>(bounds.max), _ref, _level, gid, fab_grid.c_order()),
-            mt_(_negate),
+            current_merge_tree_(_negate),
             original_tree_(_negate),
             fab_(fab_grid.data(), fab_grid.shape(), fab_grid.c_order()),
             domain_(_domain),
@@ -291,11 +311,11 @@ struct FabTmtBlock
 
         std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
 
-        reeber::compute_merge_tree2(mt_, local_, fab_);
+        reeber::compute_merge_tree2(current_merge_tree_, local_, fab_);
 
         if (debug) fmt::print("{} local tree computed\n", debug_prefix);
 
-        mt_.make_deep_copy(original_tree_);
+        current_merge_tree_.make_deep_copy(original_tree_);
 
         if (debug) fmt::print("{} local tree copied\n", debug_prefix);
 
@@ -332,9 +352,9 @@ struct FabTmtBlock
                        debug_prefix, refinement(), level(), local_, domain().max, components_.size());
         if (debug)
             fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}\n",
-                       debug_prefix, mt_.size(), new_receivers_.size());
+                       debug_prefix, current_merge_tree_.size(), new_receivers_.size());
 
-        assert(mt_.size() >= original_tree_.size());
+        assert(current_merge_tree_.size() >= original_tree_.size());
     }
 
     void sparsify_prune_original_tree()
@@ -379,7 +399,7 @@ struct FabTmtBlock
                   bool is_absolute_threshold);
 
     const TripletMergeTree& get_merge_tree() const
-    { return mt_; }
+    { return current_merge_tree_; }
 
     // return true, if both edge vertices are in the current neighbourhood
     // no checking of mask is performed, if a vertex is LOW, function will return true.
@@ -412,8 +432,6 @@ struct FabTmtBlock
 
     void create_component(const AmrVertexId& deepest_vertex, const AmrEdgeContainer& edges);
 
-    Component& find_component(const AmrVertexId& deepest_vertex);
-
     void compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMap& vertex_to_outgoing_edges);
 
     void compute_original_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
@@ -424,7 +442,7 @@ struct FabTmtBlock
 
     void adjust_outgoing_edges();
 
-    void adjust_original_gids(int sender_gid, FabTmtBlock::GidVector& edges_from_sender);
+//    void adjust_original_gids(int sender_gid, FabTmtBlock::GidVector& edges_from_sender);
 
     // disjoint-sets related methods
     bool are_components_connected(const AmrVertexId& deepest_a, const AmrVertexId& deepest_b);
@@ -435,8 +453,12 @@ struct FabTmtBlock
 
     void add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex);
 
-#ifdef SEND_COMPONENTS
+#ifdef AMR_MT_SEND_COMPONENTS
+    Component& find_component(const AmrVertexId& deepest_vertex);
     void add_received_original_vertices(const VertexVertexMap& received_vertex_to_deepest);
+    int are_all_components_done() const;
+    std::vector<AmrVertexId> get_current_deepest_vertices() const;
+    int n_undone_components() const;
 #endif
 
     int is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check);
@@ -445,15 +467,7 @@ struct FabTmtBlock
 
     Real scaling_factor() const;
 
-#ifdef SEND_COMPONENTS
-
-    int are_all_components_done() const;
-
-#endif
-
     std::vector<AmrVertexId> get_original_deepest_vertices() const;
-
-    std::vector<AmrVertexId> get_current_deepest_vertices() const;
 
     const AmrEdgeContainer& get_all_outgoing_edges()
     { return initial_edges_; }
@@ -462,7 +476,7 @@ struct FabTmtBlock
     // cannot be const - path compression!
     AmrVertexId find_component_in_disjoint_sets(AmrVertexId v);
 
-    bool gid_must_be_in_link(int gid) const;
+//    bool gid_must_be_in_link(int gid) const;
 
     std::pair<Real, size_t> get_local_stats() const;
 

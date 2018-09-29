@@ -217,10 +217,10 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
         if (received_edges[i].empty())
             continue;
         AmrTripletMergeTree& rt = received_trees[i];
-        r::merge(b->mt_, rt, received_edges[i], true);
-        r::repair(b->mt_);
+        r::merge(b->current_merge_tree_, rt, received_edges[i], true);
+        r::repair(b->current_merge_tree_);
 
-        //if (debug) fmt::print( "In receive_simple for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid, sender_gids_debug[i], b->mt_.size());
+        //if (debug) fmt::print( "In receive_simple for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid, sender_gids_debug[i], b->merge_tree_.size());
 
         // save information about vertex-component relation and component merging in block
         b->original_vertex_to_deepest_.insert(received_vertex_to_deepest[i].begin(),
@@ -277,7 +277,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
     b->sparsify_local_tree();
 
-    //if (debug) fmt::print("In receive_simple for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->mt_.size());
+    //if (debug) fmt::print("In receive_simple for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->merge_tree_.size());
 
     b->done_ = b->is_done_simple(vertices_to_check);
     int n_undone = 1 - b->done_;

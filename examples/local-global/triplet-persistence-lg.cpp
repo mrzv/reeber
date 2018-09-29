@@ -116,7 +116,7 @@ int main(int argc, char** argv)
     IsLocalTest test_local(decomposer);
 
     bool ignore_zero_persistence = false;
-    OutputPairsR::ExtraInfo extra(outfn, verbose);
+    OutputPairsR::ExtraInfo extra(outfn, verbose, world);
     master.foreach([&extra, &test_local, rho, ignore_zero_persistence] (TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
         output_persistence(b, cp, extra, test_local, rho, ignore_zero_persistence); });
 

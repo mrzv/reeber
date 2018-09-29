@@ -98,6 +98,7 @@ void delete_low_edges(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink&
     }
 
     b->adjust_outgoing_edges();
+
     if (debug) fmt::print("Exit delete_low_edges for block = {}\n", b->gid);
 }
 
