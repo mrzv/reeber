@@ -4,6 +4,10 @@ import os.path
 import subprocess as sp
 import numpy as np
 
+# General comment regarding format: cannot use full-scale string interpolation
+# because Nersc does not have the latest python3.
+# Otherwise clumsy format(name1=name1, name2=name2, ..) wouldn't be necessary.
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 execname_si = "./../../../../build/examples/amr-merge-tree/amr_merge_tree_simple_double"
@@ -11,7 +15,7 @@ execname_sc = "./../../../../build/examples/amr-merge-tree/amr_merge_tree_send_c
 execname_mt = "./../../../../build/examples/local-global/mt-lg-ghosts-double"
 execname_pi = "./../../../../build/examples/local-global/persistent-integral-lg-double"
 
-nblocks = "8"
+nblocks = "64"
 
 executables_found = (os.path.exists(execname_si) and
                      os.path.exists(execname_sc) and
@@ -29,15 +33,18 @@ fnames = []
 def generate_data():
     global fnames
     fnames = []
-    a = np.random.randn(64,64,64)
+    np.random.seed(1)
     fname = "a-64-64-64-normal-double.npy"
     fnames.append(fname)
-    np.save(fname, a)
+    if not os.path.exists(fname):
+        a = np.random.randn(64,64,64)
+        np.save(fname, a)
     for (alpha, beta) in beta_params:
         fname = "alpha-{}-beta-{}-size-64-double.npy".format(alpha, beta)
         fnames.append(fname)
-        beta = np.random.beta(alpha, beta, size=(64,64,64))
-        np.save(fname, beta)
+        if not os.path.exists(fname):
+            beta = np.random.beta(alpha, beta, size=(64,64,64))
+            np.save(fname, beta)
 
 
 def save_correct_tree(input_npy_fname, tree_fname, log_file):
@@ -94,12 +101,12 @@ for fname in fnames:
         out_tree_simple_fname = "none"
         # out_diagram_simple_fname = "{current_dir}/{fname}-simple-rho_{rho}-diagram.txt".format(current_dir=current_dir,fname=fname, rho=rho)
         out_diagram_simple_fname = "none"
-        out_integral_simple_fname = "{current_dir}/{fname}-simple-integral-rho-{rho}-theta-{theta}.txt".format(current_dir=current_dir,fname=fname, rho=rho, theta=theta)
+        out_integral_simple_fname = "{current_dir}/{fname}-b-{nblocks}-simple-integral-rho-{rho}-theta-{theta}.txt".format(nblocks=nblocks, current_dir=current_dir,fname=fname, rho=rho, theta=theta)
 
         out_tree_sc_fname = "none"
         # out_diagram_sc_fname = "{current_dir}/{fname}-sc-rho_{rho}-diagram.txt".format(current_dir=current_dir,fname=fname, rho=rho)
         out_diagram_sc_fname = "none"
-        out_integral_sc_fname = "{current_dir}/{fname}-sc-integral-rho-{rho}-theta-{theta}.txt".format(current_dir=current_dir,fname=fname, rho=rho, theta=theta)
+        out_integral_sc_fname = "{current_dir}/{fname}-b-{nblocks}-sc-integral-rho-{rho}-theta-{theta}.txt".format(nblocks = nblocks, current_dir=current_dir,fname=fname, rho=rho, theta=theta)
 
         out_integral_correct_fname = "{current_dir}/{fname}-correct-integral-rho-{rho}-theta-{theta}.txt".format(current_dir=current_dir,fname=fname, rho=rho, theta=theta)
 
@@ -109,10 +116,10 @@ for fname in fnames:
             if retcode != 0:
                 print("Execution failed: {} {} {}-{}".format(execname_si, fname, rho, theta))
                 n_failed += 1
-            retcode = sp.call([execname_sc, "-b", nblocks, "-w", "-n", "-a", "-i", rho, "-x", theta, fname, out_tree_sc_fname, out_diagram_sc_fname, out_integral_sc_fname], stdout=log_file, stderr=log_file)
-            if retcode != 0:
-                print("Execution failed: {} {} {}-{}".format(execname_sc, fname, rho, theta))
-                n_failed += 1
+            # retcode = sp.call([execname_sc, "-b", nblocks, "-w", "-n", "-a", "-i", rho, "-x", theta, fname, out_tree_sc_fname, out_diagram_sc_fname, out_integral_sc_fname], stdout=log_file, stderr=log_file)
+            # if retcode != 0:
+            #     print("Execution failed: {} {} {}-{}".format(execname_sc, fname, rho, theta))
+            #     n_failed += 1
 
         if not compare_integrals(out_integral_simple_fname, out_integral_correct_fname):
             print("Test failed: {} {} {}-{}".format("simple", fname, rho, theta))
@@ -120,11 +127,11 @@ for fname in fnames:
         else:
             n_passed += 1
 
-        if not compare_integrals(out_integral_sc_fname, out_integral_correct_fname):
-            print("Test failed: {} {} {}-{}".format("send_components", fname, rho, theta))
-            n_failed += 1
-        else:
-            n_passed += 1
+        # if not compare_integrals(out_integral_sc_fname, out_integral_correct_fname):
+        #     print("Test failed: {} {} {}-{}".format("send_components", fname, rho, theta))
+        #     n_failed += 1
+        # else:
+        #     n_passed += 1
 
         print("Processed {}".format(fname))
 

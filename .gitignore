@@ -2,3 +2,7 @@ build*
 .idea/
 cmake-build-*/
 *.swp
+*.tree
+*.npy
+examples/amr-merge-tree/tests/python_test/*.txt
+.ropeproject
