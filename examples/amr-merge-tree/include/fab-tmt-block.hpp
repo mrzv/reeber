@@ -408,6 +408,18 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
 #endif
 
     gid_to_outgoing_edges_.clear();
+
+    std::unordered_set<AmrVertexId> edge_vertices;
+    for(const auto& e : initial_edges_)
+    {
+        assert(std::get<0>(e).gid == gid);
+        edge_vertices.insert(std::get<0>(e));
+    }
+
+    for(auto iter = original_vertex_to_deepest_.cbegin(); iter != original_vertex_to_deepest_.cend(); )
+    {
+        iter = (edge_vertices.count(iter->first) == 1) ? std::next(iter) : original_vertex_to_deepest_.erase(iter);
+    }
 }
 
 template<class Real, unsigned D>
