@@ -280,6 +280,9 @@ int main(int argc, char** argv)
 
     bool write_diag = (ops >> PosOption(output_diagrams_filename));
 
+    if (output_diagrams_filename == "none")
+        write_diag = false;
+
     bool write_integral = (ops >> PosOption(output_integral_filename));
 
     if (write_integral)
