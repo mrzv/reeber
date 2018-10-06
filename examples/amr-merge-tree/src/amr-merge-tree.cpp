@@ -279,11 +279,12 @@ int main(int argc, char** argv)
     }
 
     bool write_diag = (ops >> PosOption(output_diagrams_filename));
-
     if (output_diagrams_filename == "none")
         write_diag = false;
 
     bool write_integral = (ops >> PosOption(output_integral_filename));
+    if (output_integral_filename == "none")
+        write_integral = false;
 
     if (write_integral)
     {
@@ -347,7 +348,7 @@ int main(int argc, char** argv)
 
     auto time_for_local_computation = timer.elapsed();
 
-    Real mean;
+    Real mean = std::numeric_limits<Real>::min();
 
     if (absolute)
     {
@@ -684,6 +685,8 @@ int main(int argc, char** argv)
             {
                 AmrVertexId root = root_diagram_pair.first;
                 if (root.gid != b->gid)
+                    continue;
+                if (b->local_integral_.count(root) == 0)
                     continue;
                 Real integral_value = b->local_integral_[root];
                 for(const auto dgm_point : root_diagram_pair.second)

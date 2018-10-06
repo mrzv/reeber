@@ -304,38 +304,21 @@ struct FabTmtBlock
     void init(Real absolute_rho, diy::AMRLink *amr_link)
     {
         bool debug = false;
+        std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
 
         diy::for_each(local_.mask_shape(), [this, absolute_rho](const Vertex& v) {
             this->set_low(v, absolute_rho);
         });
 
-        std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
-
         reeber::compute_merge_tree2(current_merge_tree_, local_, fab_);
-
-        if (debug) fmt::print("{} local tree computed\n", debug_prefix);
-
         current_merge_tree_.make_deep_copy(original_tree_);
 
-        if (debug) fmt::print("{} local tree copied\n", debug_prefix);
-
         VertexEdgesMap vertex_to_outgoing_edges;
-
         compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
-
-        if (debug)
-            fmt::print("{} outgoing edges computed, vertex_to_otgoing_edges.size = {}\n", debug_prefix,
-                       vertex_to_outgoing_edges.size());
-
-
-
-//        r::sparsify(original_tree_, [&vertex_to_outgoing_edges](AmrVertexId u) { return vertex_to_outgoing_edges.find(u) != vertex_to_outgoing_edges.end(); });
 
         sparsify_prune_original_tree();
 
         compute_original_connected_components(vertex_to_outgoing_edges);
-
-        if (debug) fmt::print("{} connected components computed\n", debug_prefix);
 
         // TODO: delete this? we are going to overwrite this in adjust_outgoing_edges anyway
         for (int i = 0; i < amr_link->size(); ++i)
