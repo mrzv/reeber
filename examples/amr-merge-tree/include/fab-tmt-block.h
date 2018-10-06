@@ -70,9 +70,9 @@ struct FabTmtBlock
 
         // fields
         AmrVertexId root_;
+#ifdef AMR_MT_SEND_COMPONENTS
         GidContainer current_neighbors_;
         GidContainer processed_neighbors_;
-#ifdef AMR_MT_SEND_COMPONENTS
         AmrEdgeContainer outgoing_edges_;
         TripletMergeTree merge_tree_;
 #endif
@@ -83,40 +83,15 @@ struct FabTmtBlock
         {
         }
 
-        template<class EC>
-        TmtConnectedComponent(const AmrVertexId& root, const EC& _edges) :
+        TmtConnectedComponent(const AmrVertexId& root) :
                 root_(root)
-#ifdef AMR_MT_SEND_COMPONENTS
-                , outgoing_edges_(_edges.cbegin(), _edges.cend())
-#endif
         {
-#ifdef AMR_MT_SEND_COMPONENTS
-            bool debug = false;
-
-            fill_current_neighbors();
-            if (debug)
-                fmt::print("entered TmtConnectedComponentConstructor, root = {}, #edges = {}\n", root,
-                           outgoing_edges_.size());
-#endif
+            init_current_neighbors();
         }
 
+        void init_current_neighbors(bool debug = false)
+        {
 #ifdef AMR_MT_SEND_COMPONENTS
-
-        template<class EC>
-        void add_edges(const EC& more_edges)
-        {
-            outgoing_edges_.insert(outgoing_edges_.end(), more_edges.cbegin(), more_edges.cend());
-
-            std::transform(more_edges.cbegin(), more_edges.cend(),
-                           std::inserter(current_neighbors_, current_neighbors_.begin()),
-                           [this](const AmrEdge& e) {
-                               assert(std::get<0>(e).gid == this->root_.gid);
-                               return std::get<1>(e).gid;
-                           });
-        }
-
-        void fill_current_neighbors(bool debug = false)
-        {
             current_neighbors_.clear();
 
             std::transform(outgoing_edges_.begin(), outgoing_edges_.end(),
@@ -126,35 +101,26 @@ struct FabTmtBlock
                                assert(std::get<1>(e).gid != this->root_.gid);
                                return std::get<1>(e).gid;
                            });
-            if (debug) fmt::print("In fill_current_neighbors for component = {}, current_neighbors_.size = {}\n", root_, current_neighbors_.size());
+            if (debug) fmt::print("In init_current_neighbors for component = {}, current_neighbors_.size = {}\n", root_, current_neighbors_.size());
+#endif
         }
 
+#ifdef AMR_MT_SEND_COMPONENTS
+
         template<class EC>
-        void adjust_edges(const EC& initial_edges)
+        void set_edges(const EC& initial_edges, const VertexVertexMap& vertex_to_deepest)
         {
-            bool debug = false;
-            if (outgoing_edges_.empty())
-                return;
-            std::set<AmrEdge> old_outgoing_edges(outgoing_edges_.begin(), outgoing_edges_.end());
-            std::vector<AmrEdge> new_outgoing_edges;
-            std::set_intersection(old_outgoing_edges.begin(), old_outgoing_edges.end(), initial_edges.begin(), initial_edges.end(), std::back_inserter(new_outgoing_edges));
-            if (debug) fmt::print("In delete_low_edges for component = {}, old outgoing_edges_.size = {}, new = {}\n", root_, outgoing_edges_.size(), new_outgoing_edges.size());
-            if (outgoing_edges_.size() > new_outgoing_edges.size())
+            for(const auto& e : initial_edges)
             {
-                outgoing_edges_ = new_outgoing_edges;
-                fill_current_neighbors(debug);
+                if (vertex_to_deepest.at(std::get<0>(e)) == root_)
+                    outgoing_edges_.emplace_back(e);
             }
         }
 
         int is_not_done() const
         {
-            if (!std::all_of(processed_neighbors_.begin(), processed_neighbors_.end(), [this](int i) { return this->current_neighbors_.count(i) == 1; }))
-            {
-                fmt::print("Error, gid = {}, processed_neighbours = {}, current_neighbours = {}\n", root_.gid,
-                           container_to_string(processed_neighbors_), container_to_string(current_neighbors_));
-                throw std::runtime_error("BUG");
-            }
-            assert(std::all_of(processed_neighbors_.begin(), processed_neighbors_.end(), [this](int i) { return this->current_neighbors_.count(i) == 1; }));
+            assert(std::includes(current_neighbors_.begin(), current_neighbors_.end(),
+                    processed_neighbors_.begin(), processed_neighbors_.end()));
             return current_neighbors_.size() > processed_neighbors_.size();
         }
 
@@ -162,20 +128,11 @@ struct FabTmtBlock
         {
             return current_neighbors_.count(gid) == 1 and processed_neighbors_.count(gid) == 0;
         }
-
-//        void mark_neighbor_processed(int gid)
-//        {
-//            assert(current_neighbors_.count(gid));
-//            processed_neighbors_.insert(gid);
-//        }
-
 #endif
-
 
     };
 
     using Component = TmtConnectedComponent<reeber::AmrVertexId, Node>;
-
 
     // data
 
@@ -301,67 +258,11 @@ struct FabTmtBlock
             fab_(nullptr, diy::Point<int, D>::zero())
     {}
 
-    void init(Real absolute_rho, diy::AMRLink *amr_link)
-    {
-        bool debug = false;
-        std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
+    void init(Real absolute_rho, diy::AMRLink *amr_link);
 
-        diy::for_each(local_.mask_shape(), [this, absolute_rho](const Vertex& v) {
-            this->set_low(v, absolute_rho);
-        });
+    void sparsify_prune_original_tree();
 
-        reeber::compute_merge_tree2(current_merge_tree_, local_, fab_);
-        current_merge_tree_.make_deep_copy(original_tree_);
-
-        VertexEdgesMap vertex_to_outgoing_edges;
-        compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
-
-        sparsify_prune_original_tree();
-
-        compute_original_connected_components(vertex_to_outgoing_edges);
-
-        // TODO: delete this? we are going to overwrite this in adjust_outgoing_edges anyway
-        for (int i = 0; i < amr_link->size(); ++i)
-        {
-            if (amr_link->target(i).gid != gid)
-            {
-                new_receivers_.insert(amr_link->target(i).gid);
-                original_link_gids_.push_back(amr_link->target(i).gid);
-            }
-        }
-
-        if (debug)
-            fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n",
-                       debug_prefix, refinement(), level(), local_, domain().max, components_.size());
-        if (debug)
-            fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}\n",
-                       debug_prefix, current_merge_tree_.size(), new_receivers_.size());
-
-        assert(current_merge_tree_.size() >= original_tree_.size());
-    }
-
-    void sparsify_prune_original_tree()
-    {
-        std::unordered_set<AmrVertexId> special;
-        for (const AmrEdge& out_edge : get_all_outgoing_edges())
-        {
-            special.insert(std::get<0>(out_edge));
-        }
-        r::remove_degree_two(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
-        r::sparsify(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
-    }
-
-    void sparsify_local_tree()
-    {
-//        std::unordered_set<AmrVertexId> special;
-//        for (const AmrEdge& out_edge : get_all_outgoing_edges())
-//        {
-//            special.insert(std::get<0>(out_edge));
-//        }
-////        r::remove_degree_two(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
-//        r::sparsify(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
-    }
-
+    void sparsify_local_tree() {}
 
     // compare w.r.t negate_ flag
     bool precedes(Real a, Real b) const;
@@ -413,7 +314,7 @@ struct FabTmtBlock
     void set_original_deepest(const AmrVertexId& v, const AmrVertexId& deepest)
     { original_vertex_to_deepest_[v] = deepest; }
 
-    void create_component(const AmrVertexId& deepest_vertex, const AmrEdgeContainer& edges);
+    void create_component(const AmrVertexId& deepest_vertex);
 
     void compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMap& vertex_to_outgoing_edges);
 

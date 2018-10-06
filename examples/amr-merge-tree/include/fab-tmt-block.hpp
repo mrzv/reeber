@@ -168,6 +168,56 @@ void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
         local_.set_mask(v_bounds, MaskedBox::LOW);
 }
 
+template<class Real, unsigned D>
+void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
+{
+    bool debug = false;
+    std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
+
+    diy::for_each(local_.mask_shape(), [this, absolute_rho](const Vertex& v) {
+        this->set_low(v, absolute_rho);
+    });
+
+    reeber::compute_merge_tree2(current_merge_tree_, local_, fab_);
+    current_merge_tree_.make_deep_copy(original_tree_);
+
+    VertexEdgesMap vertex_to_outgoing_edges;
+    compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
+
+    compute_original_connected_components(vertex_to_outgoing_edges);
+
+    // TODO: delete this? we are going to overwrite this in adjust_outgoing_edges anyway
+    for (int i = 0; i < amr_link->size(); ++i)
+    {
+        if (amr_link->target(i).gid != gid)
+        {
+            new_receivers_.insert(amr_link->target(i).gid);
+            original_link_gids_.push_back(amr_link->target(i).gid);
+        }
+    }
+
+    if (debug)
+        fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n",
+                   debug_prefix, refinement(), level(), local_, domain().max, components_.size());
+    if (debug)
+        fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}\n",
+                   debug_prefix, current_merge_tree_.size(), new_receivers_.size());
+
+    assert(current_merge_tree_.size() >= original_tree_.size());
+}
+
+template<class Real, unsigned D>
+void FabTmtBlock<Real, D>::sparsify_prune_original_tree()
+{
+    std::unordered_set<AmrVertexId> special;
+    for (const AmrEdge& out_edge : get_all_outgoing_edges())
+    {
+        special.insert(std::get<0>(out_edge));
+    }
+    r::remove_degree_two(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
+    r::sparsify(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
+}
+
 template<unsigned D>
 r::AmrEdgeContainer
 get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& local, diy::AMRLink *l,
@@ -307,15 +357,12 @@ void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMa
         if (not out_edges.empty())
         {
             vertex_to_outgoing_edges[local_.get_vertex_from_global_position(v_glob)] = out_edges;
-
-            std::copy(out_edges.begin(), out_edges.end(), std::back_inserter(initial_edges_));
-
+//            std::copy(out_edges.begin(), out_edges.end(), std::back_inserter(initial_edges_));
             for (const AmrEdge& e : out_edges)
             {
                 assert(std::get<0>(e).gid == gid);
                 gid_to_outgoing_edges_[std::get<1>(e).gid].push_back(e);
             }
-
         }
     }
 }
@@ -390,7 +437,7 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
         std::copy(gid_edge_vector_pair.second.begin(), gid_edge_vector_pair.second.end(),
                   std::back_inserter(initial_edges_));
     }
-    std::sort(initial_edges_.begin(), initial_edges_.end());
+//    std::sort(initial_edges_.begin(), initial_edges_.end());
 
     std::set<int> neighbor_gids;
     for (const AmrEdge& e : initial_edges_)
@@ -404,11 +451,13 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
 
 #ifdef AMR_MT_SEND_COMPONENTS
     for(Component& c : components_)
-        c.adjust_edges(initial_edges_);
+        c.set_edges(initial_edges_, original_vertex_to_deepest_);
 #endif
 
     gid_to_outgoing_edges_.clear();
 
+    // remove from original_vertex_to_deepest_ map
+    // inner vertices, we don't need this information any more
     std::unordered_set<AmrVertexId> edge_vertices;
     for(const auto& e : initial_edges_)
     {
@@ -465,28 +514,20 @@ void FabTmtBlock<Real, D>::add_component_to_disjoint_sets(const AmrVertexId& dee
 
 
 template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::create_component(const AmrVertexId& deepest_vertex, const AmrEdgeContainer& edges)
+void FabTmtBlock<Real, D>::create_component(const AmrVertexId& deepest_vertex)
 {
     bool debug = false;
-
-    if (debug)
-        fmt::print("Entered create_component, gid = {}, deepest_vertex = {}, #edges = {}\n", gid, deepest_vertex,
-                   edges.size());
+    if (debug) fmt::print("Entered create_component, gid = {}, deepest_vertex = {}\n", gid, deepest_vertex);
 
     set_original_deepest(deepest_vertex, deepest_vertex);
 
-    if (debug)
-        fmt::print("In create_component, gid = {}, deepest_vertex = {}, before emplace, size = {}\n", gid,
-                   deepest_vertex, components_.size());
+    if (debug) fmt::print("In create_component, gid = {}, deepest_vertex = {}, before emplace, size = {}\n", gid, deepest_vertex, components_.size());
 
-    components_.emplace_back(deepest_vertex, edges);
+    components_.emplace_back(deepest_vertex);
 
-    if (debug)
-        fmt::print("In create_component, gid = {}, deepest_vertex = {}, added to components, size = {}\n", gid,
-                   deepest_vertex, components_.size());
+    if (debug) fmt::print("In create_component, gid = {}, deepest_vertex = {}, added to components, size = {}\n", gid, deepest_vertex, components_.size());
 
     add_component_to_disjoint_sets(deepest_vertex);
-
 }
 
 template<class Real, unsigned D>
@@ -559,29 +600,13 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
 
             if (not original_deepest_computed(v))
             {
-                // create new component
-                if (debug)
-                    fmt::print("in compute_connected_compponent, gid = {}, creating new cc, deepest = {}\n", gid,
-                               deepest_vertex);
-                create_component(deepest_vertex, edges);
-
-            } else
-            {
-                if (debug)
-                    fmt::print("in compute_connected_compponent, gid = {}, adding edges to existing cc, deepest = {}\n",
-                               gid, deepest_vertex);
-                // add to existing components new block_ids
-#ifdef AMR_MT_SEND_COMPONENTS
-                find_component(deepest_vertex).add_edges(edges);
-#endif
+                if (debug) fmt::print("in compute_connected_compponent, gid = {}, creating new cc, deepest = {}\n", gid, deepest_vertex);
+                create_component(deepest_vertex);
             }
 
             for (const AmrVertexId& v : visited_neighbors)
             {
-                if (debug)
-                    fmt::print(
-                            "in compute_connected_compponent, gid = {}, deepest = {}, setting to visited neighbor {}\n",
-                            gid, deepest_vertex, v);
+                if (debug) fmt::print( "in compute_connected_compponent, gid = {}, deepest = {}, setting to visited neighbor {}\n", gid, deepest_vertex, v);
                 set_original_deepest(v, deepest_vertex);
             }
         }
