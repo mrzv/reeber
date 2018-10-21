@@ -10,7 +10,8 @@ template<class Real, unsigned D>
 void expand_link(FabTmtBlock<Real, D>* b,
                  const diy::Master::ProxyWithLink& cp,
                  diy::AMRLink* l,
-                 std::vector<diy::AMRLink>& received_links)
+                 std::vector<diy::AMRLink>& received_links,
+                 std::set<int> all_neighbors)
 {
 //    bool debug = (b->gid == 43) || (b->gid == 1);
     bool debug = false;
@@ -31,6 +32,8 @@ void expand_link(FabTmtBlock<Real, D>* b,
             if (b->gid == candidate_gid)
                 continue;
             if (link_contains_gid(l, candidate_gid))
+                continue;
+            if (all_neighbors.count(candidate_gid) == 0)
                 continue;
 
 
@@ -271,5 +274,11 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
     cp.all_reduce(n_undone_components, std::plus<int>());
     if (debug) fmt::print("Block {}, undone components = {} out of {}\n", b->gid, n_undone_components, b->components_.size());
 
-    expand_link(b, cp, l, received_links);
+    std::set<int> all_neighbors;
+    for(const auto& neighbors : component_to_neighbors)
+    {
+        all_neighbors.insert(neighbors.second.begin(), neighbors.second.end());
+    }
+
+    expand_link(b, cp, l, received_links, all_neighbors);
 }

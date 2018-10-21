@@ -92,6 +92,8 @@ struct FabTmtBlock
         void init_current_neighbors(bool debug = false)
         {
 #ifdef AMR_MT_SEND_COMPONENTS
+
+            debug = false;
             current_neighbors_.clear();
 
             std::transform(outgoing_edges_.begin(), outgoing_edges_.end(),
@@ -101,7 +103,9 @@ struct FabTmtBlock
                                assert(std::get<1>(e).gid != this->root_.gid);
                                return std::get<1>(e).gid;
                            });
-            if (debug) fmt::print("In init_current_neighbors for component = {}, current_neighbors_.size = {}\n", root_, current_neighbors_.size());
+            if (debug)
+                fmt::print("In init_current_neighbors for component = {}, current_neighbors_.size = {}\n", root_,
+                           current_neighbors_.size());
 #endif
         }
 
@@ -110,17 +114,29 @@ struct FabTmtBlock
         template<class EC>
         void set_edges(const EC& initial_edges, const VertexVertexMap& vertex_to_deepest)
         {
-            for(const auto& e : initial_edges)
+            bool debug = false;
+
+            if (debug)
+                fmt::print("Enter set_edges, initial edges size = {}, vertex_to_deepest.size = {}\n", initial_edges.size(), vertex_to_deepest.size());
+            for (const auto& e : initial_edges)
             {
+                if (debug)
+                    fmt::print("in set_edges, considering edge {}\n", e);
+
                 if (vertex_to_deepest.at(std::get<0>(e)) == root_)
+                {
                     outgoing_edges_.emplace_back(e);
+                    if (debug)
+                        fmt::print("in set_edges, added edge {}\n", e);
+                }
             }
+            init_current_neighbors();
         }
 
         int is_not_done() const
         {
             assert(std::includes(current_neighbors_.begin(), current_neighbors_.end(),
-                    processed_neighbors_.begin(), processed_neighbors_.end()));
+                                 processed_neighbors_.begin(), processed_neighbors_.end()));
             return current_neighbors_.size() > processed_neighbors_.size();
         }
 
@@ -128,6 +144,7 @@ struct FabTmtBlock
         {
             return current_neighbors_.count(gid) == 1 and processed_neighbors_.count(gid) == 0;
         }
+
 #endif
 
     };
@@ -262,7 +279,8 @@ struct FabTmtBlock
 
     void sparsify_prune_original_tree();
 
-    void sparsify_local_tree() {}
+    void sparsify_local_tree()
+    {}
 
     // compare w.r.t negate_ flag
     bool precedes(Real a, Real b) const;
@@ -294,19 +312,25 @@ struct FabTmtBlock
     // and the other is outside
     bool edge_goes_out(const AmrEdge& e) const;
 
-    bool original_deepest_computed(Neighbor n) const { return original_deepest_computed(n->vertex); }
+    bool original_deepest_computed(Neighbor n) const
+    { return original_deepest_computed(n->vertex); }
 
-    bool original_deepest_computed(const AmrVertexId& v) const { return original_vertex_to_deepest_.find(v) != original_vertex_to_deepest_.cend(); }
+    bool original_deepest_computed(const AmrVertexId& v) const
+    { return original_vertex_to_deepest_.find(v) != original_vertex_to_deepest_.cend(); }
 
-    bool final_deepest_computed(Neighbor n) const { return final_deepest_computed(n->vertex); }
+    bool final_deepest_computed(Neighbor n) const
+    { return final_deepest_computed(n->vertex); }
 
-    bool final_deepest_computed(const AmrVertexId& v) const { return final_vertex_to_deepest_.find(v) != final_vertex_to_deepest_.cend(); }
+    bool final_deepest_computed(const AmrVertexId& v) const
+    { return final_vertex_to_deepest_.find(v) != final_vertex_to_deepest_.cend(); }
 
-    AmrVertexId original_deepest(Neighbor n) const { return original_deepest(n->vertex); }
+    AmrVertexId original_deepest(Neighbor n) const
+    { return original_deepest(n->vertex); }
 
     AmrVertexId original_deepest(const AmrVertexId& v) const;
 
-    AmrVertexId final_deepest(Neighbor n) const { return final_deepest(n->vertex); }
+    AmrVertexId final_deepest(Neighbor n) const
+    { return final_deepest(n->vertex); }
 
     AmrVertexId final_deepest(const AmrVertexId& v) const;
 
@@ -338,11 +362,17 @@ struct FabTmtBlock
     void add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex);
 
 #ifdef AMR_MT_SEND_COMPONENTS
+
     Component& find_component(const AmrVertexId& deepest_vertex);
+
     void add_received_original_vertices(const VertexVertexMap& received_vertex_to_deepest);
+
     int are_all_components_done() const;
+
     std::vector<AmrVertexId> get_current_deepest_vertices() const;
+
     int n_undone_components() const;
+
 #endif
 
     int is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check);

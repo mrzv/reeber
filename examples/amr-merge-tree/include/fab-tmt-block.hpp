@@ -351,9 +351,21 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMap& vertex_to_outgoing_edges)
 {
+    bool debug = false;
     for (const Vertex& v_glob : local_.active_global_positions())
     {
+//        debug = (v_glob[0] == 0 and v_glob[1] == 0 and v_glob[2] == 6);
+
         AmrEdgeContainer out_edges = get_vertex_edges(v_glob, local_, l, domain());
+
+        if (debug)
+        {
+            for (auto&& e : out_edges)
+            {
+                fmt::print("outogoing edge e = {} {}\n", std::get<0>(e), std::get<1>(e));
+            }
+        }
+
         if (not out_edges.empty())
         {
             vertex_to_outgoing_edges[local_.get_vertex_from_global_position(v_glob)] = out_edges;
@@ -361,6 +373,8 @@ void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMa
             for (const AmrEdge& e : out_edges)
             {
                 assert(std::get<0>(e).gid == gid);
+                if (debug)
+                    fmt::print("in compute_outgoing_edges, adding {} to gid_to_outoging_edges\n", e);
                 gid_to_outgoing_edges_[std::get<1>(e).gid].push_back(e);
             }
         }
@@ -437,7 +451,7 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
         std::copy(gid_edge_vector_pair.second.begin(), gid_edge_vector_pair.second.end(),
                   std::back_inserter(initial_edges_));
     }
-//    std::sort(initial_edges_.begin(), initial_edges_.end());
+    std::sort(initial_edges_.begin(), initial_edges_.end());
 
     std::set<int> neighbor_gids;
     for (const AmrEdge& e : initial_edges_)
