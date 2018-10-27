@@ -12,6 +12,8 @@
 #include "diy/point.hpp"
 #include <diy/master.hpp>
 
+#include "disjoint-sets.h"
+
 #include "reeber/amr-vertex.h"
 #include "reeber/triplet-merge-tree.h"
 #include "reeber/triplet-merge-tree-serialization.h"
@@ -20,13 +22,13 @@
 #include "reeber/masked-box.h"
 #include "reeber/edges.h"
 
-#include "fab-block.h"
+#include "../../amr-merge-tree/include/fab-block.h"
 #include "reeber/amr_helper.h"
 
 namespace r = reeber;
 
 template<class Real, unsigned D>
-struct FabTmtBlock
+struct FabComponentBlock
 {
     using Shape = diy::Point<int, D>;
 
@@ -37,19 +39,12 @@ struct FabTmtBlock
     using Value = typename Grid::Value;
     using MaskedBox = r::MaskedBox<D>;
     using Vertex = typename MaskedBox::Position;
-    using TripletMergeTree = r::TripletMergeTree<r::AmrVertexId, Value>;
     using AmrVertexContainer = std::vector<AmrVertexId>;
-
-    using Neighbor = typename TripletMergeTree::Neighbor;
-    using Node = typename TripletMergeTree::Node;
-    using VertexNeighborMap =typename TripletMergeTree::VertexNeighborMap;
 
     using AmrEdge = r::AmrEdge;
     using AmrEdgeContainer = r::AmrEdgeContainer;
     using AmrEdgeSet = std::set<AmrEdge>;
     using VertexEdgesMap = std::map<AmrVertexId, AmrEdgeContainer>;
-    using VertexVertexMap = std::map<AmrVertexId, AmrVertexId>;
-    using VertexSizeMap = std::map<AmrVertexId, int>;
 
     using GidContainer = std::set<int>;
     using GidVector = std::vector<int>;
@@ -57,32 +52,29 @@ struct FabTmtBlock
     using RealType = Real;
 
     using LocalIntegral = std::map<AmrVertexId, Real>;
-    using DiagramPoint = std::pair<Real, Real>;
-    using Diagram = std::vector<DiagramPoint>;
+    using UnionFind = DisjointSets<AmrVertexId>;
+    using VertexVertexMap = UnionFind::VertexVertexMap;
+    using VertexSizeMap = UnionFind::VertexSizeMap;
 
-    template<class Vertex_, class Node>
-    struct TmtConnectedComponent
+    template<class Vertex_>
+    struct ConnectedComponent
     {
         // types
         using Vertex = Vertex_;
-        using Neighbor = Node *;
 
         // fields
         AmrVertexId root_;
-#ifdef AMR_MT_SEND_COMPONENTS
         GidContainer current_neighbors_;
         GidContainer processed_neighbors_;
         AmrEdgeContainer outgoing_edges_;
-        TripletMergeTree merge_tree_;
-#endif
 
         // methods
 
-        TmtConnectedComponent()
+        ConnectedComponent()
         {
         }
 
-        TmtConnectedComponent(const AmrVertexId& root) :
+        ConnectedComponent(const AmrVertexId& root) :
                 root_(root)
         {
             init_current_neighbors();
@@ -90,8 +82,6 @@ struct FabTmtBlock
 
         void init_current_neighbors(bool debug = false)
         {
-#ifdef AMR_MT_SEND_COMPONENTS
-
             debug = false;
             current_neighbors_.clear();
 
@@ -102,31 +92,26 @@ struct FabTmtBlock
                                assert(std::get<1>(e).gid != this->root_.gid);
                                return std::get<1>(e).gid;
                            });
-            if (debug)
+
+            if(debug)
                 fmt::print("In init_current_neighbors for component = {}, current_neighbors_.size = {}\n", root_,
                            current_neighbors_.size());
-#endif
         }
 
-#ifdef AMR_MT_SEND_COMPONENTS
 
         template<class EC>
-        void set_edges(const EC& initial_edges, const VertexVertexMap& vertex_to_deepest)
+        void set_edges(const EC& initial_edges, FabComponentBlock::UnionFind& disjoint_sets)
         {
             bool debug = false;
 
-            if (debug)
-                fmt::print("Enter set_edges, initial edges size = {}, vertex_to_deepest.size = {}\n", initial_edges.size(), vertex_to_deepest.size());
-            for (const auto& e : initial_edges)
+            for(const auto& e : initial_edges)
             {
-                if (debug)
-                    fmt::print("in set_edges, considering edge {}\n", e);
+                if(debug) fmt::print("in set_edges, considering edge {}\n", e);
 
-                if (vertex_to_deepest.at(std::get<0>(e)) == root_)
+                if(disjoint_sets.find_component(std::get<0>(e)) == root_)
                 {
                     outgoing_edges_.emplace_back(e);
-                    if (debug)
-                        fmt::print("in set_edges, added edge {}\n", e);
+                    if(debug) fmt::print("in set_edges, added edge {}\n", e);
                 }
             }
             init_current_neighbors();
@@ -144,34 +129,32 @@ struct FabTmtBlock
             return current_neighbors_.count(gid) == 1 and processed_neighbors_.count(gid) == 0;
         }
 
-#endif
-
     };
 
-    using Component = TmtConnectedComponent<reeber::AmrVertexId, Node>;
+    using Component = ConnectedComponent<reeber::AmrVertexId>;
 
     // data
 
     int gid;
     MaskedBox local_;
-    TripletMergeTree current_merge_tree_;
-    TripletMergeTree original_tree_;
+    GridRef fab_;
 
     // if relative threshold is given, we cannot determine
     // LOW values in constructor. Instead, we mark all unmasked vertices
     // ACTIVE and save the average of their values in local_sum_ and the number in local_n_unmasked_
     // Pointer to grid data is saved in fab_ and after all blocks exchange their local averages
     // we resume initialization
-    Real sum_ { 0 };
-    size_t n_unmasked_ { 0 };
-    GridRef fab_;
+    Real sum_{0};
+    size_t n_unmasked_{0};
+    std::map<AmrVertexId, Real> vertex_values_;
 
+    DisjointSets<AmrVertexId> disjoint_sets_;
     // this vector is not serialized, because we send trees component-wise
     std::vector<Component> components_;
 
     diy::DiscreteBounds domain_;
 
-    int done_ { 0 };
+    int done_{0};
 
     //    // will be changed in each communication round
     //    // only for baseiline algorithm
@@ -190,25 +173,13 @@ struct FabTmtBlock
 
     bool negate_;
 
-    // to store information about local connected component in a serializable way
-    VertexVertexMap original_vertex_to_deepest_;
-    VertexVertexMap current_vertex_to_deepest_;
-    VertexVertexMap final_vertex_to_deepest_;
-
-    std::set<AmrVertexId> original_deepest_;
-    std::set<AmrVertexId> current_deepest_;
-
     // tracking how connected components merge - disjoint sets data structure
-    VertexVertexMap components_disjoint_set_parent_;
-    VertexSizeMap components_disjoint_set_size_;
 
-    int round_ { 0 };
+    int round_{0};
 
     // for persistent integral
     LocalIntegral local_integral_;
 
-    // for diagrams of connected components
-    std::map<AmrVertexId, Diagram> local_diagrams_;
     // methods
 
     // simple getters/setters
@@ -224,32 +195,30 @@ struct FabTmtBlock
     const GidVector& get_original_link_gids() const
     { return original_link_gids_; }
 
-    FabTmtBlock(diy::GridRef<Real, D>& fab_grid,
-                int _ref,
-                int _level,
-                const diy::DiscreteBounds& _domain,
-                const diy::DiscreteBounds& bounds,
-                const diy::DiscreteBounds& core,
-                int _gid,
-                diy::AMRLink *amr_link,
-                Real rho,                                           // threshold for LOW value
-                bool _negate,
-                bool is_absolute_threshold) :
+    FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
+                      int _ref,
+                      int _level,
+                      const diy::DiscreteBounds& _domain,
+                      const diy::DiscreteBounds& bounds,
+                      const diy::DiscreteBounds& core,
+                      int _gid,
+                      diy::AMRLink* amr_link,
+                      Real rho,                                           // threshold for LOW value
+                      bool _negate,
+                      bool is_absolute_threshold) :
             gid(_gid),
             local_(project_point<D>(core.min), project_point<D>(core.max), project_point<D>(bounds.min),
                    project_point<D>(bounds.max), _ref, _level, gid, fab_grid.c_order()),
-            current_merge_tree_(_negate),
-            original_tree_(_negate),
             fab_(fab_grid.data(), fab_grid.shape(), fab_grid.c_order()),
             domain_(_domain),
-            processed_receivers_({ gid }),
+            processed_receivers_({gid}),
             negate_(_negate)
     {
         bool debug = false;
 
-        std::string debug_prefix = "FabTmtBlock ctor, gid = " + std::to_string(gid);
+        std::string debug_prefix = "FabComponentBlock ctor, gid = " + std::to_string(gid);
 
-        if (debug) fmt::print("{} setting mask\n", debug_prefix);
+        if(debug) fmt::print("{} setting mask\n", debug_prefix);
 
         diy::for_each(local_.mask_shape(), [this, amr_link, rho, is_absolute_threshold](const Vertex& v) {
             this->set_mask(v, amr_link, rho, is_absolute_threshold);
@@ -257,29 +226,24 @@ struct FabTmtBlock
 
         //        if (debug) fmt::print("gid = {}, checking mask\n", gid);
         int max_gid = 0;
-        for (int i = 0; i < amr_link->size(); ++i)
+        for(int i = 0; i < amr_link->size(); ++i)
         {
             max_gid = std::max(max_gid, amr_link->target(i).gid);
         }
 
         //local_.check_mask_validity(max_gid);
 
-        if (is_absolute_threshold)
+        if(is_absolute_threshold)
         {
             init(rho, amr_link);
         }
     }
 
-    FabTmtBlock() :
+    FabComponentBlock() :
             fab_(nullptr, diy::Point<int, D>::zero())
     {}
 
-    void init(Real absolute_rho, diy::AMRLink *amr_link);
-
-    void sparsify_prune_original_tree();
-
-    void sparsify_local_tree()
-    {}
+    void init(Real absolute_rho, diy::AMRLink* amr_link);
 
     // compare w.r.t negate_ flag
     bool precedes(Real a, Real b) const;
@@ -293,14 +257,10 @@ struct FabTmtBlock
     void set_low(const diy::Point<int, D>& v_bounds,
                  const Real& absolute_rho);
 
-
     void set_mask(const diy::Point<int, D>& v_bounds,
-                  diy::AMRLink *l,
+                  diy::AMRLink* l,
                   const Real& rho,
                   bool is_absolute_threshold);
-
-    const TripletMergeTree& get_merge_tree() const
-    { return current_merge_tree_; }
 
     // return true, if both edge vertices are in the current neighbourhood
     // no checking of mask is performed, if a vertex is LOW, function will return true.
@@ -311,35 +271,7 @@ struct FabTmtBlock
     // and the other is outside
     bool edge_goes_out(const AmrEdge& e) const;
 
-    bool original_deepest_computed(Neighbor n) const
-    { return original_deepest_computed(n->vertex); }
-
-    bool original_deepest_computed(const AmrVertexId& v) const
-    { return original_vertex_to_deepest_.find(v) != original_vertex_to_deepest_.cend(); }
-
-    bool final_deepest_computed(Neighbor n) const
-    { return final_deepest_computed(n->vertex); }
-
-    bool final_deepest_computed(const AmrVertexId& v) const
-    { return final_vertex_to_deepest_.find(v) != final_vertex_to_deepest_.cend(); }
-
-    AmrVertexId original_deepest(Neighbor n) const
-    { return original_deepest(n->vertex); }
-
-    AmrVertexId original_deepest(const AmrVertexId& v) const;
-
-    AmrVertexId final_deepest(Neighbor n) const
-    { return final_deepest(n->vertex); }
-
-    AmrVertexId final_deepest(const AmrVertexId& v) const;
-
-
-    void set_original_deepest(const AmrVertexId& v, const AmrVertexId& deepest)
-    { original_vertex_to_deepest_[v] = deepest; }
-
-    void create_component(const AmrVertexId& deepest_vertex);
-
-    void compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMap& vertex_to_outgoing_edges);
+    void compute_outgoing_edges(diy::AMRLink* l, VertexEdgesMap& vertex_to_outgoing_edges);
 
     void compute_original_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
 
@@ -349,20 +281,10 @@ struct FabTmtBlock
 
     void adjust_outgoing_edges();
 
-//    void adjust_original_gids(int sender_gid, FabTmtBlock::GidVector& edges_from_sender);
-
-    // disjoint-sets related methods
-    bool are_components_connected(const AmrVertexId& deepest_a, const AmrVertexId& deepest_b);
-
     bool is_component_connected_to_any_internal(const AmrVertexId& deepest);
 
-    void connect_components(const AmrVertexId& deepest_a, const AmrVertexId& deepest_b);
-
-    void add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex);
-
-#ifdef AMR_MT_SEND_COMPONENTS
-
-    Component& find_component(const AmrVertexId& deepest_vertex);
+    void sparsify_prune_original_tree()
+    {}
 
     void add_received_original_vertices(const VertexVertexMap& received_vertex_to_deepest);
 
@@ -372,9 +294,7 @@ struct FabTmtBlock
 
     int n_undone_components() const;
 
-#endif
-
-    int is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check);
+    int is_done_simple(const std::vector<FabComponentBlock::AmrVertexId>& vertices_to_check);
 
     void compute_local_integral(Real rho_min, Real rho_max);
 
@@ -389,25 +309,20 @@ struct FabTmtBlock
     // cannot be const - path compression!
     AmrVertexId find_component_in_disjoint_sets(AmrVertexId v);
 
-//    bool gid_must_be_in_link(int gid) const;
-
-    std::pair<Real, size_t> get_local_stats() const;
-
-
-    static void *create()
+    static void* create()
     {
-        return new FabTmtBlock;
+        return new FabComponentBlock;
     }
 
-    static void destroy(void *b)
+    static void destroy(void* b)
     {
-        delete static_cast<FabTmtBlock *>(b);
+        delete static_cast<FabComponentBlock*>(b);
     }
 
-    static void save(const void *b, diy::BinaryBuffer& bb);
+    static void save(const void* b, diy::BinaryBuffer& bb);
 
-    static void load(void *b, diy::BinaryBuffer& bb);
+    static void load(void* b, diy::BinaryBuffer& bb);
 };
 
 
-#include "fab-tmt-block.hpp"
+#include "fab-cc-block.hpp"

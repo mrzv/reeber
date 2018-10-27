@@ -1,0 +1,56 @@
+cmake_minimum_required(VERSION 3.2)
+project(amr_connected_components)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+add_definitions(-std=c++14)
+
+# Default to Release
+if (NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif (NOT CMAKE_BUILD_TYPE)
+
+
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb  -D_GLIBCXX_DEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 ")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} -O2 -g -ggdb -pg")
+
+# MPI
+find_package(MPI REQUIRED)
+include_directories(${MPI_INCLUDE_PATH})
+set(libraries ${libraries} ${MPI_LIBRARIES})
+
+# DIY
+include_directories(${DIY_PATH}/include)
+
+# threads
+find_package(Threads)
+set(libraries ${libraries} ${CMAKE_THREAD_LIBS_INIT})
+
+# include files
+file(GLOB AMT_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp)
+file(GLOB REEBER_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/../../include/reeber/*.h ${CMAKE_CURRENT_SOURCE_DIR}/../../include/reeber/*.hpp)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+
+# src files
+#file(GLOB AMT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+
+foreach(real   float double)
+
+add_executable(amr_connected_components_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-connected-components.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
+set_target_properties(amr_connected_components_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")
+
+# target_link_libraries(amr_merge_tree PUBLIC ${libraries})
+target_link_libraries(amr_connected_components_${real} PUBLIC ${libraries})
+
+if (MPI_COMPILE_FLAGS)
+    set_target_properties(amr_connected_components_${real} PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
+endif ()
+
+if (MPI_LINK_FLAGS)
+    set_target_properties(amr_connected_components_${real} PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+endif ()
+
+endforeach()
