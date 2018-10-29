@@ -101,6 +101,9 @@ void amr_tmt_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLin
             cp.enqueue(receiver, b->disjoint_sets_.parent_);
             cp.enqueue(receiver, b->disjoint_sets_.size_);
             cp.enqueue(receiver, b->get_all_outgoing_edges());
+            cp.enqueue(receiver, b->vertex_values_);
+
+            if (debug) fmt::print("In amr_tmt_send, enqued parent {}, size {}, edges {}", b->disjoint_sets_.parent_.size(), b->disjoint_sets_.size_.size(), b->get_all_outgoing_edges().size());
 
             // mark receiver_gid as processed
             b->new_receivers_.erase(receiver_gid);
@@ -163,14 +166,20 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
             VertexVertexMap received_parent;
             VertexSizeMap received_size;
             received_edges.emplace_back();
+            decltype(b->vertex_values_) received_vertex_values;
 
             cp.dequeue(sender, received_parent);
             cp.dequeue(sender, received_size);
             cp.dequeue(sender, received_edges.back());
+            cp.dequeue(sender, received_vertex_values);
+
+            int old_size = b->disjoint_sets_.parent_.size();
 
             b->disjoint_sets_.disjoint_union(received_parent, received_size);
+            b->vertex_values_.insert(received_vertex_values.begin(), received_vertex_values.end());
 
-            //if (debug) fmt::print( "In receive_simple for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
+            if (debug) fmt::print("In amr_tmt_receive, old parent size {}, new parent size {}, edges received {}\n", old_size, b->disjoint_sets_.parent_.size(), received_edges.back().size());
+//            if (debug) fmt::print( "In receive_simple for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
 
         }
     }
@@ -199,8 +208,6 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
     // merge all received trees
     for (size_t i = 0; i < received_edges.size(); ++i)
     {
-        if (received_edges[i].empty())
-            continue;
         for(const AmrEdge& e : received_edges[i])
         {
             if (b->edge_exists(e))
@@ -228,7 +235,7 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
                                            original_gids.end();
                 bool is_not_processed = b->processed_receivers_.count(sender_neighbor_gid) == 0;
 
-                //if (debug) fmt::print( "In receive_simple for block = {}, round = {}, sender_neighbor_gid = {}, is_in_original_gids = {}, is_not_processed = {}\n", b->gid, b->round_, sender_neighbor_gid, is_in_original_gids, is_not_processed);
+                if (debug) fmt::print( "In receive_simple for block = {}, round = {}, sender_neighbor_gid = {}, is_in_original_gids = {}, is_not_processed = {}\n", b->gid, b->round_, sender_neighbor_gid, is_in_original_gids, is_not_processed);
 
                 if (is_not_processed and is_in_original_gids)
                     b->new_receivers_.insert(sender_neighbor_gid);
@@ -238,16 +245,12 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
 
     if (debug) fmt::print("In receive_simple for block = {}, processed_receiveres_ OK\n", b->gid);
 
-    //if (debug) fmt::print("In receive_simple for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->merge_tree_.size());
-
     b->done_ = b->is_done_simple(vertices_to_check);
     int n_undone = 1 - b->done_;
 
     cp.all_reduce(n_undone, std::plus<int>());
 
-    if (debug)
-        fmt::print("In receive_simple for block = {}, is_done_simple OK, vertices_to_check.size = {}\n", b->gid,
-                   vertices_to_check.size());
+    if (debug) fmt::print("In receive_simple for block = {}, is_done_simple OK, vertices_to_check.size = {}\n", b->gid, vertices_to_check.size());
 
     int old_size_unique = l->size_unique();
     int old_size = l->size();

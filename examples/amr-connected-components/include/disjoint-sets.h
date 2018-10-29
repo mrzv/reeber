@@ -61,6 +61,7 @@ struct DisjointSets
 
     void unite_components(const Vertex& a, const Vertex& b)
     {
+        bool debug = false;
         auto a_root = find_component(a);
         auto b_root = find_component(b);
         if (a_root == b_root)
@@ -69,6 +70,7 @@ struct DisjointSets
             std::swap(a_root, b_root);
         parent_[b_root] = a_root;
         size_[a_root] += size_[b_root];
+        if (debug) fmt::print("Successfully united {} and {}, roots {} and {}\n", a, b, a_root, b_root);
     }
 
     void disjoint_union(const VertexVertexMap& other_parent, const VertexSizeMap& other_size)

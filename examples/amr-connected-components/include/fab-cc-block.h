@@ -77,7 +77,6 @@ struct FabComponentBlock
         ConnectedComponent(const AmrVertexId& root) :
                 root_(root)
         {
-            init_current_neighbors();
         }
 
         void init_current_neighbors(bool debug = false)
@@ -146,7 +145,7 @@ struct FabComponentBlock
     // we resume initialization
     Real sum_{0};
     size_t n_unmasked_{0};
-    std::map<AmrVertexId, Real> vertex_values_;
+    std::unordered_map<AmrVertexId, Real> vertex_values_;
 
     DisjointSets<AmrVertexId> disjoint_sets_;
     // this vector is not serialized, because we send trees component-wise
@@ -296,7 +295,7 @@ struct FabComponentBlock
 
     int is_done_simple(const std::vector<FabComponentBlock::AmrVertexId>& vertices_to_check);
 
-    void compute_local_integral(Real rho_min, Real rho_max);
+    void compute_local_integral(Real rho, Real theta);
 
     Real scaling_factor() const;
 

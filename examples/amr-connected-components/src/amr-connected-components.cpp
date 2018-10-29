@@ -134,24 +134,22 @@ int main(int argc, char** argv)
     bool split = ops >> opts::Present("split", "use split IO");
     bool write_halo_diagrams = ops >> opts::Present("write-halo-diagrams", "Write diagrams of each halo");
 
-    std::string input_filename, output_filename, output_integral_filename;
+    std::string input_filename, output_integral_filename;
 
     if (ops >> Present('h', "help", "show help message") or
         not(ops >> PosOption(input_filename))
-        or not(ops >> PosOption(output_filename)))
+        or not(ops >> PosOption(output_integral_filename)))
     {
         if (world.rank() == 0)
         {
-            fmt::print("Usage: {} INPUT.AMR OUTPUT \n", argv[0]);
+            fmt::print("Usage: {} INPUT.AMR OUTPUT-INTEGRAL \n", argv[0]);
             fmt::print("Compute local-global tree from AMR data\n");
             fmt::print("{}", ops);
         }
         return 1;
     }
 
-    bool write_integral = (ops >> PosOption(output_integral_filename));
-    if (output_integral_filename == "none")
-        write_integral = false;
+    bool write_integral = not (output_integral_filename == "none");
 
     if (write_integral)
     {
@@ -376,44 +374,33 @@ int main(int argc, char** argv)
     //    fmt::print("----------------------------------------\n");
 
     // save the result
-    if (output_filename != "none")
-    {
-        if (!split)
-            diy::io::write_blocks(output_filename, world, master);
-        else
-            diy::io::split::write_blocks(output_filename, world, master);
-    }
+//    if (output_filename != "none")
+//    {
+//        if (!split)
+//            diy::io::write_blocks(output_filename, world, master);
+//        else
+//            diy::io::split::write_blocks(output_filename, world, master);
+//    }
 
-    world.barrier();
-    LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
+//    world.barrier();
+//    LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
     auto time_for_output = timer.elapsed();
-    dlog::flush();
-    timer.restart();
+//    dlog::flush();
+//    timer.restart();
 
-    bool verbose = false;
-
-    world.barrier();
-    LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
-    time_for_output += timer.elapsed();
-    dlog::flush();
-    timer.restart();
+//    bool verbose = false;
+//
+//    world.barrier();
+//    LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
+//    time_for_output += timer.elapsed();
+//    dlog::flush();
+//    timer.restart();
 
     if (write_integral)
     {
-        Real rho_min, rho_max;
-        if (negate)
-        {
-            rho_min = rho;
-            rho_max = theta;
-        } else
-        {
-            rho_min = theta;
-            rho_max = rho;
-        }
+        master.foreach([rho, theta](Block* b, const diy::Master::ProxyWithLink& cp) {
 
-        master.foreach([rho_min, rho_max](Block* b, const diy::Master::ProxyWithLink& cp) {
-
-            b->compute_local_integral(rho_min, rho_max);
+            b->compute_local_integral(rho, theta);
 
             AMRLink* l = static_cast<AMRLink*>(cp.link());
 

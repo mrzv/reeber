@@ -57,12 +57,6 @@ void send_edges_to_neighbors(Block* b, const diy::Master::ProxyWithLink& cp)
     }
 }
 
-/**
- *
- * @tparam D
- * @param b
- * @param cp
- */
 template<class Block>
 void delete_low_edges(Block* b, const diy::Master::ProxyWithLink& cp)
 {
