@@ -134,7 +134,7 @@ struct reeber::detail::MergeSparsify
         auto local_test = [&gid_gen,gid](Vertex u)  { return gid_gen(u) == gid; };
 
         if (in_size)
-            reeber::sparsify(b->*tmt, [b, &edge_vertices, &local_test](Vertex u)
+            reeber::sparsify(b->*tmt, [&edge_vertices, &local_test](Vertex u)
                                { return local_test(u) || edge_vertices.find(u) != edge_vertices.end(); });
 
         // send (without the vertices) to the neighbors

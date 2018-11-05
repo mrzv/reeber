@@ -34,7 +34,7 @@ struct Reader
 
 inline Reader::OffsetGrid* Reader::read(const r::Box<3> &bounds)
 {
-    diy::DiscreteBounds read_bounds;
+    diy::DiscreteBounds read_bounds{3};
     for (int d=0; d<3; ++d)
     {
         read_bounds.min[d] = bounds.from()[d];

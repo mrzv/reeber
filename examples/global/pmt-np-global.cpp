@@ -108,7 +108,7 @@ int main(int argc, char** argv)
     Reader* reader_ptr = Reader::create(infn, world);
     Reader& reader  = *reader_ptr;
 
-    diy::DiscreteBounds box;
+    diy::DiscreteBounds box {3};
     for (unsigned i = 0; i < 3; ++i)
     {
         box.min[i] = 0;

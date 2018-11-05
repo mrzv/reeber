@@ -74,7 +74,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    diy::DiscreteBounds box;
+    diy::DiscreteBounds box {3};
     for (unsigned i = 0; i < 3; ++i)
     {
         box.min[i] = 0;

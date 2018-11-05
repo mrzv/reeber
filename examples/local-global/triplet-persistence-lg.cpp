@@ -135,7 +135,7 @@ int main(int argc, char** argv)
 
     // get the domain bounds from any block that's in memory (they are all the same) and set up a decomposer
     TripletMergeTreeBlock::Box global = static_cast<TripletMergeTreeBlock*>(((const diy::Master&) master).block(master.loaded_block()))->global;
-    diy::DiscreteBounds domain;
+    diy::DiscreteBounds domain {3};
     for (unsigned i = 0; i < 3; ++i)
     {
         domain.min[i] = global.from()[i];
