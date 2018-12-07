@@ -1,32 +1,11 @@
 
 template<class Real, unsigned D>
-bool FabComponentBlock<Real, D>::precedes(Real a, Real b) const
+bool FabComponentBlock<Real, D>::cmp(Real a, Real b) const
 {
     if (negate_)
         return a > b;
     else
         return a < b;
-}
-
-template<class Real, unsigned D>
-bool FabComponentBlock<Real, D>::precedes_eq(Real a, Real b) const
-{
-    if (negate_)
-        return a >= b;
-    else
-        return a <= b;
-}
-
-template<class Real, unsigned D>
-bool FabComponentBlock<Real, D>::succeeds(Real a, Real b) const
-{
-    return not precedes_eq(a, b);
-}
-
-template<class Real, unsigned D>
-bool FabComponentBlock<Real, D>::succeeds_eq(Real a, Real b) const
-{
-    return not precedes(a, b);
 }
 
 
@@ -46,7 +25,7 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
     bool is_low = false;
     if (is_absolute_threshold)
         is_low = not is_ghost and
-                 succeeds(fab_(v_bounds), rho);   //(negate_ ? fab_(v_bounds) < rho : fab_(v_bounds) > rho);
+                 not cmp(fab_(v_bounds), rho);   //(negate_ ? fab_(v_bounds) < rho : fab_(v_bounds) > rho);
 
     r::AmrVertexId v_idx;
     if (not is_ghost) v_idx = local_.get_vertex_from_global_position(local_.global_position_from_local(v_bounds));
@@ -164,7 +143,7 @@ void FabComponentBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
 {
     if (local_.mask(v_bounds) != MaskedBox::ACTIVE)
         return;
-    bool is_low = succeeds(fab_(v_bounds),
+    bool is_low = !cmp(fab_(v_bounds),
                            absolute_threshold); //   negate_ ? fab_(v_bounds) < absolute_threshold : fab_(v_bounds) > absolute_threshold;
     if (is_low)
         local_.set_mask(v_bounds, MaskedBox::LOW);
@@ -467,13 +446,22 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
         for(const auto& w : local_.link(v))
             disjoint_sets_.unite_components(v, w);
 
-    std::set<AmrVertexId> roots;
+    root_to_deepest_.clear();
     for(const auto& v : vertices)
     {
+        Real current_value = fab_(v);
         auto root = disjoint_sets_.find_component(v);
-        auto ins_res = roots.insert(root);
-        if (ins_res.second)
-            components_.emplace_back(root);
+        auto iter = root_to_deepest_.find(root);
+        if (iter == root_to_deepest_.end() or
+                cmp(current_value, iter->second.value))
+        {
+            root_to_deepest_[root] = { v, current_value };
+        }
+    }
+
+    for(const auto& root_to_deepest : root_to_deepest_)
+    {
+        components_.emplace_back(root_to_deepest.first);
     }
 }
 
@@ -539,62 +527,16 @@ int FabComponentBlock<Real, D>::is_done_simple(const std::vector<FabComponentBlo
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_local_integral(Real rho, Real theta)
 {
-    decltype(local_integral_) local_integral;
-    std::unordered_map<AmrVertexId, std::pair<AmrVertexId, Real>> root_to_min_value;
-    int n_vertices = 0;
-    int total_n_vertices = 0;
+    local_integral_.clear();
+
+    Real sf = scaling_factor();
+
     for(const auto& vertex_value_pair : vertex_values_)
     {
         auto root = disjoint_sets_.find_component(vertex_value_pair.first);
-        auto iter = root_to_min_value.find(root);
-        if (iter == root_to_min_value.end() or precedes(vertex_value_pair.second, iter->second.second))
-            root_to_min_value[root] = vertex_value_pair;
-        total_n_vertices++;
-        if (vertex_value_pair.first.gid == gid)
-        {
-            n_vertices++;
-            local_integral[root] += vertex_value_pair.second;
-        }
+        AmrVertexId deepest = root_to_deepest_.at(root).vertex;
+        local_integral_[deepest] = sf * vertex_value_pair.second;
     }
-
-//    fmt::print("in block {}, total vertices = {}, local # vertices = {}\n", gid, total_n_vertices, n_vertices);
-//    for(auto&& xx : local_integral)
-//    {
-//        fmt::print("In block {}, local integral {} -> {}\n", gid, xx.first, xx.second);
-//    }
-
-    Real sf = scaling_factor();
-    for(auto li_iter = local_integral.begin(); li_iter != local_integral.end(); )
-    {
-        AmrVertexId root = li_iter->first;
-        Real root_value = root_to_min_value.at(root).second;
-        if (succeeds(root_value, theta))
-        {
-//            fmt::print("root = {}, root_value = {}, deleting\n", root, root_value);
-            li_iter = local_integral.erase(li_iter);
-        } else
-        {
-//            fmt::print("root = {}, root_value = {}, multiplying by {}\n", root, root_value, sf);
-            li_iter->second *= sf;
-            ++li_iter;
-        }
-
-    }
-
-    // keys in local variable local_integral are roots in disjoint_sets data structure,
-    // which does not respect ordering by function values
-    // Now we copy values to local_integral_ member, assigning values to lowest vertices
-    local_integral_.clear();
-    for(const auto& vertex_value_pair : local_integral)
-    {
-        AmrVertexId root = root_to_min_value.at(vertex_value_pair.first).first;
-        local_integral_[root] = vertex_value_pair.second;
-    }
-
-//    for(auto&& xx : local_integral_)
-//    {
-//        fmt::print("In block {}, local integral_ {} -> {}\n", gid, xx.first, xx.second);
-//    }
 }
 
 
@@ -624,19 +566,19 @@ void FabComponentBlock<Real, D>::compute_local_integral(Real rho, Real theta)
 //    throw std::runtime_error("Connnected component not found");
 //}
 
-template<class Real, unsigned D>
-int FabComponentBlock<Real, D>::are_all_components_done() const
-{
-    bool debug = false;
-    if (debug) fmt::print("are_all_components_done, gid = {}\n", gid);
-
-    for(const Component& c : components_)
-        if (not c.is_done())
-            return 0;
-
-    if (debug) fmt::print("are_all_components_done, gid = {}, returning 1\n", gid);
-    return 1;
-}
+//template<class Real, unsigned D>
+//int FabComponentBlock<Real, D>::are_all_components_done() const
+//{
+//    bool debug = false;
+//    if (debug) fmt::print("are_all_components_done, gid = {}\n", gid);
+//
+//    for(const Component& c : components_)
+//        if (not c.is_done())
+//            return 0;
+//
+//    if (debug) fmt::print("are_all_components_done, gid = {}, returning 1\n", gid);
+//    return 1;
+//}
 
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::save(const void* b, diy::BinaryBuffer& bb)

@@ -170,7 +170,6 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
             // merge received trees
             r::merge(b->current_merge_tree_, received_tree, received_edges, true);
-            r::repair(b->current_merge_tree_);
 
             // make_set in disjoint-sets of components
             b->add_component_to_disjoint_sets(received_root);
@@ -180,6 +179,8 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
                                                          received_current_gids.end());
             if (debug) fmt::print("block = {}, sender = {}, received_current_gids.size = {}\n", b->gid, sender.gid, received_current_gids.size());
         } // loop over all trees received from current sender
+
+        r::repair(b->current_merge_tree_);
 
         diy::MemoryBuffer& in = cp.incoming(sender.gid);
         diy::AMRLink* l = static_cast<diy::AMRLink*>(diy::LinkFactory::load(in));

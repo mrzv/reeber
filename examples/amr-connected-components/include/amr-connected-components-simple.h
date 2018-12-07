@@ -129,7 +129,8 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
     using VertexVertexMap = typename Block::VertexVertexMap;
     using VertexSizeMap = typename Block::VertexSizeMap;
     using LinkVector = std::vector<AMRLink>;
-
+    using VertexValue = typename Block::VertexValue;
+    using VertexDeepestMap = typename Block::VertexDeepestMap;
 
     auto* l = static_cast<AMRLink*>(cp.link());
 
@@ -143,6 +144,8 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
     auto senders = link_unique(l, b->gid);
 
     if (debug) fmt::print("In receive_simple for block = {}, # senders = {}\n", b->gid, senders.size());
+
+    VertexDeepestMap new_root_to_deepest { b->root_to_deepest_};
 
     for (const diy::BlockID& sender : senders)
     {
@@ -166,17 +169,17 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
             VertexVertexMap received_parent;
             VertexSizeMap received_size;
             received_edges.emplace_back();
-            decltype(b->vertex_values_) received_vertex_values;
+            VertexDeepestMap received_root_to_deepest;
 
             cp.dequeue(sender, received_parent);
             cp.dequeue(sender, received_size);
             cp.dequeue(sender, received_edges.back());
-            cp.dequeue(sender, received_vertex_values);
+            cp.dequeue(sender, received_root_to_deepest);
 
             int old_size = b->disjoint_sets_.parent_.size();
 
             b->disjoint_sets_.disjoint_union(received_parent, received_size);
-            b->vertex_values_.insert(received_vertex_values.begin(), received_vertex_values.end());
+            new_root_to_deepest.insert(received_root_to_deepest.begin(), received_root_to_deepest.end());
 
             if (debug) fmt::print("In amr_tmt_receive, old parent size {}, new parent size {}, edges received {}\n", old_size, b->disjoint_sets_.parent_.size(), received_edges.back().size());
 //            if (debug) fmt::print( "In receive_simple for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
@@ -212,12 +215,36 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
         {
             if (b->edge_exists(e))
             {
-                b->disjoint_sets_.unite_components(std::get<0>(e), std::get<1>(e));
+                auto x = std::get<0>(e);
+                auto y = std::get<1>(e);
+                auto x_root = b->disjoint_sets_.find_component(x);
+                auto y_root = b->disjoint_sets_.find_component(y);
+                if (x_root != y_root)
+                {
+                    auto survived_root = b->disjoint_sets_.unite_components_by_roots(x_root, y_root);
+                    auto iter_x = new_root_to_deepest.find(x_root);
+                    auto iter_y = new_root_to_deepest.find(y_root);
+                    if (iter_x != new_root_to_deepest.end() and iter_y != new_root_to_deepest.end())
+                    {
+                        VertexValue vv = (b->cmp(iter_x->second.value, iter_y->second.value)) ? iter_x->second : iter_y->second;
+                        if (survived_root == x_root)
+                        {
+                            iter_x->second = vv;
+                            new_root_to_deepest.erase(iter_y);
+                        } else
+                        {
+                            iter_y->second = vv;
+                            new_root_to_deepest.erase(iter_x);
+                        }
+                    }
+                }
             } else
             {
                 vertices_to_check.push_back(std::get<0>(e));
             }
         }
+
+        b->root_to_deepest_ = new_root_to_deepest;
 
         //if (debug) fmt::print("In receive_simple for block = {}, add_component_to_disjoint_sets OK\n", b->gid);
         // update receivers - if a block from the 1-neighbourhood of sender has not received a tree from us

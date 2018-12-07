@@ -49,8 +49,6 @@ using MaskedBox = Block::MaskedBox;
 using GidVector = Block::GidVector;
 using GidContainer = Block::GidContainer;
 
-constexpr bool abort_on_segfault = true;
-
 inline bool file_exists(const std::string& s)
 {
     std::ifstream ifs(s);
@@ -143,7 +141,7 @@ int main(int argc, char** argv)
         if (world.rank() == 0)
         {
             fmt::print("Usage: {} INPUT.AMR OUTPUT-INTEGRAL \n", argv[0]);
-            fmt::print("Compute local-global tree from AMR data\n");
+            fmt::print("Compute persistent integral from AMR data\n");
             fmt::print("{}", ops);
         }
         return 1;

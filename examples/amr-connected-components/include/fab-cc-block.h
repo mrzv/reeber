@@ -56,6 +56,14 @@ struct FabComponentBlock
     using VertexVertexMap = UnionFind::VertexVertexMap;
     using VertexSizeMap = UnionFind::VertexSizeMap;
 
+    struct VertexValue
+    {
+        AmrVertexId vertex;
+        Real value;
+    };
+
+    using VertexDeepestMap = std::unordered_map<AmrVertexId, VertexValue>;
+
     template<class Vertex_>
     struct ConnectedComponent
     {
@@ -150,6 +158,7 @@ struct FabComponentBlock
     DisjointSets<AmrVertexId> disjoint_sets_;
     // this vector is not serialized, because we send trees component-wise
     std::vector<Component> components_;
+    VertexDeepestMap root_to_deepest_;
 
     diy::DiscreteBounds domain_;
 
@@ -163,7 +172,7 @@ struct FabComponentBlock
     // only for baseiline algorithm
     AmrEdgeContainer initial_edges_;
 
-    std::map<int, AmrEdgeContainer> gid_to_outgoing_edges_;
+    std::unordered_map<int, AmrEdgeContainer> gid_to_outgoing_edges_;
 
     std::set<int> new_receivers_;
     std::set<int> processed_receivers_;
@@ -245,13 +254,7 @@ struct FabComponentBlock
     void init(Real absolute_rho, diy::AMRLink* amr_link);
 
     // compare w.r.t negate_ flag
-    bool precedes(Real a, Real b) const;
-
-    bool succeeds(Real a, Real b) const;
-
-    bool precedes_eq(Real a, Real b) const;
-
-    bool succeeds_eq(Real a, Real b) const;
+    bool cmp(Real a, Real b) const;
 
     void set_low(const diy::Point<int, D>& v_bounds,
                  const Real& absolute_rho);
@@ -274,24 +277,23 @@ struct FabComponentBlock
 
     void compute_original_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
 
-    void compute_final_connected_components();
-
+//    void compute_final_connected_components();
+//
     void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender);
-
+//
     void adjust_outgoing_edges();
 
     bool is_component_connected_to_any_internal(const AmrVertexId& deepest);
 
-    void sparsify_prune_original_tree()
-    {}
+    void sparsify_prune_original_tree() {}
 
-    void add_received_original_vertices(const VertexVertexMap& received_vertex_to_deepest);
+//    void add_received_original_vertices(const VertexVertexMap& received_vertex_to_deepest);
 
     int are_all_components_done() const;
 
     std::vector<AmrVertexId> get_current_deepest_vertices() const;
 
-    int n_undone_components() const;
+//    int n_undone_components() const;
 
     int is_done_simple(const std::vector<FabComponentBlock::AmrVertexId>& vertices_to_check);
 

@@ -59,18 +59,24 @@ struct DisjointSets
         return x;
     }
 
-    void unite_components(const Vertex& a, const Vertex& b)
+    Vertex unite_components_by_roots(Vertex a_root, Vertex b_root)
     {
         bool debug = false;
-        auto a_root = find_component(a);
-        auto b_root = find_component(b);
         if (a_root == b_root)
-            return;
+            return a_root;
         if (size_[a_root] < size_[b_root])
             std::swap(a_root, b_root);
         parent_[b_root] = a_root;
         size_[a_root] += size_[b_root];
-        if (debug) fmt::print("Successfully united {} and {}, roots {} and {}\n", a, b, a_root, b_root);
+        if (debug) fmt::print("Successfully united roots {} and {}\n", a_root, b_root);
+        return a_root;
+    }
+
+    void unite_components(const Vertex& a, const Vertex& b)
+    {
+        auto a_root = find_component(a);
+        auto b_root = find_component(b);
+        unite_components_by_roots(a_root, b_root);
     }
 
     void disjoint_union(const VertexVertexMap& other_parent, const VertexSizeMap& other_size)
