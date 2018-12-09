@@ -98,8 +98,7 @@ void amr_tmt_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLin
         if (n_trees)
         {
             // send local tree and all outgoing edges that end in receiver
-            cp.enqueue(receiver, b->disjoint_sets_.parent_);
-            cp.enqueue(receiver, b->disjoint_sets_.size_);
+            cp.enqueue(receiver, b->disjoint_sets_);
             cp.enqueue(receiver, b->get_all_outgoing_edges());
             cp.enqueue(receiver, b->vertex_values_);
 
@@ -131,6 +130,7 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
     using LinkVector = std::vector<AMRLink>;
     using VertexValue = typename Block::VertexValue;
     using VertexDeepestMap = typename Block::VertexDeepestMap;
+    using DjSets = typename DisjointSets<AmrVertexId>;
 
     auto* l = static_cast<AMRLink*>(cp.link());
 
@@ -146,6 +146,7 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
     if (debug) fmt::print("In receive_simple for block = {}, # senders = {}\n", b->gid, senders.size());
 
     VertexDeepestMap new_root_to_deepest { b->root_to_deepest_};
+
 
     for (const diy::BlockID& sender : senders)
     {
@@ -166,19 +167,17 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
         {
             assert(n_trees == 1);
 
-            VertexVertexMap received_parent;
-            VertexSizeMap received_size;
+            DjSets received_disjoint_sets;
             received_edges.emplace_back();
             VertexDeepestMap received_root_to_deepest;
 
-            cp.dequeue(sender, received_parent);
-            cp.dequeue(sender, received_size);
+            cp.dequeue(sender, received_disjoint_sets);
             cp.dequeue(sender, received_edges.back());
             cp.dequeue(sender, received_root_to_deepest);
 
             int old_size = b->disjoint_sets_.parent_.size();
 
-            b->disjoint_sets_.disjoint_union(received_parent, received_size);
+            b->disjoint_sets_.disjoint_union(received_disjoint_sets);
             new_root_to_deepest.insert(received_root_to_deepest.begin(), received_root_to_deepest.end());
 
             if (debug) fmt::print("In amr_tmt_receive, old parent size {}, new parent size {}, edges received {}\n", old_size, b->disjoint_sets_.parent_.size(), received_edges.back().size());

@@ -37,7 +37,6 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
                    fab_(v_bounds), is_ghost);
     }
 
-
     // initialization, actual mask to be set later
     if (is_ghost)
     {
@@ -426,6 +425,7 @@ void FabComponentBlock<Real, D>::adjust_outgoing_edges()
     }
 }
 
+
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_original_connected_components(
         const FabComponentBlock::VertexEdgesMap& vertex_to_outgoing_edges)
@@ -436,33 +436,63 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
 
     std::vector<AmrVertexId> vertices(std::begin(vertices_), std::end(vertices_));
 
+
+    std::unordered_set<AmrVertexId> global_processed_vertices;
     for(const auto& v : vertices)
     {
-        disjoint_sets_.make_component(v);
-        vertex_values_[v] = fab_(v);
-    }
+        if (global_processed_vertices.count(v))
+            continue;
 
-    for(const auto& v : vertices)
-        for(const auto& w : local_.link(v))
-            disjoint_sets_.unite_components(v, w);
+        std::unordered_set<AmrVertexId> component_vertices;
+        AmrEdgeContainer component_edges;
+        std::stack<AmrVertexId> vertices_to_process;
+        vertices_to_process.push(v);
 
-    root_to_deepest_.clear();
-    for(const auto& v : vertices)
-    {
-        Real current_value = fab_(v);
-        auto root = disjoint_sets_.find_component(v);
-        auto iter = root_to_deepest_.find(root);
-        if (iter == root_to_deepest_.end() or
-                cmp(current_value, iter->second.value))
+        Real deepest_value = fab_(v);
+        Real integral_val = 0.0;
+        AmrVertexId deepest = v;
+
+        while(!vertices_to_process.empty())
         {
-            root_to_deepest_[root] = { v, current_value };
+            AmrVertexId u = vertices_to_process.top();
+            vertices_to_process.pop();
+
+
+            if (global_processed_vertices.count(u))
+                continue;
+
+            component_vertices.insert(u);
+            global_processed_vertices.insert(u);
+            if (vertex_to_outgoing_edges.count(u))
+                component_edges.insert(component_edges.back(), vertex_to_outgoing_edges[u].begin(), vertex_to_outgoing_edges[u].end());
+
+            Real u_val = fab_(u);
+
+            integral_val += u_val;
+
+
+            if (cmp(u_val, deepest_value))
+            {
+                deepest_value = u_val;
+                deepest = u;
+            }
+
+            for(auto&& w : local_.link(u))
+            {
+                vertices_to_process.push(w);
+            }
         }
+
+        for(auto&& component_vertex : component_vertices)
+        {
+            vertex_to_deepest_[component_vertex] = deepest;
+        }
+
+        components_.emplace_back(deepest, deepest_value * scaling_factor());
+
+        disjoint_sets_.make_component(deepest);
     }
 
-    for(const auto& root_to_deepest : root_to_deepest_)
-    {
-        components_.emplace_back(root_to_deepest.first);
-    }
 }
 
 template<class Real, unsigned D>

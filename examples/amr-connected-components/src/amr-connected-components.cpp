@@ -24,11 +24,7 @@
 
 #include "../../amr-merge-tree/include/read-npy.h"
 
-#ifdef AMR_MT_SEND_COMPONENTS
-#include "amr-merge-tree-send-componentwise.h"
-#else
 #include "amr-connected-components-simple.h"
-#endif
 
 
 // block-independent types

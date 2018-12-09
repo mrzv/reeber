@@ -1,17 +1,18 @@
 #pragma once
 
 #include <vector>
-#include <map>
 #include <unordered_map>
 
 #include <format.h>
+
+#include <diy/serialization.hpp>
 
 template<class Vertex_>
 struct DisjointSets
 {
     using Vertex = Vertex_;
-    using VertexVertexMap = std::map<Vertex, Vertex>;
-    using VertexSizeMap = std::map<Vertex, int>;
+    using VertexVertexMap = std::unordered_map<Vertex, Vertex>;
+    using VertexSizeMap = std::unordered_map<Vertex, int>;
 
     VertexVertexMap parent_;
     VertexSizeMap size_;
@@ -79,14 +80,36 @@ struct DisjointSets
         unite_components_by_roots(a_root, b_root);
     }
 
-    void disjoint_union(const VertexVertexMap& other_parent, const VertexSizeMap& other_size)
+    void disjoint_union(const DisjointSets<Vertex>& other)
     {
-        for(const auto& key_val_pair : other_parent)
+        for(const auto& key_val_pair : other.parent_)
         {
             assert(parent_.count(key_val_pair.first) == 0);
         }
-        parent_.insert(other_parent.begin(), other_parent.end());
-        size_.insert(other_size.begin(), other_size.end());
+        parent_.insert(other.parent_.begin(), other.parent_.end());
+        size_.insert(other.size_.begin(), other.size_.end());
     }
 
+};
+
+
+template <>
+template<class Vertex>
+struct diy::Serialization<DisjointSets<Vertex>>
+{
+    using DS = DisjointSets<Vertex>;
+
+    static void save(BinaryBuffer& bb, const DS& disjoint_sets)
+    {
+        diy::save(bb, disjoint_sets.parent_);
+        diy::save(bb, disjoint_sets.size_);
+
+    }
+
+    static void load(BinaryBuffer& bb, const DS& disjoint_sets)
+    {
+        diy::load(bb, disjoint_sets.parent_);
+        diy::load(bb, disjoint_sets.size_);
+
+    }
 };

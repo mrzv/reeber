@@ -2,6 +2,7 @@
 
 #include <utility>
 #include <numeric>
+#include <stack>
 #include <boost/functional/hash.hpp>
 
 #include "diy/serialization.hpp"
@@ -51,10 +52,11 @@ struct FabComponentBlock
 
     using RealType = Real;
 
-    using LocalIntegral = std::map<AmrVertexId, Real>;
     using UnionFind = DisjointSets<AmrVertexId>;
     using VertexVertexMap = UnionFind::VertexVertexMap;
     using VertexSizeMap = UnionFind::VertexSizeMap;
+
+    using AmrVertexSet = std::unordered_set<AmrVertexId>;
 
     struct VertexValue
     {
@@ -71,9 +73,14 @@ struct FabComponentBlock
         using Vertex = Vertex_;
 
         // fields
-        AmrVertexId root_;
-        GidContainer current_neighbors_;
-        GidContainer processed_neighbors_;
+
+        AmrVertexId global_deepest_;    // will be updated in each communication round
+        const AmrVertexId original_deepest_;
+        Real global_value_;
+        const Real original_value_;
+
+        AmrVertexSet current_neighbors_;
+        AmrVertexSet processed_neighbors_;
         AmrEdgeContainer outgoing_edges_;
 
         // methods
@@ -82,8 +89,13 @@ struct FabComponentBlock
         {
         }
 
-        ConnectedComponent(const AmrVertexId& root) :
-                root_(root)
+        ConnectedComponent(const AmrVertexId& deepest, Real value) :
+                global_deepest_(deepest),
+                original_deepest_(deepest),
+                global_value_(value),
+                original_value_(value),
+                current_neighbors_({deepest}),
+                processed_neighbors_({deepest})
         {
         }
 
@@ -95,13 +107,13 @@ struct FabComponentBlock
             std::transform(outgoing_edges_.begin(), outgoing_edges_.end(),
                            std::inserter(current_neighbors_, current_neighbors_.begin()),
                            [this](const AmrEdge& e) {
-                               assert(std::get<0>(e).gid == this->root_.gid);
-                               assert(std::get<1>(e).gid != this->root_.gid);
+                               assert(std::get<0>(e).gid == this->original_deepest_.gid);
+                               assert(std::get<1>(e).gid != this->original_deepest_.gid);
                                return std::get<1>(e).gid;
                            });
 
             if(debug)
-                fmt::print("In init_current_neighbors for component = {}, current_neighbors_.size = {}\n", root_,
+                fmt::print("In init_current_neighbors for component = {}, current_neighbors_.size = {}\n", original_deepest_,
                            current_neighbors_.size());
         }
 
@@ -115,7 +127,7 @@ struct FabComponentBlock
             {
                 if(debug) fmt::print("in set_edges, considering edge {}\n", e);
 
-                if(disjoint_sets.find_component(std::get<0>(e)) == root_)
+                if(disjoint_sets.find_component(std::get<0>(e)) == original_deepest_)
                 {
                     outgoing_edges_.emplace_back(e);
                     if(debug) fmt::print("in set_edges, added edge {}\n", e);
@@ -155,10 +167,10 @@ struct FabComponentBlock
     size_t n_unmasked_{0};
     std::unordered_map<AmrVertexId, Real> vertex_values_;
 
-    DisjointSets<AmrVertexId> disjoint_sets_;
-    // this vector is not serialized, because we send trees component-wise
+    UnionFind disjoint_sets_;   // keep topology of graph of connected components
     std::vector<Component> components_;
-    VertexDeepestMap root_to_deepest_;
+
+    VertexDeepestMap vertex_to_deepest_;
 
     diy::DiscreteBounds domain_;
 
@@ -174,8 +186,9 @@ struct FabComponentBlock
 
     std::unordered_map<int, AmrEdgeContainer> gid_to_outgoing_edges_;
 
-    std::set<int> new_receivers_;
-    std::set<int> processed_receivers_;
+    std::unordered_set<AmrVertexId> new_receivers_;         // roots of local components in other blocks
+                                                            // to which we should send this local component
+    std::unordered_set<AmrVertexId> processed_receivers_;   // roots of components to which we have sent this local component
 
     GidVector original_link_gids_;
 
@@ -184,9 +197,6 @@ struct FabComponentBlock
     // tracking how connected components merge - disjoint sets data structure
 
     int round_{0};
-
-    // for persistent integral
-    LocalIntegral local_integral_;
 
     // methods
 
