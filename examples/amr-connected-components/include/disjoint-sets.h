@@ -90,6 +90,15 @@ struct DisjointSets
         size_.insert(other.size_.begin(), other.size_.end());
     }
 
+    std::vector<Vertex> all_components() const
+    {
+        std::vector<Vertex> result;
+        result.reserve(parent_.size());
+        for(const auto& comp_parent_pair : parent_)
+            result.emplace_back(comp_parent_pair.first);
+        return result;
+    }
+
 };
 
 

@@ -64,8 +64,6 @@ struct FabComponentBlock
         Real value;
     };
 
-    using VertexDeepestMap = std::unordered_map<AmrVertexId, VertexValue>;
-
     template<class Vertex_>
     struct ConnectedComponent
     {
@@ -76,12 +74,14 @@ struct FabComponentBlock
 
         AmrVertexId global_deepest_;    // will be updated in each communication round
         const AmrVertexId original_deepest_;
-        Real global_value_;
-        const Real original_value_;
+
+        Real global_integral_value_;
+        const Real original_integral_value_;
+        Real global_deepest_value_;
+        const Real original_deepest_value_;
 
         AmrVertexSet current_neighbors_;
         AmrVertexSet processed_neighbors_;
-        AmrEdgeContainer outgoing_edges_;
 
         // methods
 
@@ -89,63 +89,62 @@ struct FabComponentBlock
         {
         }
 
-        ConnectedComponent(const AmrVertexId& deepest, Real value) :
+        ConnectedComponent(const AmrVertexId& deepest, Real total_value, Real deepest_value) :
                 global_deepest_(deepest),
                 original_deepest_(deepest),
-                global_value_(value),
-                original_value_(value),
+                global_integral_value_(total_value),
+                original_integral_value_(total_value),
+                global_deepest_value_(deepest_value),
+                original_deepest_value_(deepest_value),
                 current_neighbors_({deepest}),
                 processed_neighbors_({deepest})
         {
         }
 
-        void init_current_neighbors(bool debug = false)
-        {
-            debug = false;
-            current_neighbors_.clear();
 
-            std::transform(outgoing_edges_.begin(), outgoing_edges_.end(),
-                           std::inserter(current_neighbors_, current_neighbors_.begin()),
-                           [this](const AmrEdge& e) {
-                               assert(std::get<0>(e).gid == this->original_deepest_.gid);
-                               assert(std::get<1>(e).gid != this->original_deepest_.gid);
-                               return std::get<1>(e).gid;
-                           });
-
-            if(debug)
-                fmt::print("In init_current_neighbors for component = {}, current_neighbors_.size = {}\n", original_deepest_,
-                           current_neighbors_.size());
-        }
-
-
-        template<class EC>
-        void set_edges(const EC& initial_edges, FabComponentBlock::UnionFind& disjoint_sets)
-        {
-            bool debug = false;
-
-            for(const auto& e : initial_edges)
-            {
-                if(debug) fmt::print("in set_edges, considering edge {}\n", e);
-
-                if(disjoint_sets.find_component(std::get<0>(e)) == original_deepest_)
-                {
-                    outgoing_edges_.emplace_back(e);
-                    if(debug) fmt::print("in set_edges, added edge {}\n", e);
-                }
-            }
-            init_current_neighbors();
-        }
-
-        int is_not_done() const
+        int is_done() const
         {
             assert(std::includes(current_neighbors_.begin(), current_neighbors_.end(),
                                  processed_neighbors_.begin(), processed_neighbors_.end()));
-            return current_neighbors_.size() > processed_neighbors_.size();
+            return current_neighbors_.size() == processed_neighbors_.size();
         }
 
-        bool must_send_to_gid(int gid) const
+        void set_global_deepest(const VertexValue& vv)
         {
-            return current_neighbors_.count(gid) == 1 and processed_neighbors_.count(gid) == 0;
+            // TODO: add assert with cmp. Add negate to component?
+            global_deepest_value_ = vv.value;
+            global_deepest_ = vv.vertex;
+        }
+
+        void set_current_neighbors(const AmrVertexSet& new_current_neighbhors)
+        {
+            for(AmrVertexId cn : current_neighbors_)
+                assert(new_current_neighbhors.count(cn));
+            current_neighbors_ = new_current_neighbhors;
+        }
+
+        int must_send_to_gid(int gid) const
+        {
+            for(const AmrVertexId& cn : current_neighbors_)
+            {
+                if (processed_neighbors_.count(cn))
+                    continue;
+                if (cn.gid == gid)
+                    return 1;
+            }
+            return 0;
+        }
+
+
+        void mark_gid_processed(int _gid)
+        {
+            for(const auto& cn : current_neighbors_)
+            {
+                if (cn.gid == _gid)
+                {
+                    processed_neighbors_.insert(cn);
+                }
+            }
         }
 
     };
@@ -170,7 +169,7 @@ struct FabComponentBlock
     UnionFind disjoint_sets_;   // keep topology of graph of connected components
     std::vector<Component> components_;
 
-    VertexDeepestMap vertex_to_deepest_;
+    VertexVertexMap vertex_to_deepest_;
 
     diy::DiscreteBounds domain_;
 
@@ -201,17 +200,13 @@ struct FabComponentBlock
     // methods
 
     // simple getters/setters
-    const diy::DiscreteBounds& domain() const
-    { return domain_; }
+    const diy::DiscreteBounds& domain() const { return domain_; }
 
-    int refinement() const
-    { return local_.refinement(); }
+    int refinement() const { return local_.refinement(); }
 
-    int level() const
-    { return local_.level(); }
+    int level() const { return local_.level(); }
 
-    const GidVector& get_original_link_gids() const
-    { return original_link_gids_; }
+    const GidVector& get_original_link_gids() const { return original_link_gids_; }
 
     FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
                       int _ref,
@@ -289,7 +284,7 @@ struct FabComponentBlock
 
 //    void compute_final_connected_components();
 //
-    void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender);
+    void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender, const VertexVertexMap& received_vertex_to_deepest);
 //
     void adjust_outgoing_edges();
 
@@ -298,6 +293,8 @@ struct FabComponentBlock
     void sparsify_prune_original_tree() {}
 
 //    void add_received_original_vertices(const VertexVertexMap& received_vertex_to_deepest);
+
+    int get_n_components_for_gid(int gid) const;
 
     int are_all_components_done() const;
 
@@ -311,14 +308,22 @@ struct FabComponentBlock
 
     Real scaling_factor() const;
 
+    Component& get_component_by_deepest(const AmrVertexId& deepest)
+    {
+        auto res_iter = std::find_if(components_.begin(), components_.end(), [deepest](const Component& c) { return c.original_deepest_ == deepest; });
+        if (res_iter == components_.end())
+            throw std::runtime_error("error in find_componenent, bad deepest");
+        return  *res_iter;
+    }
+
     std::vector<AmrVertexId> get_original_deepest_vertices() const;
 
     const AmrEdgeContainer& get_all_outgoing_edges()
     { return initial_edges_; }
 
-    // v must be the deepest vertex in a local connected component
-    // cannot be const - path compression!
-    AmrVertexId find_component_in_disjoint_sets(AmrVertexId v);
+//    // v must be the deepest vertex in a local connected component
+//    // cannot be const - path compression!
+//    AmrVertexId find_component_in_disjoint_sets(AmrVertexId v);
 
     static void* create()
     {

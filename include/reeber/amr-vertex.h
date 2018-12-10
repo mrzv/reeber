@@ -97,7 +97,7 @@ namespace std {
     template<>
     struct hash<reeber::AmrVertexId>
     {
-        std::size_t operator()(const reeber::AmrVertexId& id) const
+        std::size_t operator()(const reeber::AmrVertexId& id) const noexcept
         {
             std::size_t seed = 0;
             boost::hash_combine(seed, id.gid);

@@ -163,18 +163,16 @@ void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink* amr_link)
     compute_original_connected_components(vertex_to_outgoing_edges);
 
     // TODO: delete this? we are going to overwrite this in adjust_outgoing_edges anyway
-    for(int i = 0; i < amr_link->size(); ++i)
-    {
-        if (amr_link->target(i).gid != gid)
-        {
-            new_receivers_.insert(amr_link->target(i).gid);
-            original_link_gids_.push_back(amr_link->target(i).gid);
-        }
-    }
+//    for(int i = 0; i < amr_link->size(); ++i)
+//    {
+//        if (amr_link->target(i).gid != gid)
+//        {
+//            new_receivers_.insert(amr_link->target(i).gid);
+//            original_link_gids_.push_back(amr_link->target(i).gid);
+//        }
+//    }
 
-    if (debug)
-        fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n",
-                   debug_prefix, refinement(), level(), local_, domain().max, components_.size());
+    if (debug) fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n", debug_prefix, refinement(), level(), local_, domain().max, components_.size());
     if (debug) fmt::print("{},  constructed, new_receivers.size = {}\n", debug_prefix, new_receivers_.size());
 }
 
@@ -339,7 +337,7 @@ void FabComponentBlock<Real, D>::compute_outgoing_edges(diy::AMRLink* l, VertexE
 // edges_from_gid: outogoing eddes we receive from a neigbor block
 // subtract them from the edges we keep in gid_to_outgoing_edges_
 template<class Real, unsigned D>
-void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender)
+void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender, const VertexVertexMap& received_vertex_to_deepest)
 {
     bool debug = false;
 
@@ -371,14 +369,25 @@ void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContain
                           std::back_inserter(iter->second));
 
     int new_n_edges = iter->second.size();
-
-    if (iter->second.empty())
-        gid_to_outgoing_edges_.erase(iter);
-
     assert(old_n_edges >= new_n_edges);
     if (old_n_edges < new_n_edges)
         throw std::runtime_error("Bug in delete_low_edges, cannot have more edges after deletion");
     if (debug) fmt::print("in delete_low_edges, erase OK, old_n_edges = {}, new_n_edges = {}\n", old_n_edges, new_n_edges);
+
+    if (iter->second.empty())
+    {
+        gid_to_outgoing_edges_.erase(iter);
+        return;
+    }
+
+    for(auto&& e : iter->second)
+    {
+        AmrVertexId my_deepest = vertex_to_deepest_.at(std::get<0>(e));
+        AmrVertexId other_deepest = received_vertex_to_deepest.at(std::get<1>(e));
+        if (!disjoint_sets_.has_component(other_deepest))
+            disjoint_sets_.make_component(other_deepest);
+        disjoint_sets_.unite_components(my_deepest, other_deepest);
+    }
 }
 
 template<class Real, unsigned D>
@@ -410,8 +419,16 @@ void FabComponentBlock<Real, D>::adjust_outgoing_edges()
                 gid, s, initial_edges_.size(), orig_link_old_size, original_link_gids_.size(),
                 container_to_string(new_receivers_));
 
-    for(Component& c : components_)
-        c.set_edges(initial_edges_, disjoint_sets_);
+    for(AmrVertexId other_deepest: disjoint_sets_.all_components())
+    {
+        if (other_deepest.gid == gid)
+            continue;
+        for(Component& c : components_)
+        {
+            if (disjoint_sets_.are_connected(c.original_deepest_, other_deepest))
+                c.current_neighbors_.insert(other_deepest);
+        }
+    }
 
     gid_to_outgoing_edges_.clear();
 
@@ -464,7 +481,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
             component_vertices.insert(u);
             global_processed_vertices.insert(u);
             if (vertex_to_outgoing_edges.count(u))
-                component_edges.insert(component_edges.back(), vertex_to_outgoing_edges[u].begin(), vertex_to_outgoing_edges[u].end());
+                std::copy(vertex_to_outgoing_edges.at(u).begin(), vertex_to_outgoing_edges.at(u).end(), std::back_inserter(component_edges));
 
             Real u_val = fab_(u);
 
@@ -488,11 +505,10 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
             vertex_to_deepest_[component_vertex] = deepest;
         }
 
-        components_.emplace_back(deepest, deepest_value * scaling_factor());
+        components_.emplace_back(deepest, integral_val * scaling_factor(), deepest_value);
 
         disjoint_sets_.make_component(deepest);
     }
-
 }
 
 template<class Real, unsigned D>
@@ -508,16 +524,16 @@ bool FabComponentBlock<Real, D>::edge_goes_out(const AmrEdge& e) const
     return disjoint_sets_.has_component(std::get<0>(e)) xor disjoint_sets_.has_component(std::get<1>(e));
 }
 
-template<class Real, unsigned D>
-bool FabComponentBlock<Real, D>::is_component_connected_to_any_internal(const AmrVertexId& deepest)
-{
-    for(const auto& cc : components_)
-        if (disjoint_sets_.are_connected(deepest, cc.root_))
-            return true;
-    // for debug - assume everything is connected
-    //assert(false);
-    return false;
-}
+//template<class Real, unsigned D>
+//bool FabComponentBlock<Real, D>::is_component_connected_to_any_internal(const AmrVertexId& deepest)
+//{
+//    for(const auto& cc : components_)
+//        if (disjoint_sets_.are_connected(deepest, cc.root_))
+//            return true;
+//    // for debug - assume everything is connected
+//    //assert(false);
+//    return false;
+//}
 
 
 template<class Real, unsigned D>
@@ -530,44 +546,44 @@ Real FabComponentBlock<Real, D>::scaling_factor() const
 }
 
 
-template<class Real, unsigned D>
-int FabComponentBlock<Real, D>::is_done_simple(const std::vector<FabComponentBlock::AmrVertexId>& vertices_to_check)
-{
-    // check that all edge outgoing from the current region
-    // do not start in any component of our original local tree
+//template<class Real, unsigned D>
+//int FabComponentBlock<Real, D>::is_done_simple(const std::vector<FabComponentBlock::AmrVertexId>& vertices_to_check)
+//{
+//    // check that all edge outgoing from the current region
+//    // do not start in any component of our original local tree
+//
+////        bool debug = (gid == 0);
+//    bool debug = false;
+//
+//    if (debug)
+//        fmt::print("is_done_simple, gid = {}, #vertices = {}, round = {}\n", gid, vertices_to_check.size(), round_);
+//    for(const AmrVertexId& v : vertices_to_check)
+//    {
+//        if (is_component_connected_to_any_internal(v))
+//        {
+//            if (debug) fmt::print("is_done_simple, gid = {}, v = {}, returning 0\n", gid, v);
+//            return 0;
+//        }
+//    }
+//    if (debug) fmt::print("is_done_simple, gid = {}, returning 1\n", gid);
+//    return 1;
+//}
 
-//        bool debug = (gid == 0);
-    bool debug = false;
 
-    if (debug)
-        fmt::print("is_done_simple, gid = {}, #vertices = {}, round = {}\n", gid, vertices_to_check.size(), round_);
-    for(const AmrVertexId& v : vertices_to_check)
-    {
-        if (is_component_connected_to_any_internal(v))
-        {
-            if (debug) fmt::print("is_done_simple, gid = {}, v = {}, returning 0\n", gid, v);
-            return 0;
-        }
-    }
-    if (debug) fmt::print("is_done_simple, gid = {}, returning 1\n", gid);
-    return 1;
-}
-
-
-template<class Real, unsigned D>
-void FabComponentBlock<Real, D>::compute_local_integral(Real rho, Real theta)
-{
-    local_integral_.clear();
-
-    Real sf = scaling_factor();
-
-    for(const auto& vertex_value_pair : vertex_values_)
-    {
-        auto root = disjoint_sets_.find_component(vertex_value_pair.first);
-        AmrVertexId deepest = root_to_deepest_.at(root).vertex;
-        local_integral_[deepest] = sf * vertex_value_pair.second;
-    }
-}
+//template<class Real, unsigned D>
+//void FabComponentBlock<Real, D>::compute_local_integral(Real rho, Real theta)
+//{
+//    local_integral_.clear();
+//
+//    Real sf = scaling_factor();
+//
+//    for(const auto& vertex_value_pair : vertex_values_)
+//    {
+//        auto root = disjoint_sets_.find_component(vertex_value_pair.first);
+//        AmrVertexId deepest = root_to_deepest_.at(root).vertex;
+//        local_integral_[deepest] = sf * vertex_value_pair.second;
+//    }
+//}
 
 
 
@@ -596,19 +612,26 @@ void FabComponentBlock<Real, D>::compute_local_integral(Real rho, Real theta)
 //    throw std::runtime_error("Connnected component not found");
 //}
 
-//template<class Real, unsigned D>
-//int FabComponentBlock<Real, D>::are_all_components_done() const
-//{
-//    bool debug = false;
-//    if (debug) fmt::print("are_all_components_done, gid = {}\n", gid);
-//
-//    for(const Component& c : components_)
-//        if (not c.is_done())
-//            return 0;
-//
-//    if (debug) fmt::print("are_all_components_done, gid = {}, returning 1\n", gid);
-//    return 1;
-//}
+template<class Real, unsigned D>
+int FabComponentBlock<Real, D>::get_n_components_for_gid(int _gid) const
+{
+    return std::count_if(components_.begin(), components_.end(),
+            [_gid](const Component& c) { return c.must_send_to_gid(_gid); });
+}
+
+template<class Real, unsigned D>
+int FabComponentBlock<Real, D>::are_all_components_done() const
+{
+    bool debug = false;
+    if (debug) fmt::print("are_all_components_done, gid = {}\n", gid);
+
+    for(const Component& c : components_)
+        if (c.is_done())
+            return 0;
+
+    if (debug) fmt::print("are_all_components_done, gid = {}, returning 1\n", gid);
+    return 1;
+}
 
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::save(const void* b, diy::BinaryBuffer& bb)

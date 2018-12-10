@@ -24,7 +24,7 @@
 
 #include "../../amr-merge-tree/include/read-npy.h"
 
-#include "amr-connected-components-simple.h"
+#include "amr-connected-components-complex.h"
 
 
 // block-independent types
@@ -261,9 +261,9 @@ int main(int argc, char** argv)
 
     int global_n_undone = 1;
 
-    master.foreach(&send_edges_to_neighbors<Block>);
+    master.foreach(&send_edges_to_neighbors_cc<Real, DIM>);
     master.exchange();
-    master.foreach(&delete_low_edges<Block>);
+    master.foreach(&delete_low_edges_cc<Real, DIM>);
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info)  << "edges symmetrized, time elapsed " << timer.elapsed();
@@ -271,53 +271,56 @@ int main(int argc, char** argv)
     dlog::flush();
     timer.restart();
 
-    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-        auto* l = static_cast<AMRLink*>(cp.link());
 
-        std::set<diy::BlockID> receivers;
-        for(int i = 0; i < l->size(); ++i)
-        {
-            if (l->target(i).gid != b->gid)
-            {
-                receivers.insert(l->target(i));
-            }
-        }
+    // TODO: check symmetry
 
-        for(const diy::BlockID& receiver : receivers)
-        {
-            int receiver_gid = receiver.gid;
-            cp.enqueue(receiver, (int) (b->new_receivers_.count(receiver_gid)));
-        }
-    });
+//    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+//        auto* l = static_cast<AMRLink*>(cp.link());
+//
+//        std::set<diy::BlockID> receivers;
+//        for(int i = 0; i < l->size(); ++i)
+//        {
+//            if (l->target(i).gid != b->gid)
+//            {
+//                receivers.insert(l->target(i));
+//            }
+//        }
+//
+//        for(const diy::BlockID& receiver : receivers)
+//        {
+//            int receiver_gid = receiver.gid;
+//            cp.enqueue(receiver, (int) (b->new_receivers_.count(receiver_gid)));
+//        }
+//    });
 
-    master.exchange();
+//    master.exchange();
+//
+//    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+//        auto* l = static_cast<AMRLink*>(cp.link());
+//        std::set<diy::BlockID> senders;
+//        for(int i = 0; i < l->size(); ++i)
+//        {
+//            if (l->target(i).gid != b->gid)
+//            {
+//                senders.insert(l->target(i));
+//            }
+//        }
+//
+//        for(const diy::BlockID& sender : senders)
+//        {
+//            int t;
+//            cp.dequeue(sender, t);
+//
+//            if (t != (int) (b->new_receivers_.count(sender.gid)))
+//            {
+//                throw std::runtime_error("Asymmetry");
+//            }
+//
+//        }
+//    });
 
-    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-        auto* l = static_cast<AMRLink*>(cp.link());
-        std::set<diy::BlockID> senders;
-        for(int i = 0; i < l->size(); ++i)
-        {
-            if (l->target(i).gid != b->gid)
-            {
-                senders.insert(l->target(i));
-            }
-        }
-
-        for(const diy::BlockID& sender : senders)
-        {
-            int t;
-            cp.dequeue(sender, t);
-
-            if (t != (int) (b->new_receivers_.count(sender.gid)))
-            {
-                throw std::runtime_error("Asymmetry");
-            }
-
-        }
-    });
-
-    LOG_SEV_IF(world.rank() == 0, info)  << "Symmetry checked in "
-            << dlog::clock_to_string(timer.elapsed());
+//    LOG_SEV_IF(world.rank() == 0, info)  << "Symmetry checked in "
+//            << dlog::clock_to_string(timer.elapsed());
     time_for_communication += timer.elapsed();
     dlog::flush();
     timer.restart();
@@ -390,58 +393,58 @@ int main(int argc, char** argv)
 //    dlog::flush();
 //    timer.restart();
 
-    if (write_integral)
-    {
-        master.foreach([rho, theta](Block* b, const diy::Master::ProxyWithLink& cp) {
-
-            b->compute_local_integral(rho, theta);
-
-            AMRLink* l = static_cast<AMRLink*>(cp.link());
-
-            for(const auto& vertex_value_pair : b->local_integral_)
-            {
-                int receiver_gid = vertex_value_pair.first.gid;
-                if (receiver_gid == b->gid)
-                    continue;
-                auto receiver = l->target(l->find(receiver_gid));
-                cp.enqueue(receiver, vertex_value_pair);
-            }
-        });
-
-        master.exchange();
-
-        diy::io::SharedOutFile integral_file(output_integral_filename, world);
-
-        master.foreach([&integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
-            AMRLink* l = static_cast<AMRLink*>(cp.link());
-            for(auto bid : l->neighbors())
-            {
-                while (cp.incoming(bid.gid))
-                {
-                    Block::LocalIntegral::value_type x;
-                    cp.dequeue(bid, x);
-                    assert(x.first.gid == b->gid);
-                    b->local_integral_[x.first] += x.second;
-                }
-            }
-
-            for(const auto& root_value_pair : b->local_integral_)
-            {
-                AmrVertexId root = root_value_pair.first;
-                if (root.gid != b->gid)
-                    continue;
-
-                integral_file << fmt::format("{} {}\n", b->local_.global_position(root), root_value_pair.second);
-            }
-        });
-
-        world.barrier();
-        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
-                << dlog::clock_to_string(timer.elapsed());
-        time_for_output += timer.elapsed();
-        dlog::flush();
-        timer.restart();
-    }
+//    if (write_integral)
+//    {
+//        master.foreach([rho, theta](Block* b, const diy::Master::ProxyWithLink& cp) {
+//
+//            b->compute_local_integral(rho, theta);
+//
+//            AMRLink* l = static_cast<AMRLink*>(cp.link());
+//
+//            for(const auto& vertex_value_pair : b->local_integral_)
+//            {
+//                int receiver_gid = vertex_value_pair.first.gid;
+//                if (receiver_gid == b->gid)
+//                    continue;
+//                auto receiver = l->target(l->find(receiver_gid));
+//                cp.enqueue(receiver, vertex_value_pair);
+//            }
+//        });
+//
+//        master.exchange();
+//
+//        diy::io::SharedOutFile integral_file(output_integral_filename, world);
+//
+//        master.foreach([&integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
+//            AMRLink* l = static_cast<AMRLink*>(cp.link());
+//            for(auto bid : l->neighbors())
+//            {
+//                while (cp.incoming(bid.gid))
+//                {
+//                    Block::LocalIntegral::value_type x;
+//                    cp.dequeue(bid, x);
+//                    assert(x.first.gid == b->gid);
+//                    b->local_integral_[x.first] += x.second;
+//                }
+//            }
+//
+//            for(const auto& root_value_pair : b->local_integral_)
+//            {
+//                AmrVertexId root = root_value_pair.first;
+//                if (root.gid != b->gid)
+//                    continue;
+//
+//                integral_file << fmt::format("{} {}\n", b->local_.global_position(root), root_value_pair.second);
+//            }
+//        });
+//
+//        world.barrier();
+//        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
+//                << dlog::clock_to_string(timer.elapsed());
+//        time_for_output += timer.elapsed();
+//        dlog::flush();
+//        timer.restart();
+//    }
 
 //    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
 //        auto sum_n_vertices_pair = b->get_local_stats();

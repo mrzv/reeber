@@ -57,6 +57,43 @@ void send_edges_to_neighbors(Block* b, const diy::Master::ProxyWithLink& cp)
     }
 }
 
+//template<class Block>
+//void delete_low_edges(Block* b, const diy::Master::ProxyWithLink& cp)
+//{
+//    auto* l = static_cast<diy::AMRLink*>(cp.link());
+//
+//    for(const diy::BlockID& sender : link_unique(l, b->gid))
+//    {
+//        AmrEdgeContainer edges_from_neighbor;
+//        cp.dequeue(sender, edges_from_neighbor);
+//        b->delete_low_edges(sender.gid, edges_from_neighbor);
+//    }
+//
+//    b->adjust_outgoing_edges();
+//    b->sparsify_prune_original_tree();
+//}
+
+template<class Block>
+void send_edges_to_neighbors_cc(Block* b, const diy::Master::ProxyWithLink& cp)
+{
+    bool debug = false;
+
+    if(debug) fmt::print("Called send_edges_to_neighbors for block = {}\n", b->gid);
+
+    auto* l = static_cast<diy::AMRLink*>(cp.link());
+
+    for(const diy::BlockID& receiver : link_unique(l, b->gid))
+    {
+        int receiver_gid = receiver.gid;
+        cp.enqueue(receiver, b->gid_to_outgoing_edges_[receiver_gid]);
+        cp.enqueue(receiver, b->vertex_to_deepest_);
+
+        if(debug) fmt::print("In send_edges_to_neighbors for block = {}, sending to receiver= {}, cardinality = {}\n", b->gid, receiver_gid, b->gid_to_outgoing_edges_[receiver_gid].size());
+
+    }
+}
+
+
 template<class Block>
 void delete_low_edges(Block* b, const diy::Master::ProxyWithLink& cp)
 {
@@ -65,13 +102,16 @@ void delete_low_edges(Block* b, const diy::Master::ProxyWithLink& cp)
     for(const diy::BlockID& sender : link_unique(l, b->gid))
     {
         AmrEdgeContainer edges_from_neighbor;
+        typename Block::VertexVertexMap received_vertex_to_deepest;
         cp.dequeue(sender, edges_from_neighbor);
+        cp.dequeue(sender, received_vertex_to_deepest);
         b->delete_low_edges(sender.gid, edges_from_neighbor);
     }
 
     b->adjust_outgoing_edges();
     b->sparsify_prune_original_tree();
 }
+
 
 template<class Link>
 bool link_contains_gid(Link* link, int gid)
