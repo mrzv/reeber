@@ -35,11 +35,12 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 
 # src files
-#file(GLOB AMT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
-
 foreach(real   float double)
 
-add_executable(amr_connected_components_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-connected-components.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
+add_executable(amr_connected_components_${real}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-connected-components.cpp
+        ${AMT_HEADERS}
+        ${REEBER_HEADERS})
 set_target_properties(amr_connected_components_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")
 
 # target_link_libraries(amr_merge_tree PUBLIC ${libraries})

@@ -87,7 +87,7 @@ void expand_link(FabComponentBlock<Real, D>* b,
 }
 
 template<class Real, unsigned D>
-void amr_tmt_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
+void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
     using Component = typename FabComponentBlock<Real, D>::Component;
     bool debug = false;
@@ -112,11 +112,13 @@ void amr_tmt_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLin
         {
             if (!c.must_send_to_gid(receiver_gid))
                 continue;
+
             cp.enqueue(receiver, c.original_deepest_);
             cp.enqueue(receiver, c.current_neighbors_);
             cp.enqueue(receiver, c.processed_neighbors_);
             cp.enqueue(receiver, c.original_integral_value_);
             cp.enqueue(receiver, c.original_deepest_value_);
+
             c.mark_gid_processed(receiver_gid);
         }
     }
@@ -127,28 +129,21 @@ void amr_tmt_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLin
 }
 
 template<class Real, unsigned D>
-void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
+void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-//    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = false;
-
-    //    if (debug) fmt::print("Called receive_simple for block = {}\n", b->gid);
-
     using Block = FabComponentBlock<Real, D>;
     using Component = typename FabComponentBlock<Real, D>::Component;
     using AmrEdgeVector = typename Block::AmrEdgeContainer;
-    using VertexVertexMap = typename Block::VertexVertexMap;
-    using VertexSizeMap = typename Block::VertexSizeMap;
     using LinkVector = std::vector<AMRLink>;
     using VertexValue = typename Block::VertexValue;
     using AmrVertexSet = typename Block::AmrVertexSet;
 
+    bool debug = false;
+    if (debug) fmt::print("Called amr_cc_receive for block = {}\n", b->gid);
+
     auto* l = static_cast<AMRLink*>(cp.link());
 
     cp.collectives()->clear();
-
-    std::vector<AmrEdgeVector> received_edges;
-    std::vector<std::vector<int>> received_original_gids;
 
     LinkVector received_links;
 
@@ -160,8 +155,6 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
     {
         int n_components;
 
-        received_original_gids.emplace_back();
-        cp.dequeue(sender, received_original_gids.back());
         diy::MemoryBuffer& in = cp.incoming(sender.gid);
         AMRLink* l = static_cast<AMRLink*>(diy::LinkFactory::load(in));
         received_links.push_back(*l);
@@ -183,7 +176,7 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
             cp.dequeue(sender, received_original_integral_value);
             cp.dequeue(sender, received_original_deepest_value);
 
-            b->disjoint_sets_.make_component(received_original_deepest);
+            b->disjoint_sets_.make_component_if_not_exists(received_original_deepest);
 
             for(const AmrVertexId& rcn : received_current_neighbors)
             {
@@ -261,6 +254,9 @@ void amr_tmt_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWith
 
     b->done_ = b->are_all_components_done();
     int n_undone = 1 - b->done_;
+
+    debug = b->gid == 0;
+    if (debug) fmt::print("b->done = {}, n_undone = {}\n", b->done_, n_undone);
 
     cp.all_reduce(n_undone, std::plus<int>());
 

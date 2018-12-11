@@ -26,6 +26,8 @@
 #include "../../amr-merge-tree/include/fab-block.h"
 #include "reeber/amr_helper.h"
 
+#include "fab-connected-component.h"
+
 namespace r = reeber;
 
 template<class Real, unsigned D>
@@ -37,10 +39,16 @@ struct FabComponentBlock
     using GridRef = r::GridRef<Real, D>;
     // index of point: first = index inside box, second = index of a box
     using AmrVertexId = r::AmrVertexId;
+
+    using Component = FabConnectedComponent<Real>;
+
+    using VertexValue = typename Component::VertexValue;
+
     using Value = typename Grid::Value;
     using MaskedBox = r::MaskedBox<D>;
     using Vertex = typename MaskedBox::Position;
     using AmrVertexContainer = std::vector<AmrVertexId>;
+    using AmrVertexSet = typename Component::AmrVertexSet;
 
     using AmrEdge = r::AmrEdge;
     using AmrEdgeContainer = r::AmrEdgeContainer;
@@ -56,100 +64,6 @@ struct FabComponentBlock
     using VertexVertexMap = UnionFind::VertexVertexMap;
     using VertexSizeMap = UnionFind::VertexSizeMap;
 
-    using AmrVertexSet = std::unordered_set<AmrVertexId>;
-
-    struct VertexValue
-    {
-        AmrVertexId vertex;
-        Real value;
-    };
-
-    template<class Vertex_>
-    struct ConnectedComponent
-    {
-        // types
-        using Vertex = Vertex_;
-
-        // fields
-
-        AmrVertexId global_deepest_;    // will be updated in each communication round
-        const AmrVertexId original_deepest_;
-
-        Real global_integral_value_;
-        const Real original_integral_value_;
-        Real global_deepest_value_;
-        const Real original_deepest_value_;
-
-        AmrVertexSet current_neighbors_;
-        AmrVertexSet processed_neighbors_;
-
-        // methods
-
-        ConnectedComponent()
-        {
-        }
-
-        ConnectedComponent(const AmrVertexId& deepest, Real total_value, Real deepest_value) :
-                global_deepest_(deepest),
-                original_deepest_(deepest),
-                global_integral_value_(total_value),
-                original_integral_value_(total_value),
-                global_deepest_value_(deepest_value),
-                original_deepest_value_(deepest_value),
-                current_neighbors_({deepest}),
-                processed_neighbors_({deepest})
-        {
-        }
-
-
-        int is_done() const
-        {
-            assert(std::includes(current_neighbors_.begin(), current_neighbors_.end(),
-                                 processed_neighbors_.begin(), processed_neighbors_.end()));
-            return current_neighbors_.size() == processed_neighbors_.size();
-        }
-
-        void set_global_deepest(const VertexValue& vv)
-        {
-            // TODO: add assert with cmp. Add negate to component?
-            global_deepest_value_ = vv.value;
-            global_deepest_ = vv.vertex;
-        }
-
-        void set_current_neighbors(const AmrVertexSet& new_current_neighbhors)
-        {
-            for(AmrVertexId cn : current_neighbors_)
-                assert(new_current_neighbhors.count(cn));
-            current_neighbors_ = new_current_neighbhors;
-        }
-
-        int must_send_to_gid(int gid) const
-        {
-            for(const AmrVertexId& cn : current_neighbors_)
-            {
-                if (processed_neighbors_.count(cn))
-                    continue;
-                if (cn.gid == gid)
-                    return 1;
-            }
-            return 0;
-        }
-
-
-        void mark_gid_processed(int _gid)
-        {
-            for(const auto& cn : current_neighbors_)
-            {
-                if (cn.gid == _gid)
-                {
-                    processed_neighbors_.insert(cn);
-                }
-            }
-        }
-
-    };
-
-    using Component = ConnectedComponent<reeber::AmrVertexId>;
 
     // data
 
@@ -181,15 +95,9 @@ struct FabComponentBlock
 
     // is pre-computed once. does not change
     // only for baseiline algorithm
-    AmrEdgeContainer initial_edges_;
+//    AmrEdgeContainer initial_edges_;
 
     std::unordered_map<int, AmrEdgeContainer> gid_to_outgoing_edges_;
-
-    std::unordered_set<AmrVertexId> new_receivers_;         // roots of local components in other blocks
-                                                            // to which we should send this local component
-    std::unordered_set<AmrVertexId> processed_receivers_;   // roots of components to which we have sent this local component
-
-    GidVector original_link_gids_;
 
     bool negate_;
 
@@ -205,8 +113,6 @@ struct FabComponentBlock
     int refinement() const { return local_.refinement(); }
 
     int level() const { return local_.level(); }
-
-    const GidVector& get_original_link_gids() const { return original_link_gids_; }
 
     FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
                       int _ref,
@@ -224,7 +130,6 @@ struct FabComponentBlock
                    project_point<D>(bounds.max), _ref, _level, gid, fab_grid.c_order()),
             fab_(fab_grid.data(), fab_grid.shape(), fab_grid.c_order()),
             domain_(_domain),
-            processed_receivers_({gid}),
             negate_(_negate)
     {
         bool debug = false;
@@ -306,6 +211,8 @@ struct FabComponentBlock
 
     void compute_local_integral(Real rho, Real theta);
 
+    bool check_symmetry(int gid, const std::vector<Component>& received_components);
+
     Real scaling_factor() const;
 
     Component& get_component_by_deepest(const AmrVertexId& deepest)
@@ -318,8 +225,7 @@ struct FabComponentBlock
 
     std::vector<AmrVertexId> get_original_deepest_vertices() const;
 
-    const AmrEdgeContainer& get_all_outgoing_edges()
-    { return initial_edges_; }
+//    const AmrEdgeContainer& get_all_outgoing_edges() { return initial_edges_; }
 
 //    // v must be the deepest vertex in a local connected component
 //    // cannot be const - path compression!

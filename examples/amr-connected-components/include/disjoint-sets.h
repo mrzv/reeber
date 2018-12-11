@@ -17,12 +17,13 @@ struct DisjointSets
     VertexVertexMap parent_;
     VertexSizeMap size_;
 
-    DisjointSets() {}
+    DisjointSets()
+    {}
 
     template<class VertexContainer>
     DisjointSets(const VertexContainer& vc)
     {
-        for(const auto &v : vc)
+        for(const auto& v : vc)
         {
             create_component(v);
         }
@@ -33,6 +34,12 @@ struct DisjointSets
         assert(parent_.count(v) == 0);
         parent_[v] = v;
         size_[v] = 1;
+    }
+
+    void make_component_if_not_exists(const Vertex& v)
+    {
+        if (!has_component(v))
+            make_component(v);
     }
 
     bool has_component(const Vertex& v) const
@@ -49,7 +56,7 @@ struct DisjointSets
     {
         Vertex x = a;
         bool debug = false;
-        while (parent_.at(x) != x)
+        while(parent_.at(x) != x)
         {
             auto next = parent_[x];
             if (debug) fmt::print("in find_component_in_disjoint_sets, x = {}, next = {}\n", x, next);
@@ -102,7 +109,7 @@ struct DisjointSets
 };
 
 
-template <>
+template<>
 template<class Vertex>
 struct diy::Serialization<DisjointSets<Vertex>>
 {

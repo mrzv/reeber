@@ -126,7 +126,6 @@ int main(int argc, char** argv)
     // ignored for now, wrap is always assumed
     bool wrap = ops >> opts::Present('w', "wrap", "wrap");
     bool split = ops >> opts::Present("split", "use split IO");
-    bool write_halo_diagrams = ops >> opts::Present("write-halo-diagrams", "Write diagrams of each halo");
 
     std::string input_filename, output_integral_filename;
 
@@ -272,55 +271,29 @@ int main(int argc, char** argv)
     timer.restart();
 
 
-    // TODO: check symmetry
+    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+        auto* l = static_cast<AMRLink*>(cp.link());
 
-//    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-//        auto* l = static_cast<AMRLink*>(cp.link());
-//
-//        std::set<diy::BlockID> receivers;
-//        for(int i = 0; i < l->size(); ++i)
-//        {
-//            if (l->target(i).gid != b->gid)
-//            {
-//                receivers.insert(l->target(i));
-//            }
-//        }
-//
-//        for(const diy::BlockID& receiver : receivers)
-//        {
-//            int receiver_gid = receiver.gid;
-//            cp.enqueue(receiver, (int) (b->new_receivers_.count(receiver_gid)));
-//        }
-//    });
+        for(const diy::BlockID& receiver : link_unique(l, b->gid))
+        {
+            cp.enqueue(receiver, b->components_);
+        }
+    });
 
-//    master.exchange();
-//
-//    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-//        auto* l = static_cast<AMRLink*>(cp.link());
-//        std::set<diy::BlockID> senders;
-//        for(int i = 0; i < l->size(); ++i)
-//        {
-//            if (l->target(i).gid != b->gid)
-//            {
-//                senders.insert(l->target(i));
-//            }
-//        }
-//
-//        for(const diy::BlockID& sender : senders)
-//        {
-//            int t;
-//            cp.dequeue(sender, t);
-//
-//            if (t != (int) (b->new_receivers_.count(sender.gid)))
-//            {
-//                throw std::runtime_error("Asymmetry");
-//            }
-//
-//        }
-//    });
+    master.exchange();
 
-//    LOG_SEV_IF(world.rank() == 0, info)  << "Symmetry checked in "
-//            << dlog::clock_to_string(timer.elapsed());
+    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+        auto* l = static_cast<AMRLink*>(cp.link());
+        for(const diy::BlockID& sender : link_unique(l, b->gid))
+        {
+            std::vector<Component> received_components;
+            cp.dequeue(sender, received_components);
+            b->check_symmetry(sender.gid, received_components);
+        }
+    });
+
+    LOG_SEV_IF(world.rank() == 0, info)  << "Symmetry checked in "
+            << dlog::clock_to_string(timer.elapsed());
     time_for_communication += timer.elapsed();
     dlog::flush();
     timer.restart();
@@ -330,9 +303,9 @@ int main(int argc, char** argv)
     {
         rounds++;
 
-        master.foreach(&amr_tmt_send<Real, DIM>);
+        master.foreach(&amr_cc_send<Real, DIM>);
         master.exchange();
-        master.foreach(&amr_tmt_receive<Real, DIM>);
+        master.foreach(&amr_cc_receive<Real, DIM>);
 
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", get OK";
         dlog::flush();
