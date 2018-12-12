@@ -578,7 +578,7 @@ template<class Real, unsigned D>
 bool FabComponentBlock<Real, D>::check_symmetry(int other_gid,
                                                 const std::vector<FabComponentBlock::Component>& received_components)
 {
-    bool debug = false;
+    bool debug = true;
     // check that all edges (outer_vertex -> my_vertex) have corresponding (my_vertex->outer_vertex) edge
     for(const Component& rc : received_components)
     {

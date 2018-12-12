@@ -292,8 +292,7 @@ int main(int argc, char** argv)
         }
     });
 
-    LOG_SEV_IF(world.rank() == 0, info)  << "Symmetry checked in "
-            << dlog::clock_to_string(timer.elapsed());
+    LOG_SEV_IF(world.rank() == 0, info)  << "Symmetry checked in " << dlog::clock_to_string(timer.elapsed());
     time_for_communication += timer.elapsed();
     dlog::flush();
     timer.restart();
@@ -325,99 +324,27 @@ int main(int argc, char** argv)
     dlog::flush();
     timer.restart();
 
-    //    fmt::print("----------------------------------------\n");
-    //    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-    //        int my_nodes = 0;
-    //        int not_my_nodes = 0;
-    //        const auto& const_tree = b->mt;
-    //        for(const auto& x : const_tree.nodes()) {
-    //            if (x.second->vertex != x.first)
-    //                fmt::print("Bad node vertex = {}, node vertex = {}\n", x.first, x.second->vertex);
-    //            if (b->gid == x.second->vertex.gid) {
-    //                my_nodes++;
-    //            } else {
-    //                not_my_nodes++;
-    //            }
-    //        }
-    //        fmt::print("finished gid = {}, mt.size = {}, my_nodes = {}, not_my_nodes = {}\n", b->gid, b->mt.size(), my_nodes, not_my_nodes);
-    //    });
-    //    fmt::print("----------------------------------------\n");
-
-    // save the result
-//    if (output_filename != "none")
-//    {
-//        if (!split)
-//            diy::io::write_blocks(output_filename, world, master);
-//        else
-//            diy::io::split::write_blocks(output_filename, world, master);
-//    }
-
-//    world.barrier();
-//    LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
     auto time_for_output = timer.elapsed();
-//    dlog::flush();
-//    timer.restart();
 
-//    bool verbose = false;
-//
-//    world.barrier();
-//    LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
-//    time_for_output += timer.elapsed();
-//    dlog::flush();
-//    timer.restart();
+    if (write_integral)
+    {
+        diy::io::SharedOutFile integral_file(output_integral_filename, world);
 
-//    if (write_integral)
-//    {
-//        master.foreach([rho, theta](Block* b, const diy::Master::ProxyWithLink& cp) {
-//
-//            b->compute_local_integral(rho, theta);
-//
-//            AMRLink* l = static_cast<AMRLink*>(cp.link());
-//
-//            for(const auto& vertex_value_pair : b->local_integral_)
-//            {
-//                int receiver_gid = vertex_value_pair.first.gid;
-//                if (receiver_gid == b->gid)
-//                    continue;
-//                auto receiver = l->target(l->find(receiver_gid));
-//                cp.enqueue(receiver, vertex_value_pair);
-//            }
-//        });
-//
-//        master.exchange();
-//
-//        diy::io::SharedOutFile integral_file(output_integral_filename, world);
-//
-//        master.foreach([&integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
-//            AMRLink* l = static_cast<AMRLink*>(cp.link());
-//            for(auto bid : l->neighbors())
-//            {
-//                while (cp.incoming(bid.gid))
-//                {
-//                    Block::LocalIntegral::value_type x;
-//                    cp.dequeue(bid, x);
-//                    assert(x.first.gid == b->gid);
-//                    b->local_integral_[x.first] += x.second;
-//                }
-//            }
-//
-//            for(const auto& root_value_pair : b->local_integral_)
-//            {
-//                AmrVertexId root = root_value_pair.first;
-//                if (root.gid != b->gid)
-//                    continue;
-//
-//                integral_file << fmt::format("{} {}\n", b->local_.global_position(root), root_value_pair.second);
-//            }
-//        });
-//
-//        world.barrier();
-//        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
-//                << dlog::clock_to_string(timer.elapsed());
-//        time_for_output += timer.elapsed();
-//        dlog::flush();
-//        timer.restart();
-//    }
+        master.foreach([rho, theta, &integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
+            for(const Component& c : b->components_)
+            {
+                if (c.original_deepest_ != c.global_deepest_ or  b->cmp(theta, c.original_deepest_value_))
+                    continue;
+                integral_file << fmt::format("{} {}\n", b->local_.global_position(c.original_deepest_), c.global_integral_value_);
+            }
+        });
+
+        world.barrier();
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to write integral:  " << dlog::clock_to_string(timer.elapsed());
+        time_for_output += timer.elapsed();
+        dlog::flush();
+        timer.restart();
+    }
 
 //    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
 //        auto sum_n_vertices_pair = b->get_local_stats();
@@ -443,8 +370,7 @@ int main(int argc, char** argv)
 //    std::string final_timings = fmt::format("read: {} local: {} exchange: {} output: {}\n", time_to_read_data,
 //                                            time_for_local_computation, time_for_communication, time_for_output);
 //    LOG_SEV_IF(world.rank() == 0, info) << final_timings;
-//    dlog::flush();
-
+    dlog::flush();
 
     return 0;
 }
