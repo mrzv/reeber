@@ -105,14 +105,16 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
         diy::MemoryBuffer& out = cp.outgoing(receiver);
         diy::LinkFactory::save(out, l);
 
-        int n_trees = b->get_n_components_for_gid(receiver_gid);
-        //if (debug) fmt::print("In send_simple for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid, n_trees);
-        cp.enqueue(receiver, n_trees);
+        int n_components = b->get_n_components_for_gid(receiver_gid);
+        //if (debug) fmt::print("In send_simple for block = {}, sending to {}, n_components = {}\n", b->gid, receiver_gid, n_components);
+        cp.enqueue(receiver, n_components);
+        int n_sent = 0;
         for(Component& c : b->components_)
         {
             if (!c.must_send_to_gid(receiver_gid))
                 continue;
 
+            n_sent++;
             cp.enqueue(receiver, c.original_deepest_);
             cp.enqueue(receiver, c.current_neighbors_);
             cp.enqueue(receiver, c.processed_neighbors_);
@@ -121,6 +123,7 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
 
             c.mark_gid_processed(receiver_gid);
         }
+        assert(n_sent == n_components);
     }
 
     int done = b->done_;
@@ -181,25 +184,40 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             for(const AmrVertexId& rcn : received_current_neighbors)
             {
 
-                if (b->disjoint_sets_.has_component(rcn))
-                    b->disjoint_sets_.unite_components(rcn, received_original_deepest);
+                b->disjoint_sets_.make_component_if_not_exists(rcn);
+                b->disjoint_sets_.unite_components(rcn, received_original_deepest);
 
                 if (rcn.gid != b->gid)
                     continue;
 
                 Component& c = b->get_component_by_deepest(rcn);
-                if (c.processed_neighbors_.count(rcn) == 0)
+                assert(rcn == c.original_deepest_);
+                if (c.processed_neighbors_.count(received_original_deepest) == 0)
                 {
+//                    assert(received_processed_neighbors.count(c.original_deepest_) == 0);
                     c.global_integral_value_ += received_original_integral_value;
-                    c.processed_neighbors_.insert(rcn);
+                    c.processed_neighbors_.insert(received_original_deepest);
                     c.current_neighbors_.insert(received_current_neighbors.begin(), received_current_neighbors.end());
+                    b->disjoint_sets_.unite_components(c.original_deepest_, received_original_deepest);
                     if (b->cmp(received_original_deepest_value, c.original_deepest_value_))
                     {
                         c.global_deepest_ = received_original_deepest;
                         c.global_deepest_value_ = received_original_deepest_value;
                     }
+                } else
+                {
+//                    assert(received_processed_neighbors.count(c.original_deepest_) == 1);
                 }
             }
+        }
+    }
+
+
+    for(const Component& c : b->components_)
+    {
+        for(const AmrVertexId cn : c.current_neighbors_)
+        {
+            assert(b->disjoint_sets_.are_connected(c.original_deepest_, cn));
         }
     }
 
