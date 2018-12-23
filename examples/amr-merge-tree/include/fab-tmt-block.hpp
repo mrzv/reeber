@@ -626,6 +626,13 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
         }
     }
 
+    if (gid == 1)
+    {
+        reeber::AmrVertexId  v { 1, 32005};
+        auto od = original_deepest(v);
+        fmt::print("original_deepest({}) = {}\n", v, od);
+    }
+
     //assert(std::accumulate(const_tree.nodes().cbegin(), const_tree.nodes().cend(), true,
     //                       [this](const bool& prev, const typename VertexNeighborMap::value_type& vn) {
     //                           return prev and this->original_deepest_computed(vn.second);
@@ -664,7 +671,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::compute_final_connected_components()
 {
-    bool debug = false;
+    bool debug = gid == 1;
 
     const auto& const_tree = current_merge_tree_;
 
@@ -672,14 +679,15 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
 
     for (const auto& vert_neighb_pair : const_tree.nodes())
     {
+//        debug = (vert_neighb_pair.second->vertex == reeber::AmrVertexId { 1, 32005});
+
         if (debug) fmt::print("in compute_final_connected_component, gid = {} processing vertex = {}\n", gid, vert_neighb_pair.first);
 
         Neighbor u = vert_neighb_pair.second;
 
         if (!final_deepest_computed(u->vertex))
         {
-            if (debug)
-                fmt::print("in compute_final_connected_compponent, gid = {}, deepest not computed, traversing\n", gid);
+            if (debug) fmt::print("in compute_final_connected_compponent, gid = {}, deepest not computed, traversing\n", gid);
             // nodes we traverse while going down,
             // they all should get deepest node
             std::vector<AmrVertexId> visited_neighbors;
@@ -694,6 +702,7 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
             while (u_ != v and not final_deepest_computed(v->vertex))
             {
 
+                // nodes we traverse while going down,
                 visited_neighbors.push_back(u_->vertex);
                 visited_neighbors.push_back(v->vertex);
                 visited_neighbors.push_back(s->vertex);
@@ -708,7 +717,10 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
 
             }
 
+
             AmrVertexId deepest_vertex = (final_deepest_computed(v)) ? final_deepest(v) : v->vertex;
+
+            if (debug) fmt::print("in compute_final_connected_compponent, v = {}, deepest vertex = {}\n", v->vertex, deepest_vertex);
 
             if (not final_deepest_computed(v))
             {
@@ -717,10 +729,7 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
 
             for (const AmrVertexId& v : visited_neighbors)
             {
-                if (debug)
-                    fmt::print(
-                            "in compute_final_connected_compponent, gid = {}, deepest = {}, setting to visited neighbor {}\n",
-                            gid, deepest_vertex, v);
+                if (debug) fmt::print( "in compute_final_connected_compponent, gid = {}, deepest = {}, setting to visited neighbor {}\n", gid, deepest_vertex, v);
                 final_vertex_to_deepest_[v] = deepest_vertex;
             }
         }

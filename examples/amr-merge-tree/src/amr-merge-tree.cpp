@@ -225,11 +225,11 @@ int main(int argc, char** argv)
     diy::mpi::environment env(argc, argv);
     diy::mpi::communicator world;
 
-    if (argc < 2)
-    {
-        fmt::print(std::cerr, "Usage: {} IN.amr rho\n", argv[0]);
-        return 1;
-    }
+//    if (argc < 2)
+//    {
+//        fmt::print(std::cerr, "Usage: {} IN.amr rho\n", argv[0]);
+//        return 1;
+//    }
 
     int nblocks = world.size();
     std::string prefix = "./DIY.XXXXXX";
@@ -597,7 +597,7 @@ int main(int argc, char** argv)
                 if (root.gid != b->gid)
                     continue;
 
-                integral_file << fmt::format("{} {}\n", b->local_.global_position(root), root_value_pair.second);
+                integral_file << fmt::format("{} {} {}\n", root, b->local_.global_position(root), root_value_pair.second);
             }
         });
 

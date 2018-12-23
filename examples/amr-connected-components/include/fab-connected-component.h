@@ -17,8 +17,9 @@
 
 
 template<class Real>
-struct FabConnectedComponent
+class FabConnectedComponent
 {
+public:
     // types
     struct VertexValue
     {
@@ -28,25 +29,33 @@ struct FabConnectedComponent
 
     using AmrVertexId = reeber::AmrVertexId;
     using AmrVertexSet = std::unordered_set<AmrVertexId>;
+    using GidSet = std::unordered_set<int>;
 
     // fields
     bool negate_;
     AmrVertexId global_deepest_;    // will be updated in each communication round
     AmrVertexId original_deepest_;
-
-    Real global_integral_value_;
-    Real original_integral_value_;
     Real global_deepest_value_;
-    Real original_deepest_value_;
 
     AmrVertexSet current_neighbors_;
     AmrVertexSet processed_neighbors_;
 
+    GidSet current_gids_;
+    GidSet processed_gids_;
+
+public:
     // methods
-
     FabConnectedComponent();
+    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value);
 
-    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real total_value, Real deepest_value);
+    // getters
+    AmrVertexId global_deepest() const { return global_deepest_; }
+    AmrVertexId original_deepest() const { return original_deepest_; }
+    Real global_deepest_value() const { return global_deepest_value_; }
+    const AmrVertexSet& current_neighbors() const { return current_neighbors_; }
+    const AmrVertexSet& processed_neighbors() const { return processed_neighbors_; }
+    const GidSet& current_gids() const { return current_gids_; }
+    const GidSet& processed_gids() const { return processed_gids_;}
 
     bool cmp(Real x, Real y) const;
 
@@ -54,11 +63,13 @@ struct FabConnectedComponent
 
     void set_global_deepest(const VertexValue& vv);
 
+    void add_current_neighbor(const AmrVertexId& new_current_neighbor);
     void set_current_neighbors(const AmrVertexSet& new_current_neighbhors);
 
     int must_send_to_gid(int gid) const;
 
     void mark_gid_processed(int _gid);
+    void mark_neighbor_processed(AmrVertexId v);
 
     std::string to_string() const;
 
@@ -85,10 +96,10 @@ namespace diy
             diy::save(bb, c.global_deepest_);
             diy::save(bb, c.original_deepest_);
             diy::save(bb, c.negate_);
-            diy::save(bb, c.global_integral_value_);
-            diy::save(bb, c.original_integral_value_);
+//            diy::save(bb, c.global_integral_value_);
+//            diy::save(bb, c.original_integral_value_);
             diy::save(bb, c.global_deepest_value_);
-            diy::save(bb, c.original_deepest_value_);
+//            diy::save(bb, c.original_deepest_value_);
             diy::save(bb, c.current_neighbors_);
             diy::save(bb, c.processed_neighbors_);
         }
@@ -98,10 +109,10 @@ namespace diy
             diy::load(bb, c.global_deepest_);
             diy::load(bb, c.original_deepest_);
             diy::load(bb, c.negate_);
-            diy::load(bb, c.global_integral_value_);
-            diy::load(bb, c.original_integral_value_);
+//            diy::load(bb, c.global_integral_value_);
+//            diy::load(bb, c.original_integral_value_);
             diy::load(bb, c.global_deepest_value_);
-            diy::load(bb, c.original_deepest_value_);
+//            diy::load(bb, c.original_deepest_value_);
             diy::load(bb, c.current_neighbors_);
             diy::load(bb, c.processed_neighbors_);
         }

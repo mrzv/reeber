@@ -50,6 +50,8 @@ struct FabComponentBlock
     using AmrVertexContainer = std::vector<AmrVertexId>;
     using AmrVertexSet = typename Component::AmrVertexSet;
 
+    using VertexValueMap = std::unordered_map<AmrVertexId, Real>;
+
     using AmrEdge = r::AmrEdge;
     using AmrEdgeContainer = r::AmrEdgeContainer;
     using AmrEdgeSet = std::set<AmrEdge>;
@@ -98,6 +100,9 @@ struct FabComponentBlock
 //    AmrEdgeContainer initial_edges_;
 
     std::unordered_map<int, AmrEdgeContainer> gid_to_outgoing_edges_;
+
+    VertexValueMap original_integral_values_;
+    VertexValueMap global_integral_;
 
     bool negate_;
 
@@ -187,8 +192,6 @@ struct FabComponentBlock
 
     void compute_original_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
 
-//    void compute_final_connected_components();
-//
     void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender, const VertexVertexMap& received_vertex_to_deepest);
 //
     void adjust_outgoing_edges();
@@ -209,7 +212,7 @@ struct FabComponentBlock
 
     int is_done_simple(const std::vector<FabComponentBlock::AmrVertexId>& vertices_to_check);
 
-    void compute_local_integral(Real rho, Real theta);
+    void compute_local_integral(Real theta);
 
     bool check_symmetry(int gid, const std::vector<Component>& received_components);
 
@@ -223,7 +226,8 @@ struct FabComponentBlock
         return  *res_iter;
     }
 
-    std::vector<AmrVertexId> get_original_deepest_vertices() const;
+
+//    std::vector<AmrVertexId> get_original_deepest_vertices() const;
 
 //    const AmrEdgeContainer& get_all_outgoing_edges() { return initial_edges_; }
 

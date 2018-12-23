@@ -331,11 +331,22 @@ int main(int argc, char** argv)
         diy::io::SharedOutFile integral_file(output_integral_filename, world);
 
         master.foreach([rho, theta, &integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
-            for(const Component& c : b->components_)
+            
+            b->compute_local_integral(theta);
+
+//            if (b->gid == 1)
+//            {
+//                for(auto root_component_pair : b->disjoint_sets_.all_sets())
+//                {
+//                    fmt::print("{}  : {}\n", root_component_pair.first, container_to_string(root_component_pair.second));
+//                }
+//            }
+
+            for(const auto& root_integral_value_pair : b->global_integral_)
             {
-                if (c.original_deepest_ != c.global_deepest_ or  b->cmp(theta, c.original_deepest_value_))
-                    continue;
-                integral_file << fmt::format("{} {}\n", b->local_.global_position(c.original_deepest_), c.global_integral_value_);
+                auto root = root_integral_value_pair.first;
+                auto value = root_integral_value_pair.second;
+                integral_file << fmt::format("{} {} {}\n", root, b->local_.global_position(root), value);
             }
         });
 

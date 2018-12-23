@@ -115,11 +115,12 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
                 continue;
 
             n_sent++;
-            cp.enqueue(receiver, c.original_deepest_);
-            cp.enqueue(receiver, c.current_neighbors_);
-            cp.enqueue(receiver, c.processed_neighbors_);
-            cp.enqueue(receiver, c.original_integral_value_);
-            cp.enqueue(receiver, c.original_deepest_value_);
+            cp.enqueue(receiver, c.original_deepest());
+            cp.enqueue(receiver, c.global_deepest());
+            cp.enqueue(receiver, c.current_neighbors());
+            cp.enqueue(receiver, c.processed_neighbors());
+            cp.enqueue(receiver, b->original_integral_values_.at(c.original_deepest()));
+            cp.enqueue(receiver, c.global_deepest_value());
 
             c.mark_gid_processed(receiver_gid);
         }
@@ -170,20 +171,36 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             AmrVertexSet received_current_neighbors;
             AmrVertexSet received_processed_neighbors;
             AmrVertexId received_original_deepest;
+            AmrVertexId received_global_deepest;
             Real received_original_integral_value;
-            Real received_original_deepest_value;
+            Real received_global_deepest_value;
 
             cp.dequeue(sender, received_original_deepest);
+            cp.dequeue(sender, received_global_deepest);
             cp.dequeue(sender, received_current_neighbors);
             cp.dequeue(sender, received_processed_neighbors);
             cp.dequeue(sender, received_original_integral_value);
-            cp.dequeue(sender, received_original_deepest_value);
+            cp.dequeue(sender, received_global_deepest_value);
 
             b->disjoint_sets_.make_component_if_not_exists(received_original_deepest);
 
+
+//            {
+//                auto x = b->original_integral_values_.count(received_original_deepest);
+//                if (x != 0)
+//                {
+//                    auto v1 = b->original_integral_values_.at(received_original_deepest);
+//                    auto diff = v1 - received_original_integral_value;
+//                    assert(diff == 0.0);
+//                }
+//            }
+
+            assert(b->original_integral_values_.count(received_original_deepest) == 0 or
+                   b->original_integral_values_.at(received_original_deepest) == received_original_integral_value);
+            b->original_integral_values_[received_original_deepest] = received_original_integral_value;
+
             for(const AmrVertexId& rcn : received_current_neighbors)
             {
-
                 b->disjoint_sets_.make_component_if_not_exists(rcn);
                 b->disjoint_sets_.unite_components(rcn, received_original_deepest);
 
@@ -192,30 +209,25 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
 
                 Component& c = b->get_component_by_deepest(rcn);
                 assert(rcn == c.original_deepest_);
-                if (c.processed_neighbors_.count(received_original_deepest) == 0)
+                if (c.processed_neighbors().count(received_original_deepest) == 0)
                 {
-//                    assert(received_processed_neighbors.count(c.original_deepest_) == 0);
-                    c.global_integral_value_ += received_original_integral_value;
-                    c.processed_neighbors_.insert(received_original_deepest);
-                    c.current_neighbors_.insert(received_current_neighbors.begin(), received_current_neighbors.end());
+                    for(const auto& cn : received_current_neighbors)
+                        c.add_current_neighbor(cn);
+                    c.mark_neighbor_processed(received_original_deepest);
                     b->disjoint_sets_.unite_components(c.original_deepest_, received_original_deepest);
-                    if (b->cmp(received_original_deepest_value, c.original_deepest_value_))
-                    {
-                        c.global_deepest_ = received_original_deepest;
-                        c.global_deepest_value_ = received_original_deepest_value;
+                    if (b->cmp(received_global_deepest_value, c.global_deepest_value_)) {
+                        c.set_global_deepest({received_global_deepest, received_global_deepest_value});
                     }
-                } else
-                {
-//                    assert(received_processed_neighbors.count(c.original_deepest_) == 1);
                 }
             }
         }
     }
 
 
+    // for debug only
     for(const Component& c : b->components_)
     {
-        for(const AmrVertexId cn : c.current_neighbors_)
+        for(const AmrVertexId cn : c.current_neighbors())
         {
             assert(b->disjoint_sets_.are_connected(c.original_deepest_, cn));
         }
@@ -228,8 +240,8 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
         for(const Component& c : b->components_)
         {
             auto root = b->disjoint_sets_.find_component(c.original_deepest_);
-            root_to_neighbors[root].insert(c.current_neighbors_.begin(), c.current_neighbors_.end());
-            root_to_deepest[root].insert(c.original_deepest_);
+            root_to_neighbors[root].insert(c.current_neighbors().begin(), c.current_neighbors_.end());
+            root_to_deepest[root].insert(c.global_deepest_);
             auto iter = root_to_global_deepest.find(root);
             if (iter != root_to_global_deepest.end())
             {
@@ -247,9 +259,23 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             AmrVertexId root = root_deepest_set_pair.first;
             for(auto deepest : root_deepest_set_pair.second)
             {
+                if (deepest.gid != b->gid)
+                    continue;
+
                 Component& c = b->get_component_by_deepest(deepest);
+
+                if (b->gid == 1)
+                {
+                    fmt::print("Before setting global deepest , c = {}\n", c);
+                }
+
                 c.set_current_neighbors(root_to_neighbors.at(root));
                 c.set_global_deepest(root_to_global_deepest.at(root));
+
+                if (b->gid == 1)
+                {
+                    fmt::print("After setting global deepest , c = {}\n", c);
+                }
             }
         }
     }
@@ -258,22 +284,22 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
     // only update integral values
     for(Component& c : b->components_)
     {
-        for(const AmrVertexId& local_deepest : c.current_neighbors_)
+        for(const AmrVertexId& local_deepest : c.current_neighbors())
         {
-            if (local_deepest.gid != b->gid || c.processed_neighbors_.count(local_deepest))
+            if (local_deepest.gid != b->gid || c.processed_neighbors().count(local_deepest))
                 continue;
             Component& other_component = b->get_component_by_deepest(local_deepest);
-            c.global_integral_value_ += other_component.original_integral_value_;
-            c.processed_neighbors_.insert(local_deepest);
+            b->disjoint_sets_.unite_components(c.original_deepest_, other_component.original_deepest_);
+            c.mark_neighbor_processed(local_deepest);
         }
     }
 
-    if (debug) fmt::print("In receive_simple for block = {}, processed_receiveres_ OK\n", b->gid);
+//    if (debug) fmt::print("In receive_simple for block = {}, processed_receiveres_ OK\n", b->gid);
 
     b->done_ = b->are_all_components_done();
     int n_undone = 1 - b->done_;
 
-    debug = b->gid == 0;
+//    debug = b->gid == 0;
     if (debug) fmt::print("b->done = {}, n_undone = {}\n", b->done_, n_undone);
 
     cp.all_reduce(n_undone, std::plus<int>());
@@ -286,4 +312,9 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
     expand_link(b, cp, l, received_links);
 
     if (debug) fmt::print("Exit receive_simple for block = {}, expand_link OK\n", b->gid);
+
+    std::vector<AmrVertexId> vv_check { {7, 34947}, {1, 32005}, {2, 12113}, {7, 34947}, {1, 32005},
+                                        {2, 12113}, {3, 4773}, {1, 16980}, {1, 32005}, {3, 4773},
+                                        {1, 16980}, {0, 33913}, {1, 34350} };
+
 }

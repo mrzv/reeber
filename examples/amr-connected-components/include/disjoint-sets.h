@@ -106,6 +106,30 @@ struct DisjointSets
         return result;
     }
 
+    decltype(auto) all_sets()
+    {
+        std::unordered_map<Vertex, std::vector<Vertex>> result;
+        for(const auto& comp_parent_pair : parent_)
+        {
+            result[find_component(comp_parent_pair.first)].push_back(comp_parent_pair.first);
+        }
+        return result;
+    }
+
+    std::vector<Vertex> component_of(const Vertex& a)
+    {
+        std::vector<Vertex> result;
+        auto root = find_component(a);
+        // loop over size map just because it is a simple way of looping over all vertices
+        for(const auto& v_size_pair : size_)
+        {
+            const Vertex& v = v_size_pair.first;
+            if (find_component(v) == root)
+                result.push_back(v);
+        }
+        return result;
+    }
+
 };
 
 
