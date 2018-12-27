@@ -105,7 +105,7 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
 
         int n_components = b->get_n_components_for_gid(receiver_gid);
         if (debug) fmt::print("In amr_cc_send for block = {}, sending to {}, n_components = {}\n", b->gid, receiver_gid, n_components);
-        cp.enqueue(receiver, n_components);
+//        cp.enqueue(receiver, n_components);
         int n_sent = 0;
         for(Component& c : b->components_)
         {
@@ -124,9 +124,10 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
             cp.enqueue(receiver, c.processed_neighbors());
             cp.enqueue(receiver, b->original_integral_values_.at(c.original_deepest()));
             cp.enqueue(receiver, c.global_deepest_value());
+#ifdef AMR_CC_SEND_TREES
             cp.enqueue(receiver, c.tree_);
             cp.enqueue(receiver, c.edges());
-
+#endif
             if (debug) fmt::print("in amr_cc_send, sent {} to gid = {}, current_neighbors = {}\n", c.original_deepest(), receiver_gid, container_to_string(c.current_neighbors()));
 
             c.mark_gid_processed(receiver_gid);
@@ -172,9 +173,10 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
         received_links.push_back(*l);
         delete l;
 
-        cp.dequeue(sender, n_components);
+//        cp.dequeue(sender, n_components);
 
-        for(int i = 0; i < n_components; ++i)
+        while(cp.incoming(sender.gid))
+//        for(int i = 0; i < n_components; ++i)
         {
             AmrVertexSet received_current_neighbors;
             AmrVertexSet received_processed_neighbors;
@@ -191,10 +193,11 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             cp.dequeue(sender, received_processed_neighbors);
             cp.dequeue(sender, received_original_integral_value);
             cp.dequeue(sender, received_global_deepest_value);
+#ifdef AMR_CC_SEND_TREES
             cp.dequeue(sender, received_tree);
             cp.dequeue(sender, received_edges);
-
             r::merge(b->merge_tree_, received_tree, received_edges, true);
+#endif
 
             b->disjoint_sets_.make_component_if_not_exists(received_original_deepest);
 
@@ -227,8 +230,9 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             }
         }
     }
-
+#ifdef AMR_CC_SEND_TREES
     r::repair(b->merge_tree_);
+#endif
 
     // for debug only
     for(const Component& c : b->components_)

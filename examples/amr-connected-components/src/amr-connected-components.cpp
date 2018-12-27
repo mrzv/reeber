@@ -1,5 +1,7 @@
 //#define SEND_COMPONENTS
 
+#define AMR_CC_SEND_TREES
+
 #include "reeber-real.h"
 
 // to print nice backtrace on segfault signal
@@ -397,6 +399,7 @@ int main(int argc, char **argv)
     dlog::flush();
     timer.restart();
 
+#ifdef AMR_CC_SEND_TREES
     // save the result
     if (output_filename != "none")
     {
@@ -411,10 +414,12 @@ int main(int argc, char **argv)
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
+#endif
     auto time_for_output = timer.elapsed();
     dlog::flush();
     timer.restart();
 
+#ifdef AMR_CC_SEND_TREES
     bool verbose = false;
 
     if (write_diag)
@@ -434,6 +439,7 @@ int main(int argc, char **argv)
     time_for_output += timer.elapsed();
     dlog::flush();
     timer.restart();
+#endif
 
     if (write_integral)
     {
