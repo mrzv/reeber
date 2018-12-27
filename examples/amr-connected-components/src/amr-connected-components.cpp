@@ -45,6 +45,54 @@ using MaskedBox = Block::MaskedBox;
 using GidVector = Block::GidVector;
 using GidContainer = Block::GidContainer;
 
+using TripletMergeTree = Block::TripletMergeTree;
+using Neighbor = TripletMergeTree::Neighbor;
+
+struct IsAmrVertexLocal
+{
+    bool operator()(const Block& b, const Neighbor& from) const
+    {
+        return from->vertex.gid == b.gid;
+    }
+};
+
+template<class Real, class LocalFunctor>
+struct ComponentDiagramsFunctor
+{
+
+    ComponentDiagramsFunctor(Block* b, const LocalFunctor& lf) :
+            block_(b),
+            negate_(b->get_merge_tree().negate()),
+            ignore_zero_persistence_(true),
+            test_local(lf)
+    {}
+
+    void operator()(Neighbor from, Neighbor through, Neighbor to) const
+    {
+        if (!test_local(*block_, from))
+            return;
+
+        AmrVertexId current_vertex = from->vertex;
+
+        Real birth_time = from->value;
+        Real death_time = through->value;
+
+        if (ignore_zero_persistence_ and birth_time == death_time)
+            return;
+
+        AmrVertexId root = block_->vertex_to_deepest_[current_vertex];
+        block_->local_diagrams_[root].emplace_back(birth_time, death_time);
+    }
+
+    Block* block_;
+    const bool negate_;
+    const bool ignore_zero_persistence_;
+    LocalFunctor test_local;
+};
+
+using OutputPairsR = OutputPairs<Block, IsAmrVertexLocal>;
+
+
 inline bool file_exists(const std::string& s)
 {
     std::ifstream ifs(s);
@@ -127,22 +175,28 @@ int main(int argc, char** argv)
     bool wrap = ops >> opts::Present('w', "wrap", "wrap");
     bool split = ops >> opts::Present("split", "use split IO");
 
-    std::string input_filename, output_integral_filename;
+    std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
 
     if (ops >> Present('h', "help", "show help message") or
         not(ops >> PosOption(input_filename))
-        or not(ops >> PosOption(output_integral_filename)))
+        or not(ops >> PosOption(output_filename)))
     {
         if (world.rank() == 0)
         {
-            fmt::print("Usage: {} INPUT.AMR OUTPUT-INTEGRAL \n", argv[0]);
-            fmt::print("Compute persistent integral from AMR data\n");
+            fmt::print("Usage: {} INPUT.AMR OUTPUT.mt [OUT_DIAGRAMS] [OUT_INTEGRAL] \n", argv[0]);
+            fmt::print("Compute local-global tree from AMR data\n");
             fmt::print("{}", ops);
         }
         return 1;
     }
 
-    bool write_integral = not (output_integral_filename == "none");
+    bool write_diag = (ops >> PosOption(output_diagrams_filename));
+    if (output_diagrams_filename == "none")
+        write_diag = false;
+
+    bool write_integral = (ops >> PosOption(output_integral_filename));
+    if (output_integral_filename == "none")
+        write_integral = false;
 
     if (write_integral)
     {
@@ -271,6 +325,7 @@ int main(int argc, char** argv)
     timer.restart();
 
 
+    // debug: check symmetry
     master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
         auto* l = static_cast<AMRLink*>(cp.link());
 
@@ -296,6 +351,7 @@ int main(int argc, char** argv)
     time_for_communication += timer.elapsed();
     dlog::flush();
     timer.restart();
+    // end symmetry checking
 
     int rounds = 0;
     while (global_n_undone)
@@ -324,29 +380,55 @@ int main(int argc, char** argv)
     dlog::flush();
     timer.restart();
 
+    // save the result
+    if (output_filename != "none")
+    {
+        if (!split)
+            diy::io::write_blocks(output_filename, world, master);
+        else
+            diy::io::split::write_blocks(output_filename, world, master);
+    }
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
     auto time_for_output = timer.elapsed();
+    dlog::flush();
+    timer.restart();
+
+    bool verbose = false;
+
+    if (write_diag)
+    {
+        bool ignore_zero_persistence = true;
+        OutputPairsR::ExtraInfo extra(output_diagrams_filename, verbose, world);
+        IsAmrVertexLocal test_local;
+        master.foreach(
+                [&extra, &test_local, ignore_zero_persistence, rho](Block* b, const diy::Master::ProxyWithLink& cp) {
+                    b->compute_final_connected_components();
+                    output_persistence(b, cp, extra, test_local, rho, ignore_zero_persistence);
+                });
+    }
+
+    world.barrier();
+    LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
+    time_for_output += timer.elapsed();
+    dlog::flush();
+    timer.restart();
 
     if (write_integral)
     {
         diy::io::SharedOutFile integral_file(output_integral_filename, world);
 
         master.foreach([rho, theta, &integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
-            
-            b->compute_local_integral(theta);
 
-//            if (b->gid == 1)
-//            {
-//                for(auto root_component_pair : b->disjoint_sets_.all_sets())
-//                {
-//                    fmt::print("{}  : {}\n", root_component_pair.first, container_to_string(root_component_pair.second));
-//                }
-//            }
+            b->sanity_check_fin();
+            b->compute_local_integral(theta);
 
             for(const auto& root_integral_value_pair : b->global_integral_)
             {
                 auto root = root_integral_value_pair.first;
                 auto value = root_integral_value_pair.second;
-                integral_file << fmt::format("{} {} {}\n", root, b->local_.global_position(root), value);
+                integral_file << fmt::format("{} {}\n", b->local_.global_position(root), value);
             }
         });
 
@@ -376,11 +458,11 @@ int main(int argc, char** argv)
 //
 //    LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = " << total_vertices
 //                                                            << ", mean = " << mean;
-//    dlog::flush();
-//
-//    std::string final_timings = fmt::format("read: {} local: {} exchange: {} output: {}\n", time_to_read_data,
-//                                            time_for_local_computation, time_for_communication, time_for_output);
-//    LOG_SEV_IF(world.rank() == 0, info) << final_timings;
+    dlog::flush();
+
+    std::string final_timings = fmt::format("read: {} local: {} exchange: {} output: {}\n", time_to_read_data,
+                                            time_for_local_computation, time_for_communication, time_for_output);
+    LOG_SEV_IF(world.rank() == 0, info) << final_timings;
     dlog::flush();
 
     return 0;

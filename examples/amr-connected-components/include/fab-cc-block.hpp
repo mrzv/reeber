@@ -1,5 +1,50 @@
 
 template<class Real, unsigned D>
+FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
+                  int _ref,
+                  int _level,
+                  const diy::DiscreteBounds& _domain,
+                  const diy::DiscreteBounds& bounds,
+                  const diy::DiscreteBounds& core,
+                  int _gid,
+                  diy::AMRLink* amr_link,
+                  Real rho,                                           // threshold for LOW value
+                  bool _negate,
+                  bool is_absolute_threshold) :
+        gid(_gid),
+        local_(project_point<D>(core.min), project_point<D>(core.max), project_point<D>(bounds.min),
+               project_point<D>(bounds.max), _ref, _level, gid, fab_grid.c_order()),
+        fab_(fab_grid.data(), fab_grid.shape(), fab_grid.c_order()),
+        domain_(_domain),
+        negate_(_negate),
+        merge_tree_(negate_)
+{
+    bool debug = false;
+
+    std::string debug_prefix = "FabComponentBlock ctor, gid = " + std::to_string(gid);
+
+    if(debug) fmt::print("{} setting mask\n", debug_prefix);
+
+    diy::for_each(local_.mask_shape(), [this, amr_link, rho, is_absolute_threshold](const Vertex& v) {
+        this->set_mask(v, amr_link, rho, is_absolute_threshold);
+    });
+
+    //        if (debug) fmt::print("gid = {}, checking mask\n", gid);
+    int max_gid = 0;
+    for(int i = 0; i < amr_link->size(); ++i)
+    {
+        max_gid = std::max(max_gid, amr_link->target(i).gid);
+    }
+
+    //local_.check_mask_validity(max_gid);
+
+    if(is_absolute_threshold)
+    {
+        init(rho, amr_link);
+    }
+}
+
+template<class Real, unsigned D>
 bool FabComponentBlock<Real, D>::cmp(Real a, Real b) const
 {
     if (negate_)
@@ -158,24 +203,16 @@ void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink* amr_link)
         this->set_low(v, absolute_rho);
     });
 
+    reeber::compute_merge_tree2(merge_tree_, local_, fab_);
+//    merge_tree_.make_deep_copy(original_tree_);
+
     VertexEdgesMap vertex_to_outgoing_edges;
     compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
     compute_original_connected_components(vertex_to_outgoing_edges);
 
-    // TODO: delete this? we are going to overwrite this in adjust_outgoing_edges anyway
-//    for(int i = 0; i < amr_link->size(); ++i)
-//    {
-//        if (amr_link->target(i).gid != gid)
-//        {
-//            new_receivers_.insert(amr_link->target(i).gid);
-//            original_link_gids_.push_back(amr_link->target(i).gid);
-//        }
-//    }
-
-    if (debug)
-        fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n",
-                   debug_prefix, refinement(), level(), local_, domain().max, components_.size());
+    if (debug) fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n", debug_prefix, refinement(), level(), local_, domain().max, components_.size());
 }
+
 
 template<unsigned D>
 r::AmrEdgeContainer
@@ -313,13 +350,8 @@ void FabComponentBlock<Real, D>::compute_outgoing_edges(diy::AMRLink* l, VertexE
     bool debug = false;
     for(const Vertex& v_glob : local_.active_global_positions())
     {
-//        debug = (v_glob[0] == 0 and v_glob[1] == 0 and v_glob[2] == 6);
-
         AmrEdgeContainer out_edges = get_vertex_edges(v_glob, local_, l, domain());
-
-        if (debug)
-            for(auto&& e : out_edges)
-                fmt::print("outogoing edge e = {} {}\n", std::get<0>(e), std::get<1>(e));
+        if (debug) for(auto&& e : out_edges) fmt::print("outogoing edge e = {} {}\n", std::get<0>(e), std::get<1>(e));
 
         if (not out_edges.empty())
         {
@@ -394,7 +426,7 @@ void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContain
         disjoint_sets_.unite_components(my_deepest, other_deepest);
 
         Component& my_component = get_component_by_deepest(my_deepest);
-        my_component.current_neighbors_.insert(other_deepest);
+        my_component.add_current_neighbor(other_deepest);
 
         if (debug) fmt::print("gid = {}, added to current_neighbors of  my_deepest = {} and other_deeepest= {}\n", gid, my_deepest, other_deepest);
     }
@@ -403,28 +435,70 @@ void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContain
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::adjust_outgoing_edges()
 {
-    // TODO: rename procedure
-    for(Component& c : components_)
+//    int total_n_edges = std::accumulate(gid_to_outgoing_edges_.begin(), gid_to_outgoing_edges_.end(), 0, [](int a, const auto& x) { return a + x.second.size(); });
+//    std::vector<AmrEdge> all_edges;
+//    all_edges.reserve(total_n_edges);
+    for(const auto& int_set_pair : gid_to_outgoing_edges_)
     {
-        for(AmrVertexId v : c.current_neighbors_)
+        for(const AmrEdge& e : int_set_pair.second)
         {
-            c.current_gids_.insert(v.gid);
+            AmrVertexId our_vertex = std::get<0>(e);
+            AmrVertexId deepest = vertex_to_deepest_.at(our_vertex);
+            Component& c = get_component_by_deepest(deepest);
+            c.add_edge(e);
+//            all_edges.push_back(e);
         }
     }
+
+    std::unordered_set<AmrVertexId> processed_components;
+    for(Component& c : components_)
+    {
+        if (processed_components.count(c.original_deepest()))
+            continue;
+        processed_components.insert(c.original_deepest());
+
+        std::unordered_set<AmrVertexId> all_neighbors;
+        auto all_comps = disjoint_sets_.component_of(c.original_deepest());
+
+        for(const auto& d : all_comps)
+        {
+            if (d.gid != gid)
+                continue;
+            Component& x = get_component_by_deepest(d);
+            all_neighbors.insert(x.current_neighbors().begin(), x.current_neighbors().end());
+        }
+
+        for(const auto& d : all_comps)
+        {
+            if (d.gid != gid)
+                continue;
+            Component& x = get_component_by_deepest(d);
+            x.set_current_neighbors(all_neighbors);
+            processed_components.insert(d);
+        }
+    }
+
 }
 
+//template<class Real, unsigned D>
+//bool FabComponentBlock<Real, D>::deepest_computed(const AmrVertexId& v) const
+//{
+//    return vertex_to_deepest_.count(v);
+//}
+//
+//template<class Real, unsigned D>
+//void FabComponentBlock<Real, D>::set_deepest(const AmrVertexId& v, const AmrVertexId& deepest)
+//{
+//    vertex_to_deepest_[v] = deepest;
+//}
 
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_original_connected_components(
         const FabComponentBlock::VertexEdgesMap& vertex_to_outgoing_edges)
 {
     bool debug = false;
-
     auto vertices_ = local_.vertices();
-
     std::vector<AmrVertexId> vertices(std::begin(vertices_), std::end(vertices_));
-
-
     std::unordered_set<AmrVertexId> global_processed_vertices;
     for(const auto& v : vertices)
     {
@@ -456,10 +530,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
                           std::back_inserter(component_edges));
 
             Real u_val = fab_(u);
-
             integral_val += u_val;
-
-
             if (cmp(u_val, deepest_value))
             {
                 deepest_value = u_val;
@@ -485,49 +556,44 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
         original_integral_values_[deepest] = integral_val;
     }
 
+    // copy nodes from local merge tree of block to merge trees of components
 
-    std::vector<AmrVertexId> vv_check { {7, 34947}, {1, 32005}, {2, 12113}, {7, 34947}, {1, 32005},
-                                    {2, 12113}, {3, 4773}, {1, 16980}, {1, 32005}, {3, 4773},
-                                    {1, 16980}, {0, 33913}, {1, 34350} };
-
-    for(AmrVertexId v : vv_check)
+    const auto& const_tree = merge_tree_;
+    for (const auto& vertex_deepest_pair : vertex_to_deepest_)
     {
-        if (v.gid != gid)
-            continue;
+        TripletMergeTree& mt = get_component_by_deepest(vertex_deepest_pair.second).tree_;
 
-//        fmt::print("DEBUG v = {}, deepest = {}\n", v, vertex_to_deepest_.at(v));
+        AmrVertexId u = vertex_deepest_pair.first;
+        Neighbor mt_n_u = const_tree.nodes().at(u);
+        Value val = mt_n_u->value;
+        //assert(u == mt_n_u->vertex);
 
-        auto deepest = vertex_to_deepest_.at(v);
-        Component& c = get_component_by_deepest(deepest);
-//        fmt::print("DEBUG c = {}\n", c);
+        AmrVertexId s = std::get<0>(mt_n_u->parent())->vertex;
+        AmrVertexId v = std::get<1>(mt_n_u->parent())->vertex;
+
+        Neighbor n_u, n_s, n_v;
+
+        n_u = mt.add_or_update(u, val);
+        n_s = mt.find_or_add(s, 0);
+        n_v = mt.find_or_add(v, 0);
+        mt.link(n_u, n_s, n_v);
     }
-
 }
 
 template<class Real, unsigned D>
-bool FabComponentBlock<Real, D>::edge_exists(const AmrEdge& e) const
+void FabComponentBlock<Real, D>::compute_final_connected_components()
 {
-    return disjoint_sets_.has_component(std::get<0>(e)) and disjoint_sets_.has_component(std::get<1>(e));
+    auto vertices_ = local_.vertices();
+    std::vector<AmrVertexId> vertices(std::begin(vertices_), std::end(vertices_));
+    std::unordered_set<AmrVertexId> global_processed_vertices;
+    for(const auto& v : vertices)
+    {
+        AmrVertexId original_deepest = vertex_to_deepest_.at(v);
+        Component& c = get_component_by_deepest(original_deepest);
+        if (c.global_deepest() != original_deepest)
+            vertex_to_deepest_[v] = c.global_deepest();
+    }
 }
-
-
-template<class Real, unsigned D>
-bool FabComponentBlock<Real, D>::edge_goes_out(const AmrEdge& e) const
-{
-    return disjoint_sets_.has_component(std::get<0>(e)) xor disjoint_sets_.has_component(std::get<1>(e));
-}
-
-//template<class Real, unsigned D>
-//bool FabComponentBlock<Real, D>::is_component_connected_to_any_internal(const AmrVertexId& deepest)
-//{
-//    for(const auto& cc : components_)
-//        if (disjoint_sets_.are_connected(deepest, cc.root_))
-//            return true;
-//    // for debug - assume everything is connected
-//    //assert(false);
-//    return false;
-//}
-
 
 template<class Real, unsigned D>
 Real FabComponentBlock<Real, D>::scaling_factor() const
@@ -607,35 +673,54 @@ bool FabComponentBlock<Real, D>::check_symmetry(int other_gid,
         }
     }
 
-    for(const Component& my_component : components_)
-    {
-        AmrVertexId my_deepest = my_component.original_deepest();
-        for(AmrVertexId other_deepest : my_component.current_neighbors())
-        {
-            if (other_deepest.gid == other_gid)
-            {
-                auto iter = find_if(received_components.begin(), received_components.end(),
-                                    [other_deepest](const Component& other_component) {
-                                        return other_component.original_deepest() == other_deepest;
-                                    });
-                if (iter == received_components.end())
-                {
-                    fmt::print("Cannot find component {}, this = {}", other_deepest, container_to_string(components_));
-                    throw std::runtime_error("Asymmetry-2");
-//                    return false;
-                }
-                if (iter->current_neighbors().count(my_deepest) == 0)
-                {
-                    fmt::print("Error, my_deepest = {}, other_deepest = {}, my_component = {}", my_deepest, other_deepest, my_component);
-                    throw std::runtime_error("Asymmetry-3");
-//                    return false;
-                }
-            }
-        }
-    }
+//    for(const Component& my_component : components_)
+//    {
+//        AmrVertexId my_deepest = my_component.original_deepest();
+//        for(AmrVertexId other_deepest : my_component.current_neighbors())
+//        {
+//            if (other_deepest.gid == other_gid)
+//            {
+//                auto iter = find_if(received_components.begin(), received_components.end(),
+//                                    [other_deepest](const Component& other_component) {
+//                                        return other_component.original_deepest() == other_deepest;
+//                                    });
+//                if (iter == received_components.end())
+//                {
+//                    fmt::print("Cannot find component {}, this = {}", other_deepest, container_to_string(components_));
+//                    throw std::runtime_error("Asymmetry-2");
+////                    return false;
+//                }
+//                if (iter->current_neighbors().count(my_deepest) == 0)
+//                {
+//                    fmt::print("Error, my_deepest = {}, other_deepest = {}, my_component = {}", my_deepest, other_deepest, my_component);
+//                    throw std::runtime_error("Asymmetry-3");
+////                    return false;
+//                }
+//            }
+//        }
+//    }
 
     if (debug) fmt::print("gid = {}, symmetry OK\n", gid);
     return true;
+}
+
+
+template<class Real, unsigned D>
+void FabComponentBlock<Real, D>::sanity_check_fin() const
+{
+    std::unordered_set<AmrVertexId> components;
+    // check that all received components have integral value
+    for(const auto& x : disjoint_sets_.size_ )
+    {
+        auto v = x.first;
+        components.insert(v);
+        assert(original_integral_values_.count(v));
+    }
+
+    for(const auto v : components)
+    {
+        assert(std::any_of(components_.begin(), components_.end(), [v, this](const Component& c) { return this->disjoint_sets_.are_connected(v, c.original_deepest()); } ));
+    }
 }
 
 template<class Real, unsigned D>
@@ -668,6 +753,13 @@ void FabComponentBlock<Real, D>::save(const void* b, diy::BinaryBuffer& bb)
     diy::save(bb, block->domain_);
     diy::save(bb, block->negate_);
     diy::save(bb, block->round_);
+    diy::save(bb, block->global_integral_);
+    diy::save(bb, block->original_integral_values_);
+//    diy::save(bb, block->vertex_to_deepest_);
+    diy::save(bb, block->merge_tree_);
+//    diy::save(bb, block->local_diagrams_);
+//    diy::save(bb, block->disjoint_sets_);
+    diy::save(bb, block->components_);
 }
 
 template<class Real, unsigned D>
@@ -679,5 +771,12 @@ void FabComponentBlock<Real, D>::load(void* b, diy::BinaryBuffer& bb)
     diy::load(bb, block->domain_);
     diy::load(bb, block->negate_);
     diy::load(bb, block->round_);
+    diy::load(bb, block->global_integral_);
+    diy::load(bb, block->original_integral_values_);
+//    diy::load(bb, block->vertex_to_deepest_);
+    diy::load(bb, block->merge_tree_);
+//    diy::load(bb, block->local_diagrams_);
+//    diy::load(bb, block->disjoint_sets_);
+    diy::load(bb, block->components_);
 }
 

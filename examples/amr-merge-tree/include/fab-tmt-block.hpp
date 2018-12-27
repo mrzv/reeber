@@ -1,32 +1,11 @@
 
 template<class Real, unsigned D>
-bool FabTmtBlock<Real, D>::precedes(Real a, Real b) const
+bool FabTmtBlock<Real, D>::cmp(Real a, Real b) const
 {
     if (negate_)
         return a > b;
     else
         return a < b;
-}
-
-template<class Real, unsigned D>
-bool FabTmtBlock<Real, D>::precedes_eq(Real a, Real b) const
-{
-    if (negate_)
-        return a >= b;
-    else
-        return a <= b;
-}
-
-template<class Real, unsigned D>
-bool FabTmtBlock<Real, D>::succeeds(Real a, Real b) const
-{
-    return not precedes_eq(a, b);
-}
-
-template<class Real, unsigned D>
-bool FabTmtBlock<Real, D>::succeeds_eq(Real a, Real b) const
-{
-    return not precedes(a, b);
 }
 
 template<class Real, unsigned D>
@@ -45,7 +24,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
     bool is_low = false;
     if (is_absolute_threshold)
         is_low = not is_ghost and
-                 succeeds(fab_(v_bounds), rho);   //(negate_ ? fab_(v_bounds) < rho : fab_(v_bounds) > rho);
+                 cmp(rho, fab_(v_bounds));   //(negate_ ? fab_(v_bounds) < rho : fab_(v_bounds) > rho);
 
     r::AmrVertexId v_idx;
     if (not is_ghost) v_idx = local_.get_vertex_from_global_position(local_.global_position_from_local(v_bounds));
@@ -163,7 +142,7 @@ void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
 {
     if (local_.mask(v_bounds) != MaskedBox::ACTIVE)
         return;
-    bool is_low = succeeds(fab_(v_bounds), absolute_threshold); //   negate_ ? fab_(v_bounds) < absolute_threshold : fab_(v_bounds) > absolute_threshold;
+    bool is_low = cmp(absolute_threshold, fab_(v_bounds)); //   negate_ ? fab_(v_bounds) < absolute_threshold : fab_(v_bounds) > absolute_threshold;
     if (is_low)
         local_.set_mask(v_bounds, MaskedBox::LOW);
 }
@@ -626,13 +605,6 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
         }
     }
 
-    if (gid == 1)
-    {
-        reeber::AmrVertexId  v { 1, 32005};
-        auto od = original_deepest(v);
-        fmt::print("original_deepest({}) = {}\n", v, od);
-    }
-
     //assert(std::accumulate(const_tree.nodes().cbegin(), const_tree.nodes().cend(), true,
     //                       [this](const bool& prev, const typename VertexNeighborMap::value_type& vn) {
     //                           return prev and this->original_deepest_computed(vn.second);
@@ -671,7 +643,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::compute_final_connected_components()
 {
-    bool debug = gid == 1;
+    bool debug = false;
 
     const auto& const_tree = current_merge_tree_;
 

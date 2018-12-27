@@ -52,6 +52,11 @@ struct DisjointSets
         return find_component(a) == find_component(a);
     }
 
+    bool are_connected(const Vertex& a, const Vertex_& b) const
+    {
+        return find_component(a) == find_component(a);
+    }
+
     Vertex find_component(const Vertex& a)
     {
         Vertex x = a;
@@ -62,6 +67,20 @@ struct DisjointSets
             if (debug) fmt::print("in find_component_in_disjoint_sets, x = {}, next = {}\n", x, next);
             parent_[x] = parent_.at(next);
             x = next;
+        }
+        if (debug) fmt::print("Exiting find_component_in_disjoint_sets, x = {}\n", x);
+        return x;
+    }
+
+    // no path compression
+    Vertex find_component(const Vertex& a) const
+    {
+        Vertex x = a;
+        bool debug = false;
+        while(parent_.at(x) != x)
+        {
+            x = parent_.at(x);
+            if (debug) fmt::print("in find_component_in_disjoint_sets, x = {}\n", x);
         }
         if (debug) fmt::print("Exiting find_component_in_disjoint_sets, x = {}\n", x);
         return x;
@@ -87,35 +106,6 @@ struct DisjointSets
         unite_components_by_roots(a_root, b_root);
     }
 
-    void disjoint_union(const DisjointSets<Vertex>& other)
-    {
-        for(const auto& key_val_pair : other.parent_)
-        {
-            assert(parent_.count(key_val_pair.first) == 0);
-        }
-        parent_.insert(other.parent_.begin(), other.parent_.end());
-        size_.insert(other.size_.begin(), other.size_.end());
-    }
-
-    std::vector<Vertex> all_components() const
-    {
-        std::vector<Vertex> result;
-        result.reserve(parent_.size());
-        for(const auto& comp_parent_pair : parent_)
-            result.emplace_back(comp_parent_pair.first);
-        return result;
-    }
-
-    decltype(auto) all_sets()
-    {
-        std::unordered_map<Vertex, std::vector<Vertex>> result;
-        for(const auto& comp_parent_pair : parent_)
-        {
-            result[find_component(comp_parent_pair.first)].push_back(comp_parent_pair.first);
-        }
-        return result;
-    }
-
     std::vector<Vertex> component_of(const Vertex& a)
     {
         std::vector<Vertex> result;
@@ -129,7 +119,6 @@ struct DisjointSets
         }
         return result;
     }
-
 };
 
 

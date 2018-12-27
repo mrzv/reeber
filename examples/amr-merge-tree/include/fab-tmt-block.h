@@ -144,6 +144,11 @@ struct FabTmtBlock
             return current_neighbors_.count(gid) == 1 and processed_neighbors_.count(gid) == 0;
         }
 
+        void mark_gid_as_processed(int gid)
+        {
+            processed_neighbors_.insert(gid);
+        }
+
 #endif
 
     };
@@ -282,13 +287,7 @@ struct FabTmtBlock
     {}
 
     // compare w.r.t negate_ flag
-    bool precedes(Real a, Real b) const;
-
-    bool succeeds(Real a, Real b) const;
-
-    bool precedes_eq(Real a, Real b) const;
-
-    bool succeeds_eq(Real a, Real b) const;
+    bool cmp(Real a, Real b) const;
 
     void set_low(const diy::Point<int, D>& v_bounds,
                  const Real& absolute_rho);

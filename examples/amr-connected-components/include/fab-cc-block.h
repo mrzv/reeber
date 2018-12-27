@@ -37,16 +37,16 @@ struct FabComponentBlock
 
     using Grid = r::Grid<Real, D>;
     using GridRef = r::GridRef<Real, D>;
-    // index of point: first = index inside box, second = index of a box
-    using AmrVertexId = r::AmrVertexId;
 
     using Component = FabConnectedComponent<Real>;
 
+    using TripletMergeTree = typename Component::TripletMergeTree;
+    using AmrVertexId = typename Component::AmrVertexId;
     using VertexValue = typename Component::VertexValue;
-
     using Value = typename Grid::Value;
     using MaskedBox = r::MaskedBox<D>;
     using Vertex = typename MaskedBox::Position;
+
     using AmrVertexContainer = std::vector<AmrVertexId>;
     using AmrVertexSet = typename Component::AmrVertexSet;
 
@@ -63,9 +63,15 @@ struct FabComponentBlock
     using RealType = Real;
 
     using UnionFind = DisjointSets<AmrVertexId>;
-    using VertexVertexMap = UnionFind::VertexVertexMap;
-    using VertexSizeMap = UnionFind::VertexSizeMap;
+    using VertexVertexMap = typename UnionFind::VertexVertexMap;
+    using VertexSizeMap = typename UnionFind::VertexSizeMap;
 
+    using Neighbor = typename TripletMergeTree::Neighbor;
+    using Node = typename TripletMergeTree::Node;
+    using VertexNeighborMap =typename TripletMergeTree::VertexNeighborMap;
+
+    using DiagramPoint = std::pair<Real, Real>;
+    using Diagram = std::vector<DiagramPoint>;
 
     // data
 
@@ -91,21 +97,17 @@ struct FabComponentBlock
 
     int done_{0};
 
-    //    // will be changed in each communication round
-    //    // only for baseiline algorithm
-    //    AmrEdgeSet outgoing_edges_;
-
-    // is pre-computed once. does not change
-    // only for baseiline algorithm
-//    AmrEdgeContainer initial_edges_;
-
     std::unordered_map<int, AmrEdgeContainer> gid_to_outgoing_edges_;
 
     VertexValueMap original_integral_values_;
     VertexValueMap global_integral_;
 
+    std::unordered_map<AmrVertexId, Diagram> local_diagrams_;
+
     bool negate_;
 
+    TripletMergeTree merge_tree_;
+//    TripletMergeTree original_tree_;
     // tracking how connected components merge - disjoint sets data structure
 
     int round_{0};
@@ -129,38 +131,7 @@ struct FabComponentBlock
                       diy::AMRLink* amr_link,
                       Real rho,                                           // threshold for LOW value
                       bool _negate,
-                      bool is_absolute_threshold) :
-            gid(_gid),
-            local_(project_point<D>(core.min), project_point<D>(core.max), project_point<D>(bounds.min),
-                   project_point<D>(bounds.max), _ref, _level, gid, fab_grid.c_order()),
-            fab_(fab_grid.data(), fab_grid.shape(), fab_grid.c_order()),
-            domain_(_domain),
-            negate_(_negate)
-    {
-        bool debug = false;
-
-        std::string debug_prefix = "FabComponentBlock ctor, gid = " + std::to_string(gid);
-
-        if(debug) fmt::print("{} setting mask\n", debug_prefix);
-
-        diy::for_each(local_.mask_shape(), [this, amr_link, rho, is_absolute_threshold](const Vertex& v) {
-            this->set_mask(v, amr_link, rho, is_absolute_threshold);
-        });
-
-        //        if (debug) fmt::print("gid = {}, checking mask\n", gid);
-        int max_gid = 0;
-        for(int i = 0; i < amr_link->size(); ++i)
-        {
-            max_gid = std::max(max_gid, amr_link->target(i).gid);
-        }
-
-        //local_.check_mask_validity(max_gid);
-
-        if(is_absolute_threshold)
-        {
-            init(rho, amr_link);
-        }
-    }
+                      bool is_absolute_threshold);
 
     FabComponentBlock() :
             fab_(nullptr, diy::Point<int, D>::zero())
@@ -179,15 +150,6 @@ struct FabComponentBlock
                   const Real& rho,
                   bool is_absolute_threshold);
 
-    // return true, if both edge vertices are in the current neighbourhood
-    // no checking of mask is performed, if a vertex is LOW, function will return true.
-    // Such an edge must be silently ignored in the merge procedure.
-    bool edge_exists(const AmrEdge& e) const;
-
-    // return true, if one of the edge's vertices is inside current neighbourhood
-    // and the other is outside
-    bool edge_goes_out(const AmrEdge& e) const;
-
     void compute_outgoing_edges(diy::AMRLink* l, VertexEdgesMap& vertex_to_outgoing_edges);
 
     void compute_original_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
@@ -196,11 +158,7 @@ struct FabComponentBlock
 //
     void adjust_outgoing_edges();
 
-    bool is_component_connected_to_any_internal(const AmrVertexId& deepest);
-
     void sparsify_prune_original_tree() {}
-
-//    void add_received_original_vertices(const VertexVertexMap& received_vertex_to_deepest);
 
     int get_n_components_for_gid(int gid) const;
 
@@ -208,32 +166,26 @@ struct FabComponentBlock
 
     std::vector<AmrVertexId> get_current_deepest_vertices() const;
 
-//    int n_undone_components() const;
-
-    int is_done_simple(const std::vector<FabComponentBlock::AmrVertexId>& vertices_to_check);
+    void compute_final_connected_components();
 
     void compute_local_integral(Real theta);
 
     bool check_symmetry(int gid, const std::vector<Component>& received_components);
 
+    TripletMergeTree& get_merge_tree() { return merge_tree_; }
+    const TripletMergeTree& get_merge_tree() const { return merge_tree_; }
+
     Real scaling_factor() const;
 
     Component& get_component_by_deepest(const AmrVertexId& deepest)
     {
-        auto res_iter = std::find_if(components_.begin(), components_.end(), [deepest](const Component& c) { return c.original_deepest_ == deepest; });
+        auto res_iter = std::find_if(components_.begin(), components_.end(), [deepest](const Component& c) { return c.original_deepest() == deepest; });
         if (res_iter == components_.end())
             throw std::runtime_error("error in find_componenent, bad deepest");
         return  *res_iter;
     }
 
-
-//    std::vector<AmrVertexId> get_original_deepest_vertices() const;
-
-//    const AmrEdgeContainer& get_all_outgoing_edges() { return initial_edges_; }
-
-//    // v must be the deepest vertex in a local connected component
-//    // cannot be const - path compression!
-//    AmrVertexId find_component_in_disjoint_sets(AmrVertexId v);
+    void sanity_check_fin() const;
 
     static void* create()
     {

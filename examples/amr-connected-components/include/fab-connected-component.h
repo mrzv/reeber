@@ -10,17 +10,19 @@
 #include "disjoint-sets.h"
 
 #include "reeber/amr-vertex.h"
-
-//#include "../../amr-merge-tree/include/fab-block.h"
+#include "reeber/triplet-merge-tree.h"
+#include "reeber/edges.h"
 #include "reeber/amr_helper.h"
 
 
 
-template<class Real>
+template<class Real_>
 class FabConnectedComponent
 {
 public:
     // types
+    using Real = Real_;
+
     struct VertexValue
     {
         reeber::AmrVertexId vertex;
@@ -28,9 +30,13 @@ public:
     };
 
     using AmrVertexId = reeber::AmrVertexId;
+    using AmrEdge = reeber::AmrEdge;
+    using AmrEdgeContainer = reeber::AmrEdgeContainer;
     using AmrVertexSet = std::unordered_set<AmrVertexId>;
     using GidSet = std::unordered_set<int>;
+    using TripletMergeTree = reeber::TripletMergeTree<AmrVertexId, Real>;
 
+private:
     // fields
     bool negate_;
     AmrVertexId global_deepest_;    // will be updated in each communication round
@@ -42,6 +48,8 @@ public:
 
     GidSet current_gids_;
     GidSet processed_gids_;
+
+    AmrEdgeContainer edges_;
 
 public:
     // methods
@@ -56,6 +64,7 @@ public:
     const AmrVertexSet& processed_neighbors() const { return processed_neighbors_; }
     const GidSet& current_gids() const { return current_gids_; }
     const GidSet& processed_gids() const { return processed_gids_;}
+    const AmrEdgeContainer edges() const { return edges_; }
 
     bool cmp(Real x, Real y) const;
 
@@ -71,8 +80,14 @@ public:
     void mark_gid_processed(int _gid);
     void mark_neighbor_processed(AmrVertexId v);
 
+    void add_edge(const AmrEdge& e);
+
+    // access to tree
+    TripletMergeTree tree_;
+
     std::string to_string() const;
 
+    friend diy::Serialization<FabConnectedComponent<Real>>;
 };
 
 

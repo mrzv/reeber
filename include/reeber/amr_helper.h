@@ -16,7 +16,7 @@ std::string container_to_string(const Cont& v)
 {
     std::stringstream ss;
     ss << "{";
-    for (auto x : v) {
+    for (const auto& x : v) {
         ss << x << ", ";
     }
     ss << "}";

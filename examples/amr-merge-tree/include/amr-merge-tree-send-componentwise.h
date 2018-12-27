@@ -99,7 +99,7 @@ void amr_tmt_send(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
             cp.enqueue(receiver, c.root_);
             cp.enqueue(receiver, c.outgoing_edges_);
             cp.enqueue(receiver, c.current_neighbors_);
-            c.processed_neighbors_.insert(receiver.gid);
+            c.mark_gid_as_processed(receiver.gid);
         }
 
         diy::MemoryBuffer& out = cp.outgoing(receiver);
