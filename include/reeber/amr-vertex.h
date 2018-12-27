@@ -4,14 +4,15 @@
 #include <stdexcept>
 #include <boost/functional/hash.hpp>
 
+#include <unordered_map>
+
 #include <diy/types.hpp>
 #include <diy/point.hpp>
 #include <diy/serialization.hpp>
 
 namespace reeber {
 
-    struct AmrVertexId
-    {
+    struct AmrVertexId {
         int gid;
         size_t vertex;
 
@@ -73,7 +74,7 @@ namespace reeber {
 
     AmrEdge reverse_amr_edge(const AmrEdge& e)
     {
-        return AmrEdge { std::get<1>(e), std::get<0>(e) };
+        return AmrEdge{std::get<1>(e), std::get<0>(e)};
     }
 
     using AmrEdgeContainer = std::vector<AmrEdge>;
@@ -83,20 +84,8 @@ namespace reeber {
 
 namespace std {
 
-    //    template<>
-    //    struct hash<diy::BlockID>
-    //    {
-    //        std::size_t operator()(const diy::BlockID gid)
-    //        {
-    //            std::size_t seed = 0;
-    //            boost::hash_combine(seed, gid);
-    //            return seed;
-    //        }
-    //    };
-
     template<>
-    struct hash<reeber::AmrVertexId>
-    {
+    struct hash<reeber::AmrVertexId> {
         std::size_t operator()(const reeber::AmrVertexId& id) const noexcept
         {
             std::size_t seed = 0;
@@ -107,8 +96,7 @@ namespace std {
     };
 
     template<>
-    struct hash<reeber::AmrEdge>
-    {
+    struct hash<reeber::AmrEdge> {
         std::size_t operator()(const reeber::AmrEdge& e) const
         {
             std::size_t seed = 0;
@@ -129,5 +117,3 @@ namespace std {
         return os;
     }
 }
-
-

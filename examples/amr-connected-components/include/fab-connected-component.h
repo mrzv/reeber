@@ -15,16 +15,13 @@
 #include "reeber/amr_helper.h"
 
 
-
 template<class Real_>
-class FabConnectedComponent
-{
+class FabConnectedComponent {
 public:
     // types
     using Real = Real_;
 
-    struct VertexValue
-    {
+    struct VertexValue {
         reeber::AmrVertexId vertex;
         Real value;
     };
@@ -54,17 +51,33 @@ private:
 public:
     // methods
     FabConnectedComponent();
+
     FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value);
 
     // getters
-    AmrVertexId global_deepest() const { return global_deepest_; }
-    AmrVertexId original_deepest() const { return original_deepest_; }
-    Real global_deepest_value() const { return global_deepest_value_; }
-    const AmrVertexSet& current_neighbors() const { return current_neighbors_; }
-    const AmrVertexSet& processed_neighbors() const { return processed_neighbors_; }
-    const GidSet& current_gids() const { return current_gids_; }
-    const GidSet& processed_gids() const { return processed_gids_;}
-    const AmrEdgeContainer edges() const { return edges_; }
+    AmrVertexId global_deepest() const
+    { return global_deepest_; }
+
+    AmrVertexId original_deepest() const
+    { return original_deepest_; }
+
+    Real global_deepest_value() const
+    { return global_deepest_value_; }
+
+    const AmrVertexSet& current_neighbors() const
+    { return current_neighbors_; }
+
+    const AmrVertexSet& processed_neighbors() const
+    { return processed_neighbors_; }
+
+    const GidSet& current_gids() const
+    { return current_gids_; }
+
+    const GidSet& processed_gids() const
+    { return processed_gids_; }
+
+    const AmrEdgeContainer edges() const
+    { return edges_; }
 
     bool cmp(Real x, Real y) const;
 
@@ -73,11 +86,13 @@ public:
     void set_global_deepest(const VertexValue& vv);
 
     void add_current_neighbor(const AmrVertexId& new_current_neighbor);
+
     void set_current_neighbors(const AmrVertexSet& new_current_neighbhors);
 
     int must_send_to_gid(int gid) const;
 
     void mark_gid_processed(int _gid);
+
     void mark_neighbor_processed(AmrVertexId v);
 
     void add_edge(const AmrEdge& e);
@@ -99,11 +114,9 @@ std::ostream& operator<<(std::ostream& os, const FabConnectedComponent<Real>& c)
 }
 
 
-namespace diy
-{
+namespace diy {
     template<class R>
-    struct Serialization<FabConnectedComponent<R>>
-    {
+    struct Serialization<FabConnectedComponent<R>> {
         using Component = FabConnectedComponent<R>;
 
         static void save(BinaryBuffer& bb, const Component& c)
@@ -111,10 +124,7 @@ namespace diy
             diy::save(bb, c.global_deepest_);
             diy::save(bb, c.original_deepest_);
             diy::save(bb, c.negate_);
-//            diy::save(bb, c.global_integral_value_);
-//            diy::save(bb, c.original_integral_value_);
             diy::save(bb, c.global_deepest_value_);
-//            diy::save(bb, c.original_deepest_value_);
             diy::save(bb, c.current_neighbors_);
             diy::save(bb, c.processed_neighbors_);
         }
@@ -124,17 +134,11 @@ namespace diy
             diy::load(bb, c.global_deepest_);
             diy::load(bb, c.original_deepest_);
             diy::load(bb, c.negate_);
-//            diy::load(bb, c.global_integral_value_);
-//            diy::load(bb, c.original_integral_value_);
             diy::load(bb, c.global_deepest_value_);
-//            diy::load(bb, c.original_deepest_value_);
             diy::load(bb, c.current_neighbors_);
             diy::load(bb, c.processed_neighbors_);
         }
     };
-
-
-};
-
+}
 
 #include "fab-connected-component.hpp"

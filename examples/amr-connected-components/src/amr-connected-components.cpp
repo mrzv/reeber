@@ -48,8 +48,7 @@ using GidContainer = Block::GidContainer;
 using TripletMergeTree = Block::TripletMergeTree;
 using Neighbor = TripletMergeTree::Neighbor;
 
-struct IsAmrVertexLocal
-{
+struct IsAmrVertexLocal {
     bool operator()(const Block& b, const Neighbor& from) const
     {
         return from->vertex.gid == b.gid;
@@ -57,10 +56,9 @@ struct IsAmrVertexLocal
 };
 
 template<class Real, class LocalFunctor>
-struct ComponentDiagramsFunctor
-{
+struct ComponentDiagramsFunctor {
 
-    ComponentDiagramsFunctor(Block* b, const LocalFunctor& lf) :
+    ComponentDiagramsFunctor(Block *b, const LocalFunctor& lf) :
             block_(b),
             negate_(b->get_merge_tree().negate()),
             ignore_zero_persistence_(true),
@@ -70,7 +68,9 @@ struct ComponentDiagramsFunctor
     void operator()(Neighbor from, Neighbor through, Neighbor to) const
     {
         if (!test_local(*block_, from))
+        {
             return;
+        }
 
         AmrVertexId current_vertex = from->vertex;
 
@@ -78,13 +78,15 @@ struct ComponentDiagramsFunctor
         Real death_time = through->value;
 
         if (ignore_zero_persistence_ and birth_time == death_time)
+        {
             return;
+        }
 
         AmrVertexId root = block_->vertex_to_deepest_[current_vertex];
         block_->local_diagrams_[root].emplace_back(birth_time, death_time);
     }
 
-    Block* block_;
+    Block *block_;
     const bool negate_;
     const bool ignore_zero_persistence_;
     LocalFunctor test_local;
@@ -103,7 +105,9 @@ inline bool file_exists(const std::string& s)
 inline bool ends_with(const std::string& s, const std::string& suffix)
 {
     if (suffix.size() > s.size())
+    {
         return false;
+    }
     return std::equal(suffix.rbegin(), suffix.rend(), s.rbegin());
 }
 
@@ -117,7 +121,9 @@ void read_from_file(std::string infn,
                     int nblocks)
 {
     if (not file_exists(infn))
+    {
         throw std::runtime_error("Cannot read file " + infn);
+    }
 
     if (ends_with(infn, ".npy"))
     {
@@ -125,15 +131,18 @@ void read_from_file(std::string infn,
     } else
     {
         if (split)
+        {
             diy::io::split::read_blocks(infn, world, assigner, master_reader, header, FabBlockR::load);
-        else
+        } else
+        {
             diy::io::read_blocks(infn, world, assigner, master_reader, header, FabBlockR::load);
+        }
         diy::load(header, domain);
     }
 }
 
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     diy::mpi::environment env(argc, argv);
     diy::mpi::communicator world;
@@ -192,16 +201,22 @@ int main(int argc, char** argv)
 
     bool write_diag = (ops >> PosOption(output_diagrams_filename));
     if (output_diagrams_filename == "none")
+    {
         write_diag = false;
+    }
 
     bool write_integral = (ops >> PosOption(output_integral_filename));
     if (output_integral_filename == "none")
+    {
         write_integral = false;
+    }
 
     if (write_integral)
     {
         if ((negate and theta < rho) or (not negate and theta > rho))
+        {
             throw std::runtime_error("Bad integral threshold");
+        }
     }
 
     diy::FileStorage storage(prefix);
@@ -242,9 +257,9 @@ int main(int argc, char** argv)
     // FabBlock can be safely discarded afterwards
 
     master_reader.foreach(
-            [&master, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
-                auto* l = static_cast<AMRLink*>(cp.link());
-                AMRLink* new_link = new AMRLink(*l);
+            [&master, domain, rho, negate, absolute](FabBlockR *b, const diy::Master::ProxyWithLink& cp) {
+                auto *l = static_cast<AMRLink *>(cp.link());
+                AMRLink *new_link = new AMRLink(*l);
 
                 // prepare neighbor box info to save in MaskedBox
                 int local_ref = l->refinement();
@@ -275,7 +290,7 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
 
-        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
             cp.collectives()->clear();
             cp.all_reduce(b->sum_, std::plus<Real>());
             cp.all_reduce(static_cast<Real>(b->n_unmasked_) * b->scaling_factor(), std::plus<Real>());
@@ -298,15 +313,17 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
 
-        master.foreach([rho](Block* b, const diy::Master::ProxyWithLink& cp) {
-            AMRLink* l = static_cast<AMRLink*>(cp.link());
+        master.foreach([rho](Block *b, const diy::Master::ProxyWithLink& cp) {
+            AMRLink *l = static_cast<AMRLink *>(cp.link());
             b->init(rho, l);
             cp.collectives()->clear();
         });
 
 
         world.barrier();
-        LOG_SEV_IF(world.rank() == 0, info) << "Time to initialize FabComponentBlocks (low vertices, local trees, components, outgoing edges): " << timer.elapsed();
+        LOG_SEV_IF(world.rank() == 0, info) <<
+        "Time to initialize FabComponentBlocks (low vertices, local trees, components, outgoing edges): "
+                << timer.elapsed();
         time_for_local_computation += timer.elapsed();
         dlog::flush();
         timer.restart();
@@ -326,8 +343,8 @@ int main(int argc, char** argv)
 
 
     // debug: check symmetry
-    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-        auto* l = static_cast<AMRLink*>(cp.link());
+    master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
+        auto *l = static_cast<AMRLink *>(cp.link());
 
         for(const diy::BlockID& receiver : link_unique(l, b->gid))
         {
@@ -337,8 +354,8 @@ int main(int argc, char** argv)
 
     master.exchange();
 
-    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-        auto* l = static_cast<AMRLink*>(cp.link());
+    master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
+        auto *l = static_cast<AMRLink *>(cp.link());
         for(const diy::BlockID& sender : link_unique(l, b->gid))
         {
             std::vector<Component> received_components;
@@ -354,7 +371,7 @@ int main(int argc, char** argv)
     // end symmetry checking
 
     int rounds = 0;
-    while (global_n_undone)
+    while(global_n_undone)
     {
         rounds++;
 
@@ -384,9 +401,12 @@ int main(int argc, char** argv)
     if (output_filename != "none")
     {
         if (!split)
+        {
             diy::io::write_blocks(output_filename, world, master);
-        else
+        } else
+        {
             diy::io::split::write_blocks(output_filename, world, master);
+        }
     }
 
     world.barrier();
@@ -403,7 +423,7 @@ int main(int argc, char** argv)
         OutputPairsR::ExtraInfo extra(output_diagrams_filename, verbose, world);
         IsAmrVertexLocal test_local;
         master.foreach(
-                [&extra, &test_local, ignore_zero_persistence, rho](Block* b, const diy::Master::ProxyWithLink& cp) {
+                [&extra, &test_local, ignore_zero_persistence, rho](Block *b, const diy::Master::ProxyWithLink& cp) {
                     b->compute_final_connected_components();
                     output_persistence(b, cp, extra, test_local, rho, ignore_zero_persistence);
                 });
@@ -419,10 +439,10 @@ int main(int argc, char** argv)
     {
         diy::io::SharedOutFile integral_file(output_integral_filename, world);
 
-        master.foreach([rho, theta, &integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([rho, theta, &integral_file](Block *b, const diy::Master::ProxyWithLink& cp) {
 
             b->sanity_check_fin();
-            b->compute_local_integral(theta);
+            b->compute_integral(theta);
 
             for(const auto& root_integral_value_pair : b->global_integral_)
             {

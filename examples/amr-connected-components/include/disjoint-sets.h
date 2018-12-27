@@ -8,8 +8,7 @@
 #include <diy/serialization.hpp>
 
 template<class Vertex_>
-struct DisjointSets
-{
+struct DisjointSets {
     using Vertex = Vertex_;
     using VertexVertexMap = std::unordered_map<Vertex, Vertex>;
     using VertexSizeMap = std::unordered_map<Vertex, int>;
@@ -39,7 +38,9 @@ struct DisjointSets
     void make_component_if_not_exists(const Vertex& v)
     {
         if (!has_component(v))
+        {
             make_component(v);
+        }
     }
 
     bool has_component(const Vertex& v) const
@@ -90,9 +91,13 @@ struct DisjointSets
     {
         bool debug = false;
         if (a_root == b_root)
+        {
             return a_root;
+        }
         if (size_[a_root] < size_[b_root])
+        {
             std::swap(a_root, b_root);
+        }
         parent_[b_root] = a_root;
         size_[a_root] += size_[b_root];
         if (debug) fmt::print("Successfully united roots {} and {}\n", a_root, b_root);
@@ -115,30 +120,63 @@ struct DisjointSets
         {
             const Vertex& v = v_size_pair.first;
             if (find_component(v) == root)
+            {
                 result.push_back(v);
+            }
         }
         return result;
     }
 };
 
+namespace diy {
+    template<class Vertex>
+    struct Serialization<DisjointSets<Vertex>> {
+        using DS = DisjointSets<Vertex>;
 
-template<>
-template<class Vertex>
-struct diy::Serialization<DisjointSets<Vertex>>
-{
-    using DS = DisjointSets<Vertex>;
+        static void save(BinaryBuffer& bb, const DS& disjoint_sets)
+        {
+            diy::save(bb, disjoint_sets.parent_);
+            diy::save(bb, disjoint_sets.size_);
+        }
 
-    static void save(BinaryBuffer& bb, const DS& disjoint_sets)
-    {
-        diy::save(bb, disjoint_sets.parent_);
-        diy::save(bb, disjoint_sets.size_);
+        static void load(BinaryBuffer& bb, DS& disjoint_sets)
+        {
+            diy::load(bb, disjoint_sets.parent_);
+            diy::load(bb, disjoint_sets.size_);
 
-    }
+        }
+    };
+}
 
-    static void load(BinaryBuffer& bb, const DS& disjoint_sets)
-    {
-        diy::load(bb, disjoint_sets.parent_);
-        diy::load(bb, disjoint_sets.size_);
 
-    }
-};
+//namespace diy
+//{
+//    template<class R>
+//    struct Serialization<FabConnectedComponent<R>>
+//    {
+//        using Component = FabConnectedComponent<R>;
+//
+//        static void save(BinaryBuffer& bb, const Component& c)
+//        {
+//            diy::save(bb, c.global_deepest_);
+//            diy::save(bb, c.original_deepest_);
+//            diy::save(bb, c.negate_);
+//            diy::save(bb, c.global_deepest_value_);
+//            diy::save(bb, c.current_neighbors_);
+//            diy::save(bb, c.processed_neighbors_);
+//        }
+//
+//        static void load(BinaryBuffer& bb, Component& c)
+//        {
+//            diy::load(bb, c.global_deepest_);
+//            diy::load(bb, c.original_deepest_);
+//            diy::load(bb, c.negate_);
+//            diy::load(bb, c.global_deepest_value_);
+//            diy::load(bb, c.current_neighbors_);
+//            diy::load(bb, c.processed_neighbors_);
+//        }
+//    };
+//
+//
+//}
+

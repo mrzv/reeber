@@ -31,8 +31,7 @@
 namespace r = reeber;
 
 template<class Real, unsigned D>
-struct FabComponentBlock
-{
+struct FabComponentBlock {
     using Shape = diy::Point<int, D>;
 
     using Grid = r::Grid<Real, D>;
@@ -115,11 +114,14 @@ struct FabComponentBlock
     // methods
 
     // simple getters/setters
-    const diy::DiscreteBounds& domain() const { return domain_; }
+    const diy::DiscreteBounds& domain() const
+    { return domain_; }
 
-    int refinement() const { return local_.refinement(); }
+    int refinement() const
+    { return local_.refinement(); }
 
-    int level() const { return local_.level(); }
+    int level() const
+    { return local_.level(); }
 
     FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
                       int _ref,
@@ -128,7 +130,7 @@ struct FabComponentBlock
                       const diy::DiscreteBounds& bounds,
                       const diy::DiscreteBounds& core,
                       int _gid,
-                      diy::AMRLink* amr_link,
+                      diy::AMRLink *amr_link,
                       Real rho,                                           // threshold for LOW value
                       bool _negate,
                       bool is_absolute_threshold);
@@ -137,7 +139,7 @@ struct FabComponentBlock
             fab_(nullptr, diy::Point<int, D>::zero())
     {}
 
-    void init(Real absolute_rho, diy::AMRLink* amr_link);
+    void init(Real absolute_rho, diy::AMRLink *amr_link);
 
     // compare w.r.t negate_ flag
     bool cmp(Real a, Real b) const;
@@ -146,19 +148,22 @@ struct FabComponentBlock
                  const Real& absolute_rho);
 
     void set_mask(const diy::Point<int, D>& v_bounds,
-                  diy::AMRLink* l,
+                  diy::AMRLink *l,
                   const Real& rho,
                   bool is_absolute_threshold);
 
-    void compute_outgoing_edges(diy::AMRLink* l, VertexEdgesMap& vertex_to_outgoing_edges);
+    void compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMap& vertex_to_outgoing_edges);
 
     void compute_original_connected_components(const VertexEdgesMap& vertex_to_outgoing_edges);
 
-    void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender, const VertexVertexMap& received_vertex_to_deepest);
+    void delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender,
+                          const VertexVertexMap& received_vertex_to_deepest);
+
 //
     void adjust_outgoing_edges();
 
-    void sparsify_prune_original_tree() {}
+    void sparsify_prune_original_tree()
+    {}
 
     int get_n_components_for_gid(int gid) const;
 
@@ -168,38 +173,44 @@ struct FabComponentBlock
 
     void compute_final_connected_components();
 
-    void compute_local_integral(Real theta);
+    void compute_integral(Real theta);
 
     bool check_symmetry(int gid, const std::vector<Component>& received_components);
 
-    TripletMergeTree& get_merge_tree() { return merge_tree_; }
-    const TripletMergeTree& get_merge_tree() const { return merge_tree_; }
+    TripletMergeTree& get_merge_tree()
+    { return merge_tree_; }
+
+    const TripletMergeTree& get_merge_tree() const
+    { return merge_tree_; }
 
     Real scaling_factor() const;
 
     Component& get_component_by_deepest(const AmrVertexId& deepest)
     {
-        auto res_iter = std::find_if(components_.begin(), components_.end(), [deepest](const Component& c) { return c.original_deepest() == deepest; });
+        auto res_iter = std::find_if(components_.begin(), components_.end(),
+                                     [deepest](const Component& c) { return c.original_deepest() == deepest; });
         if (res_iter == components_.end())
+        {
             throw std::runtime_error("error in find_componenent, bad deepest");
-        return  *res_iter;
+        }
+        return *res_iter;
     }
 
     void sanity_check_fin() const;
 
-    static void* create()
+    static void *create()
     {
         return new FabComponentBlock;
     }
 
-    static void destroy(void* b)
+    static void destroy(void *b)
     {
-        delete static_cast<FabComponentBlock*>(b);
+        delete static_cast<FabComponentBlock *>(b);
     }
 
-    static void save(const void* b, diy::BinaryBuffer& bb);
+    static void save(const void *b, diy::BinaryBuffer& bb);
 
-    static void load(void* b, diy::BinaryBuffer& bb);
+    static void load(void *b, diy::BinaryBuffer& bb);
 };
 
 

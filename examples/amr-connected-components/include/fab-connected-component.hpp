@@ -18,7 +18,6 @@ FabConnectedComponent<Real>::FabConnectedComponent(bool negate, const AmrVertexI
 }
 
 
-
 template<class Real>
 bool FabConnectedComponent<Real>::cmp(Real x, Real y) const
 {
@@ -37,7 +36,7 @@ int FabConnectedComponent<Real>::is_done() const
                        [this](const auto& gid) { return this->current_gids_.count(gid) == 1; }));
 
 //    if (debug) fmt::print("is_done, gid = {}, component = {}: # current_neighbors_ = {}, # processed_neighbors = {}\n", original_deepest_.gid, original_deepest_, current_neighbors_.size(), processed_neighbors_.size());
-    if (debug) fmt::print("is_done, gid = {}, component = {}: # current_gids_ = {}, # processed_gids = {}\n", original_deepest_.gid, original_deepest_, current_gids_.size(), processed_gids_.size());
+    if (debug) { fmt::print("is_done, gid = {}, component = {}: # current_gids_ = {}, # processed_gids = {}\n", original_deepest_.gid, original_deepest_, current_gids_.size(), processed_gids_.size()); }
 
     return current_gids_.size() == processed_gids_.size();
 }
@@ -59,7 +58,7 @@ void FabConnectedComponent<Real>::add_current_neighbor(const AmrVertexId& new_cu
     bool debug = false;
     current_gids_.insert(new_current_neighbor.gid);
     current_neighbors_.insert(new_current_neighbor);
-    if (debug) fmt::print("in add_current_neighbor for {}, added ncn = {}, processed_gids = {}\n", original_deepest(), new_current_neighbor, container_to_string(processed_gids_));
+    if (debug) { fmt::print("in add_current_neighbor for {}, added ncn = {}, processed_gids = {}\n", original_deepest(), new_current_neighbor, container_to_string(processed_gids_)); }
 }
 
 template<class Real>
@@ -76,8 +75,8 @@ void FabConnectedComponent<Real>::set_current_neighbors(const AmrVertexSet& new_
         current_gids_.insert(cn.gid);
     }
 
-    if (debug) fmt::print("in set_current_neighbors, old cn = {}, new cn = {}\n", container_to_string(current_neighbors_), container_to_string(new_current_neighbhors));
-    if (debug) fmt::print("in set_current_neighbors, current_gids = {}, processed_gids = {}\n", container_to_string(current_gids()), container_to_string(processed_gids()));
+    if (debug) { fmt::print("in set_current_neighbors, old cn = {}, new cn = {}\n", container_to_string(current_neighbors_), container_to_string(new_current_neighbhors)); }
+    if (debug) { fmt::print("in set_current_neighbors, current_gids = {}, processed_gids = {}\n", container_to_string(current_gids()), container_to_string(processed_gids())); }
 
     current_neighbors_ = new_current_neighbhors;
 }
@@ -110,7 +109,9 @@ void FabConnectedComponent<Real>::add_edge(const AmrEdge& e)
 template<class Real>
 std::string FabConnectedComponent<Real>::to_string() const
 {
-    return fmt::format("Component(negate = {}, original_deepest = {}, current_neighbors = {}, processed_neighbors = {}, current_gids = {}, processed_gids = {}\n",
-                                  negate_, original_deepest_, container_to_string(current_neighbors()), container_to_string(processed_neighbors()),
-                                  container_to_string(current_gids()), container_to_string(processed_gids()));
+    return fmt::format(
+            "Component(negate = {}, original_deepest = {}, current_neighbors = {}, processed_neighbors = {}, current_gids = {}, processed_gids = {}\n",
+            negate_, original_deepest_, container_to_string(current_neighbors()),
+            container_to_string(processed_neighbors()),
+            container_to_string(current_gids()), container_to_string(processed_gids()));
 }
