@@ -4,7 +4,8 @@ FabConnectedComponent<Real>::FabConnectedComponent()
 }
 
 template<class Real>
-FabConnectedComponent<Real>::FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value) :
+FabConnectedComponent<Real>::FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value,
+        VertexValueMap* _integral_values, UnionFind* _disjoint_sets) :
         negate_(negate),
         global_deepest_(deepest),
         original_deepest_(deepest),
@@ -13,6 +14,8 @@ FabConnectedComponent<Real>::FabConnectedComponent(bool negate, const AmrVertexI
         processed_neighbors_({deepest}),
         current_gids_({deepest.gid}),
         processed_gids_({deepest.gid}),
+        block_integral_values_(_integral_values),
+        block_disjoint_sets_(_disjoint_sets),
         tree_(negate)
 {
 }
@@ -38,7 +41,14 @@ int FabConnectedComponent<Real>::is_done() const
 //    if (debug) fmt::print("is_done, gid = {}, component = {}: # current_neighbors_ = {}, # processed_neighbors = {}\n", original_deepest_.gid, original_deepest_, current_neighbors_.size(), processed_neighbors_.size());
     if (debug) { fmt::print("is_done, gid = {}, component = {}: # current_gids_ = {}, # processed_gids = {}\n", original_deepest_.gid, original_deepest_, current_gids_.size(), processed_gids_.size()); }
 
-    return current_gids_.size() == processed_gids_.size();
+//    return current_gids_.size() == processed_gids_.size();
+
+    for(const auto& v : block_disjoint_sets_->component_of(original_deepest()))
+    {
+        if (block_integral_values_->count(v) == 0)
+            return false;
+    }
+    return true;
 }
 
 template<class Real>

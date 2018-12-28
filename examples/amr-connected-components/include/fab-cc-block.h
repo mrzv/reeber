@@ -49,7 +49,7 @@ struct FabComponentBlock {
     using AmrVertexContainer = std::vector<AmrVertexId>;
     using AmrVertexSet = typename Component::AmrVertexSet;
 
-    using VertexValueMap = std::unordered_map<AmrVertexId, Real>;
+    using VertexValueMap = typename Component::VertexValueMap;
 
     using AmrEdge = r::AmrEdge;
     using AmrEdgeContainer = r::AmrEdgeContainer;
@@ -61,7 +61,7 @@ struct FabComponentBlock {
 
     using RealType = Real;
 
-    using UnionFind = DisjointSets<AmrVertexId>;
+    using UnionFind = typename Component::UnionFind;
     using VertexVertexMap = typename UnionFind::VertexVertexMap;
     using VertexSizeMap = typename UnionFind::VertexSizeMap;
 

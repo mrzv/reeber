@@ -32,6 +32,8 @@ public:
     using AmrVertexSet = std::unordered_set<AmrVertexId>;
     using GidSet = std::unordered_set<int>;
     using TripletMergeTree = reeber::TripletMergeTree<AmrVertexId, Real>;
+    using VertexValueMap = std::unordered_map<AmrVertexId, Real>;
+    using UnionFind = DisjointSets<AmrVertexId>;
 
 private:
     // fields
@@ -47,12 +49,16 @@ private:
     GidSet processed_gids_;
 
     AmrEdgeContainer edges_;
+    // pointer to integral values of block, for termination criterion
+    VertexValueMap* block_integral_values_ {nullptr};
+    UnionFind* block_disjoint_sets_ {nullptr};
 
 public:
     // methods
     FabConnectedComponent();
 
-    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value);
+    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value,
+            VertexValueMap* _integral_values, UnionFind* _disjoint_sets);
 
     // getters
     AmrVertexId global_deepest() const
