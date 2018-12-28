@@ -592,7 +592,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
 
         integral_val *= scaling_factor();
 
-        components_.emplace_back(negate_, deepest, deepest_value);
+        components_.emplace_back(negate_, deepest, deepest_value, &original_integral_values_, &disjoint_sets_);
 
         disjoint_sets_.make_component(deepest);
         original_integral_values_[deepest] = integral_val;
