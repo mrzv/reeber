@@ -454,6 +454,7 @@ int main(int argc, char **argv)
             {
                 auto root = root_integral_value_pair.first;
                 auto value = root_integral_value_pair.second;
+//                integral_file << fmt::format("{} {} {}\n", root, b->local_.global_position(root), value);
                 integral_file << fmt::format("{} {}\n", b->local_.global_position(root), value);
             }
         });
