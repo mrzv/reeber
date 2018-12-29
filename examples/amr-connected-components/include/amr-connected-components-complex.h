@@ -103,15 +103,15 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
         diy::MemoryBuffer& out = cp.outgoing(receiver);
         diy::LinkFactory::save(out, l);
 
-        int n_components = b->get_n_components_for_gid(receiver_gid);
-        if (debug) fmt::print("In amr_cc_send for block = {}, sending to {}, n_components = {}\n", b->gid, receiver_gid, n_components);
+//        int n_components = b->get_n_components_for_gid(receiver_gid);
+//        if (debug) fmt::print("In amr_cc_send for block = {}, sending to {}, n_components = {}\n", b->gid, receiver_gid, n_components);
 //        cp.enqueue(receiver, n_components);
         int n_sent = 0;
         for(Component& c : b->components_)
         {
 //            debug = ( debug_v == c.original_deepest() or debug_v_1 == c.original_deepest());
 
-            if (!c.must_send_to_gid(receiver_gid))
+            if (!c.must_send_neighbors_to_gid(receiver_gid))
             {
                 if (debug) fmt::print("in amr_cc_send, not sending {} to gid {}\n", c.original_deepest(), receiver_gid);
                 continue;
@@ -121,18 +121,35 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
             cp.enqueue(receiver, c.original_deepest());
             cp.enqueue(receiver, c.global_deepest());
             cp.enqueue(receiver, c.current_neighbors());
-            cp.enqueue(receiver, c.processed_neighbors());
             cp.enqueue(receiver, b->original_integral_values_.at(c.original_deepest()));
             cp.enqueue(receiver, c.global_deepest_value());
 #ifdef AMR_CC_SEND_TREES
-            cp.enqueue(receiver, c.tree_);
-            cp.enqueue(receiver, c.edges());
+            int n_trees = c.must_send_tree_to_gid(receiver_gid);
+            cp.enqueue(receiver, n_trees);
+            if (n_trees)
+            {
+                cp.enqueue(receiver, c.tree_);
+                cp.enqueue(receiver, c.edges());
+            }
 #endif
             if (debug) fmt::print("in amr_cc_send, sent {} to gid = {}, current_neighbors = {}\n", c.original_deepest(), receiver_gid, container_to_string(c.current_neighbors()));
 
-            c.mark_gid_processed(receiver_gid);
         }
-        assert(n_sent == n_components);
+//        assert(n_sent == n_components);
+    }
+
+    for(Component& c : b->components_)
+    {
+
+        // check that all neighbors are in link
+        assert(std::all_of(c.processed_gids().begin(), c.processed_gids().end(),
+                [&receivers, b](const int gid) { return b->gid == gid or std::any_of(receivers.begin(), receivers.end(), [gid](const diy::BlockID& receiver) {
+            return receiver.gid == gid; }); } ));
+
+//        assert(std::all_of(c.processed_gids().begin(), c.processed_gids().end(),
+//                [&receivers](const int gid) { return receivers.count(gid) == 1;  }));
+
+        c.mark_all_processed();
     }
 
     int done = b->done_;
@@ -151,7 +168,14 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
     using TripletMergeTree = typename Block::TripletMergeTree;
 
     bool debug = false;
-    if (debug) fmt::print("Called amr_cc_receive for block = {}\n", b->gid);
+    if (debug) fmt::print("Called amr_cc_receive for block = {}, round = {}\n", b->gid, b->round_);
+
+    if (debug)
+        for(const Component& c : b->components_)
+        {
+            fmt::print("Component: {}, #current_neighbors = {}, #processed_neighbors = {}, #current gids = {}, #processed gids = {}\n",
+                    c.original_deepest(), c.current_neighbors().size(), c.processed_neighbors().size(), c.current_gids().size(), c.processed_gids().size());
+        }
 
     auto* l = static_cast<AMRLink*>(cp.link());
 
@@ -162,7 +186,9 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
 
     auto senders = link_unique(l, b->gid);
 
-    if (debug) fmt::print("In receive_simple for block = {}, # senders = {}\n", b->gid, senders.size());
+    int total_received_trees = 0;
+
+//    if (debug) fmt::print("In receive_simple for block = {}, # senders = {}\n", b->gid, senders.size());
 
     for (const diy::BlockID& sender : senders)
     {
@@ -173,30 +199,31 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
         received_links.push_back(*l);
         delete l;
 
-//        cp.dequeue(sender, n_components);
-
         while(cp.incoming(sender.gid))
-//        for(int i = 0; i < n_components; ++i)
         {
             AmrVertexSet received_current_neighbors;
-            AmrVertexSet received_processed_neighbors;
             AmrVertexId received_original_deepest;
             AmrVertexId received_global_deepest;
             Real received_original_integral_value;
             Real received_global_deepest_value;
+            int received_n_trees;
             TripletMergeTree received_tree;
             AmrEdgeContainer received_edges;
 
             cp.dequeue(sender, received_original_deepest);
             cp.dequeue(sender, received_global_deepest);
             cp.dequeue(sender, received_current_neighbors);
-            cp.dequeue(sender, received_processed_neighbors);
             cp.dequeue(sender, received_original_integral_value);
             cp.dequeue(sender, received_global_deepest_value);
 #ifdef AMR_CC_SEND_TREES
-            cp.dequeue(sender, received_tree);
-            cp.dequeue(sender, received_edges);
-            r::merge(b->merge_tree_, received_tree, received_edges, true);
+            cp.dequeue(sender, received_n_trees);
+            total_received_trees += received_n_trees;
+            if (received_n_trees)
+            {
+                cp.dequeue(sender, received_tree);
+                cp.dequeue(sender, received_edges);
+                r::merge(b->merge_tree_, received_tree, received_edges, true);
+            }
 #endif
 
             b->disjoint_sets_.make_component_if_not_exists(received_original_deepest);
@@ -216,22 +243,22 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
 
                 Component& c = b->get_component_by_deepest(rcn);
                 assert(rcn == c.original_deepest());
-                if (c.processed_neighbors().count(received_original_deepest) == 0)
-                {
-                    for(const auto& cn : received_current_neighbors)
-                        c.add_current_neighbor(cn);
-                    c.mark_neighbor_processed(received_original_deepest);
-                    b->disjoint_sets_.unite_components(c.original_deepest(), received_original_deepest);
-                    if (b->cmp(received_global_deepest_value, c.global_deepest_value())) {
-                        c.set_global_deepest({received_global_deepest, received_global_deepest_value});
-                    }
+
+                for(const auto& cn : received_current_neighbors)
+                    c.add_current_neighbor(cn);
+                b->disjoint_sets_.unite_components(c.original_deepest(), received_original_deepest);
+                if (b->cmp(received_global_deepest_value, c.global_deepest_value())) {
+                    c.set_global_deepest({received_global_deepest, received_global_deepest_value});
                 }
 //              if (debug) fmt::print("in amr_cc_receive, gid = {} received {}, after processing current component = {}\n", b->gid, debug_v, container_to_string(b->disjoint_sets_.component_of(rcn)));
             }
         }
     }
 #ifdef AMR_CC_SEND_TREES
-    r::repair(b->merge_tree_);
+    if (total_received_trees)
+    {
+        r::repair(b->merge_tree_);
+    }
 #endif
 
     // for debug only
@@ -292,12 +319,18 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
                 continue;
             Component& other_component = b->get_component_by_deepest(local_deepest);
             b->disjoint_sets_.unite_components(c.original_deepest(), other_component.original_deepest());
-            c.mark_neighbor_processed(local_deepest);
         }
     }
 //    if (debug) fmt::print("In receive_simple for block = {}, processed_receiveres_ OK\n", b->gid);
     b->done_ = b->are_all_components_done();
     int n_undone = 1 - b->done_;
+
+    if (debug)
+        for(const Component& c : b->components_)
+        {
+            fmt::print("END: Component: {}, #current_neighbors = {}, #processed_neighbors = {}, #current gids = {}, #processed gids = {}\n",
+                    c.original_deepest(), c.current_neighbors().size(), c.processed_neighbors().size(), c.current_gids().size(), c.processed_gids().size());
+        }
 
     if (debug) fmt::print("b->done = {}, n_undone = {}\n", b->done_, n_undone);
 

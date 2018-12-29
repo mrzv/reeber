@@ -114,6 +114,7 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
 
     // loop over neighbouring blocks one level above
     for(int i = 0; i < l->size(); ++i)
+    {
         if (l->level(i) == v_level + 1 && neighbor_contains<D>(i, l, v_glob, v_ref))
         {
             if (debug)
@@ -125,6 +126,7 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
             local_.set_mask(v_bounds, l->target(i).gid);
             break;
         }
+    }
 
     // real cells can only be masked by blocks above, only ghost cells need to look at same level and below
     if (not mask_set and is_ghost)
@@ -676,12 +678,12 @@ Real FabComponentBlock<Real, D>::scaling_factor() const
 
 
 
-template<class Real, unsigned D>
-int FabComponentBlock<Real, D>::get_n_components_for_gid(int _gid) const
-{
-    return std::count_if(components_.begin(), components_.end(),
-                         [_gid](const Component& c) { return c.must_send_to_gid(_gid); });
-}
+//template<class Real, unsigned D>
+//int FabComponentBlock<Real, D>::get_n_components_for_gid(int _gid) const
+//{
+//    return std::count_if(components_.begin(), components_.end(),
+//                         [_gid](const Component& c) { return c.must_send_to_gid(_gid); });
+//}
 
 template<class Real, unsigned D>
 int FabComponentBlock<Real, D>::are_all_components_done() const
@@ -778,9 +780,16 @@ void FabComponentBlock<Real, D>::sanity_check_fin() const
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_integral(Real theta)
 {
+    bool debug = true;
     global_integral_.clear();
     for(const Component& c : components_)
     {
+//        if (debug)
+//        {
+//            AmrVertexId v1;
+//            v1 = local_.get_vertex_from_global_position({52, 63, 12})
+//        }
+
         if (c.global_deepest() != c.original_deepest())
         {
             continue;

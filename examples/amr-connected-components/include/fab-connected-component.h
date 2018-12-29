@@ -95,11 +95,13 @@ public:
 
     void set_current_neighbors(const AmrVertexSet& new_current_neighbhors);
 
-    int must_send_to_gid(int gid) const;
+    int must_send_tree_to_gid(int gid) const;
 
-    void mark_gid_processed(int _gid);
+    int must_send_neighbors_to_gid(int gid) const;
 
-    void mark_neighbor_processed(AmrVertexId v);
+    void mark_all_processed();
+//    void mark_gid_processed(int _gid);
+//    void mark_neighbor_processed(AmrVertexId v);
 
     void add_edge(const AmrEdge& e);
 
