@@ -72,7 +72,7 @@ struct OutputPairs
 
             if (ignore_zero_persistence and birth_time == death_time)
                 return;
-            ofs <<  birth_time <<  death_time << "\n";
+            ofs <<  birth_time << " " <<  death_time << "\n";
         }
     }
 
