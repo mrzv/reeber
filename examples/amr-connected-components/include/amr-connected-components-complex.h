@@ -49,7 +49,8 @@ template<class Real, unsigned D>
 void expand_link(FabComponentBlock<Real, D>* b,
                  const diy::Master::ProxyWithLink& cp,
                  AMRLink* l,
-                 std::vector<AMRLink>& received_links)
+                 std::vector<AMRLink>& received_links,
+                 std::unordered_set<int> needed_gids)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
     bool debug = false;
@@ -67,6 +68,9 @@ void expand_link(FabComponentBlock<Real, D>* b,
             // if we are already sending to this block, skip it
             int candidate_gid = received_link.target(j).gid;
             if (link_contains_gid(l, candidate_gid))
+                continue;
+
+            if (needed_gids.count(candidate_gid) == 0)
                 continue;
 
             //if (debug) fmt::print("in expand_link for block = {}, candidate_gid = {}, received_original_links[{}] = {}\n", b->gid, candidate_gid, i, container_to_string(received_original_gids[i]));
@@ -321,6 +325,8 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             b->disjoint_sets_.unite_components(c.original_deepest(), other_component.original_deepest());
         }
     }
+
+
 //    if (debug) fmt::print("In receive_simple for block = {}, processed_receiveres_ OK\n", b->gid);
     b->done_ = b->are_all_components_done();
     int n_undone = 1 - b->done_;
@@ -339,7 +345,14 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
     int old_size_unique = l->size_unique();
     int old_size = l->size();
 
-    expand_link(b, cp, l, received_links);
+    std::unordered_set<int> needed_gids;
+    for(Component& c : b->components_)
+    {
+        for(auto& cn : c.current_neighbors())
+            needed_gids.insert(cn.gid);
+    }
+
+    expand_link(b, cp, l, received_links, needed_gids);
 
     if (debug) fmt::print("Exit amr_cc_receive, gid = {}, round = {}, mt.size = {}\n", b->gid, b->round_, b->get_merge_tree().size());
 
