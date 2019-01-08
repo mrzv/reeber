@@ -439,7 +439,7 @@ int main(int argc, char** argv)
 
     if (write_integral)
     {
-        master.foreach([rho, theta](Block* b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([theta](Block* b, const diy::Master::ProxyWithLink& cp) {
             b->compute_final_connected_components();
             b->compute_local_integral(theta);
 

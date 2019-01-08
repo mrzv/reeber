@@ -861,6 +861,10 @@ void FabComponentBlock<Real, D>::sanity_check_fin() const
 template<class Real, unsigned D>
 void  FabComponentBlock<Real, D>::compute_local_integral(Real theta)
 {
+    bool debug = false;
+
+    if (debug) fmt::print("Enter compute_local_integral, gid = {}, theta = {}\n", gid, theta);
+
     local_integral_.clear();
 
     Real sf = scaling_factor();
@@ -878,10 +882,14 @@ void  FabComponentBlock<Real, D>::compute_local_integral(Real theta)
             continue;
 
         Node* current_node = vertex_node_pair.second;
-        AmrVertexId root = vertex_to_deepest_[current_vertex];
+        AmrVertexId root = vertex_to_deepest_.at(current_vertex);
+
 
         Real root_value = nodes.at(root)->value;
-        if (merge_tree_.cmp(root_value, theta))
+
+        if (debug) fmt::print("root = {}, root_value = {}, skip = {}\n", root, root_value, merge_tree_.cmp(root_value, theta));
+
+        if (merge_tree_.cmp(theta, root_value))
             continue;
         local_integral_[root] += sf * current_node->value;
         for(const auto& value_vertex_pair : current_node->vertices) {
