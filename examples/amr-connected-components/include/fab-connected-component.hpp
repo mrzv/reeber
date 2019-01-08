@@ -5,17 +5,14 @@ FabConnectedComponent<Real>::FabConnectedComponent()
 
 template<class Real>
 FabConnectedComponent<Real>::FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value,
-                                                   VertexValueMap *_integral_values, UnionFind *_disjoint_sets) :
+                                                   VertexValueMap *_integral_values) :
         negate_(negate),
         global_deepest_(deepest),
         original_deepest_(deepest),
         global_deepest_value_(deepest_value),
-        current_neighbors_({deepest}),
-        processed_neighbors_({deepest}),
-        current_gids_({deepest.gid}),
-        processed_gids_({deepest.gid}),
+        current_neighbors_({deepest.gid}),
+        processed_neighbors_({deepest.gid}),
         block_integral_values_(_integral_values),
-        block_disjoint_sets_(_disjoint_sets),
         tree_(negate)
 {
 }
@@ -32,18 +29,9 @@ int FabConnectedComponent<Real>::is_done() const
 {
     bool debug = false;
 
+
     assert(std::all_of(processed_neighbors_.begin(), processed_neighbors_.end(),
-                       [this](const AmrVertexId& v) { return this->current_neighbors_.count(v) == 1; }));
-
-    assert(std::all_of(processed_gids_.begin(), processed_gids_.end(),
-                       [this](const auto& gid) { return this->current_gids_.count(gid) == 1; }));
-
-//    if (debug) fmt::print("is_done, gid = {}, component = {}: # current_neighbors_ = {}, # processed_neighbors = {}\n", original_deepest_.gid, original_deepest_, current_neighbors_.size(), processed_neighbors_.size());
-    if (debug)
-    {
-        fmt::print("is_done, gid = {}, component = {}: # current_gids_ = {}, # processed_gids = {}\n",
-                   original_deepest_.gid, original_deepest_, current_gids_.size(), processed_gids_.size());
-    }
+                       [this](const auto& gid) { return this->current_neighbors_.count(gid) == 1; }));
 
     bool result = current_neighbors_.size() == processed_neighbors_.size();
 
@@ -67,45 +55,23 @@ void FabConnectedComponent<Real>::set_global_deepest(const VertexValue& vv)
 }
 
 template<class Real>
-void FabConnectedComponent<Real>::add_current_neighbor(const AmrVertexId& new_current_neighbor)
+void FabConnectedComponent<Real>::add_current_neighbor(int new_current_neighbor)
 {
-//    AmrVertexId debug_v {6, 15811};
-//    AmrVertexId debug_v_1 {2, 13462};
-//    bool debug = (original_deepest() == debug_v or original_deepest() == debug_v_1);
     bool debug = false;
-    current_gids_.insert(new_current_neighbor.gid);
     current_neighbors_.insert(new_current_neighbor);
-    if (debug)
-    {
-        fmt::print("in add_current_neighbor for {}, added ncn = {}, processed_gids = {}\n", original_deepest(),
-                   new_current_neighbor, container_to_string(processed_gids_));
-    }
+//    if (debug) { fmt::print("in add_current_neighbor for {}, added ncn = {}, processed_gids = {}\n", original_deepest(), new_current_neighbor, container_to_string(processed_gids_)); }
 }
 
 template<class Real>
-void FabConnectedComponent<Real>::set_current_neighbors(const AmrVertexSet& new_current_neighbhors)
+void FabConnectedComponent<Real>::set_current_neighbors(const GidSet& new_current_neighbhors)
 {
 //    AmrVertexId debug_v {6, 15811};
 //    AmrVertexId debug_v_1 {2, 13462};
 //    bool debug = (original_deepest() == debug_v or original_deepest() == debug_v_1);
     bool debug = false;
 
-    for(AmrVertexId cn : current_neighbors_)
-    {
-        assert(new_current_neighbhors.count(cn));
-        current_gids_.insert(cn.gid);
-    }
-
-    if (debug)
-    {
-        fmt::print("in set_current_neighbors, old cn = {}, new cn = {}\n", container_to_string(current_neighbors_),
-                   container_to_string(new_current_neighbhors));
-    }
-    if (debug)
-    {
-        fmt::print("in set_current_neighbors, current_gids = {}, processed_gids = {}\n",
-                   container_to_string(current_gids()), container_to_string(processed_gids()));
-    }
+//    if (debug) { fmt::print("in set_current_neighbors, old cn = {}, new cn = {}\n", container_to_string(current_neighbors_), container_to_string(new_current_neighbhors)); }
+//    if (debug) { fmt::print("in set_current_neighbors, current_gids = {}, processed_gids = {}\n", container_to_string(current_gids()), container_to_string(processed_gids())); }
 
     current_neighbors_ = new_current_neighbhors;
 }
@@ -113,51 +79,30 @@ void FabConnectedComponent<Real>::set_current_neighbors(const AmrVertexSet& new_
 template<class Real>
 int FabConnectedComponent<Real>::must_send_tree_to_gid(int gid) const
 {
-    return (processed_gids_.count(gid) == 0 and current_gids_.count(gid) == 1);
+    return (processed_neighbors_.count(gid) == 0 and current_neighbors_.count(gid) == 1);
 }
 
-template<class Real>
-int FabConnectedComponent<Real>::must_send_neighbors_to_gid(int gid) const
-{
-    for(const auto& cn : current_neighbors_)
-    {
-        if (cn.gid == gid and processed_gids_.count(cn) == 0)
-        {
-            return true;
-        }
-    }
-    return false;
-}
+//template<class Real>
+//int FabConnectedComponent<Real>::must_send_neighbors_to_gid(int gid) const
+//{
+//    for(const auto& cn : current_neighbors_)
+//    {
+//        if (cn.gid == gid and processed_gids_.count(cn) == 0)
+//        {
+//            return true;
+//        }
+//    }
+//    return false;
+//}
 
 template<class Real>
 void FabConnectedComponent<Real>::mark_all_processed()
 {
     assert(std::all_of(processed_neighbors_.begin(), processed_neighbors_.end(),
-                       [this](const AmrVertexId& v) { return this->current_neighbors_.count(v) == 1; }));
-
-    assert(std::all_of(processed_gids_.begin(), processed_gids_.end(),
-                       [this](const auto& gid) { return this->current_gids_.count(gid) == 1; }));
+                       [this](const auto& v) { return this->current_neighbors_.count(v) == 1; }));
 
     processed_neighbors_ = current_neighbors_;
-    processed_gids_ = current_gids_;
-
 }
-//template<class Real>
-//void FabConnectedComponent<Real>::mark_gid_processed(int _gid)
-//{
-//    processed_gids_.insert(_gid);
-//    for(const auto& cn : current_neighbors_)
-//    {
-//        if (cn.gid == _gid)
-//            mark_neighbor_processed(cn);
-//    }
-//}
-//
-//template<class Real>
-//void FabConnectedComponent<Real>::mark_neighbor_processed(AmrVertexId v)
-//{
-//    processed_neighbors_.insert(v);
-//}
 
 template<class Real>
 void FabConnectedComponent<Real>::add_edge(const AmrEdge& e)
@@ -170,8 +115,7 @@ template<class Real>
 std::string FabConnectedComponent<Real>::to_string() const
 {
     return fmt::format(
-            "Component(negate = {}, original_deepest = {}, current_neighbors = {}, processed_neighbors = {}, current_gids = {}, processed_gids = {}\n",
+            "Component(negate = {}, original_deepest = {}, current_neighbors = {}, processed_neighbors = {}\n",
             negate_, original_deepest_, container_to_string(current_neighbors()),
-            container_to_string(processed_neighbors()),
-            container_to_string(current_gids()), container_to_string(processed_gids()));
+            container_to_string(processed_neighbors()));
 }

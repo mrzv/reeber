@@ -49,7 +49,7 @@ using VertexNeighborMap = Block::TripletMergeTree::VertexNeighborMap;
 using AmrTripletMergeTree = Block::TripletMergeTree;
 using MaskedBox = Block::MaskedBox;
 using GidVector = Block::GidVector;
-using GidContainer = Block::GidContainer;
+using GidSet = Block::GidContainer;
 
 using Neighbor = AmrTripletMergeTree::Neighbor;
 

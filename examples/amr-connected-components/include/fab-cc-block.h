@@ -56,14 +56,14 @@ struct FabComponentBlock {
     using AmrEdgeSet = std::set<AmrEdge>;
     using VertexEdgesMap = std::map<AmrVertexId, AmrEdgeContainer>;
 
-    using GidContainer = std::set<int>;
+    using GidSet = typename Component::GidSet;
     using GidVector = std::vector<int>;
 
     using RealType = Real;
 
-    using UnionFind = typename Component::UnionFind;
-    using VertexVertexMap = typename UnionFind::VertexVertexMap;
-    using VertexSizeMap = typename UnionFind::VertexSizeMap;
+//    using UnionFind = typename Component::UnionFind;
+    using VertexVertexMap = std::unordered_map<AmrVertexId, AmrVertexId>;
+//    using VertexSizeMap = typename UnionFind::VertexSizeMap;
 
     using Neighbor = typename TripletMergeTree::Neighbor;
     using Node = typename TripletMergeTree::Node;
@@ -72,6 +72,7 @@ struct FabComponentBlock {
     using DiagramPoint = std::pair<Real, Real>;
     using Diagram = std::vector<DiagramPoint>;
 
+    using LocalIntegral = std::unordered_map<AmrVertexId, Real>;
     // data
 
     int gid;
@@ -87,7 +88,7 @@ struct FabComponentBlock {
     size_t n_unmasked_{0};
     std::unordered_map<AmrVertexId, Real> vertex_values_;
 
-    UnionFind disjoint_sets_;   // keep topology of graph of connected components
+//    UnionFind disjoint_sets_;   // keep topology of graph of connected components
     std::vector<Component> components_;
 
     VertexVertexMap vertex_to_deepest_;
@@ -110,6 +111,8 @@ struct FabComponentBlock {
     // tracking how connected components merge - disjoint sets data structure
 
     int round_{0};
+
+    LocalIntegral local_integral_;
 
     // methods
 
@@ -162,18 +165,24 @@ struct FabComponentBlock {
 //
     void adjust_outgoing_edges();
 
-    void sparsify_prune_original_tree()
-    {}
+    void sparsify_prune_original_tree() {}
 
     int get_n_components_for_gid(int gid) const;
 
     int are_all_components_done() const;
 
+    bool is_deepest_computed(const AmrVertexId& v) const;
+
     std::vector<AmrVertexId> get_current_deepest_vertices() const;
 
     void compute_final_connected_components();
 
-    void compute_integral(Real theta);
+//    std::unordered_map<AmrVertexId, AmrVertexId> compute_connectivity(const AmrVertexSet& deepest);
+    void update_connectivity(const AmrVertexContainer& deepest);
+
+    AmrVertexContainer component_of(AmrVertexId deepest);
+
+    void compute_local_integral(Real theta);
 
     bool check_symmetry(int gid, const std::vector<Component>& received_components);
 

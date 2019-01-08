@@ -1,7 +1,5 @@
 //#define SEND_COMPONENTS
 
-#define AMR_CC_SEND_TREES
-
 #include "reeber-real.h"
 
 // to print nice backtrace on segfault signal
@@ -45,12 +43,13 @@ using Vertex = Block::Vertex;
 using Component = Block::Component;
 using MaskedBox = Block::MaskedBox;
 using GidVector = Block::GidVector;
-using GidContainer = Block::GidContainer;
+using GidSet = Block::GidSet;
 
 using TripletMergeTree = Block::TripletMergeTree;
 using Neighbor = TripletMergeTree::Neighbor;
 
-struct IsAmrVertexLocal {
+struct IsAmrVertexLocal
+{
     bool operator()(const Block& b, const Neighbor& from) const
     {
         return from->vertex.gid == b.gid;
@@ -58,9 +57,10 @@ struct IsAmrVertexLocal {
 };
 
 template<class Real, class LocalFunctor>
-struct ComponentDiagramsFunctor {
+struct ComponentDiagramsFunctor
+{
 
-    ComponentDiagramsFunctor(Block *b, const LocalFunctor& lf) :
+    ComponentDiagramsFunctor(Block* b, const LocalFunctor& lf) :
             block_(b),
             negate_(b->get_merge_tree().negate()),
             ignore_zero_persistence_(true),
@@ -88,7 +88,7 @@ struct ComponentDiagramsFunctor {
         block_->local_diagrams_[root].emplace_back(birth_time, death_time);
     }
 
-    Block *block_;
+    Block* block_;
     const bool negate_;
     const bool ignore_zero_persistence_;
     LocalFunctor test_local;
@@ -144,7 +144,7 @@ void read_from_file(std::string infn,
 }
 
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     diy::mpi::environment env(argc, argv);
     diy::mpi::communicator world;
@@ -259,9 +259,9 @@ int main(int argc, char **argv)
     // FabBlock can be safely discarded afterwards
 
     master_reader.foreach(
-            [&master, domain, rho, negate, absolute](FabBlockR *b, const diy::Master::ProxyWithLink& cp) {
-                auto *l = static_cast<AMRLink *>(cp.link());
-                AMRLink *new_link = new AMRLink(*l);
+            [&master, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
+                auto* l = static_cast<AMRLink*>(cp.link());
+                AMRLink* new_link = new AMRLink(*l);
 
                 // prepare neighbor box info to save in MaskedBox
                 int local_ref = l->refinement();
@@ -292,7 +292,7 @@ int main(int argc, char **argv)
         dlog::flush();
         timer.restart();
 
-        master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
             cp.collectives()->clear();
             cp.all_reduce(b->sum_, std::plus<Real>());
             cp.all_reduce(static_cast<Real>(b->n_unmasked_) * b->scaling_factor(), std::plus<Real>());
@@ -315,8 +315,8 @@ int main(int argc, char **argv)
         dlog::flush();
         timer.restart();
 
-        master.foreach([rho](Block *b, const diy::Master::ProxyWithLink& cp) {
-            AMRLink *l = static_cast<AMRLink *>(cp.link());
+        master.foreach([rho](Block* b, const diy::Master::ProxyWithLink& cp) {
+            AMRLink* l = static_cast<AMRLink*>(cp.link());
             b->init(rho, l);
             cp.collectives()->clear();
         });
@@ -345,8 +345,8 @@ int main(int argc, char **argv)
 
 
     // debug: check symmetry
-    master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
-        auto *l = static_cast<AMRLink *>(cp.link());
+    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+        auto* l = static_cast<AMRLink*>(cp.link());
 
         for(const diy::BlockID& receiver : link_unique(l, b->gid))
         {
@@ -356,8 +356,8 @@ int main(int argc, char **argv)
 
     master.exchange();
 
-    master.foreach([](Block *b, const diy::Master::ProxyWithLink& cp) {
-        auto *l = static_cast<AMRLink *>(cp.link());
+    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+        auto* l = static_cast<AMRLink*>(cp.link());
         for(const diy::BlockID& sender : link_unique(l, b->gid))
         {
             std::vector<Component> received_components;
@@ -399,7 +399,6 @@ int main(int argc, char **argv)
     dlog::flush();
     timer.restart();
 
-#ifdef AMR_CC_SEND_TREES
     // save the result
     if (output_filename != "none")
     {
@@ -414,12 +413,10 @@ int main(int argc, char **argv)
 
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
-#endif
     auto time_for_output = timer.elapsed();
     dlog::flush();
     timer.restart();
 
-#ifdef AMR_CC_SEND_TREES
     bool verbose = false;
 
     if (write_diag)
@@ -428,7 +425,7 @@ int main(int argc, char **argv)
         OutputPairsR::ExtraInfo extra(output_diagrams_filename, verbose, world);
         IsAmrVertexLocal test_local;
         master.foreach(
-                [&extra, &test_local, ignore_zero_persistence, rho](Block *b, const diy::Master::ProxyWithLink& cp) {
+                [&extra, &test_local, ignore_zero_persistence, rho](Block* b, const diy::Master::ProxyWithLink& cp) {
                     b->compute_final_connected_components();
                     output_persistence(b, cp, extra, test_local, rho, ignore_zero_persistence);
                 });
@@ -439,28 +436,56 @@ int main(int argc, char **argv)
     time_for_output += timer.elapsed();
     dlog::flush();
     timer.restart();
-#endif
 
     if (write_integral)
     {
+        master.foreach([rho, theta](Block* b, const diy::Master::ProxyWithLink& cp) {
+            b->compute_final_connected_components();
+            b->compute_local_integral(theta);
+
+            AMRLink* l = static_cast<AMRLink*>(cp.link());
+
+            for(const auto& vertex_value_pair : b->local_integral_)
+            {
+                int receiver_gid = vertex_value_pair.first.gid;
+                if (receiver_gid == b->gid)
+                    continue;
+                auto receiver = l->target(l->find(receiver_gid));
+                cp.enqueue(receiver, vertex_value_pair);
+            }
+        });
+
+        master.exchange();
+
         diy::io::SharedOutFile integral_file(output_integral_filename, world);
 
-        master.foreach([rho, theta, &integral_file](Block *b, const diy::Master::ProxyWithLink& cp) {
-
-            b->sanity_check_fin();
-            b->compute_integral(theta);
-
-            for(const auto& root_integral_value_pair : b->global_integral_)
+        master.foreach([&integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
+            AMRLink* l = static_cast<AMRLink*>(cp.link());
+            for(auto bid : l->neighbors())
             {
-                auto root = root_integral_value_pair.first;
-                auto value = root_integral_value_pair.second;
-//                integral_file << fmt::format("{} {} {}\n", root, b->local_.global_position(root), value);
-                integral_file << fmt::format("{} {}\n", b->local_.global_position(root), value);
+                while(cp.incoming(bid.gid))
+                {
+                    Block::LocalIntegral::value_type x;
+                    cp.dequeue(bid, x);
+                    assert(x.first.gid == b->gid);
+                    b->local_integral_[x.first] += x.second;
+                }
+            }
+
+            for(const auto& root_value_pair : b->local_integral_)
+            {
+                AmrVertexId root = root_value_pair.first;
+                if (root.gid != b->gid)
+                    continue;
+
+//                integral_file << fmt::format("{} {} {}\n", root, b->local_.global_position(root), root_value_pair.second);
+                integral_file << fmt::format("{} {}\n", b->local_.global_position(root), root_value_pair.second);
             }
         });
 
         world.barrier();
-        LOG_SEV_IF(world.rank() == 0, info) << "Time to write integral:  " << dlog::clock_to_string(timer.elapsed());
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
+                << dlog::clock_to_string(timer.elapsed());
         time_for_output += timer.elapsed();
         dlog::flush();
         timer.restart();

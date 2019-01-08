@@ -42,23 +42,19 @@ private:
     AmrVertexId original_deepest_;
     Real global_deepest_value_;
 
-    AmrVertexSet current_neighbors_;
-    AmrVertexSet processed_neighbors_;
-
-    GidSet current_gids_;
-    GidSet processed_gids_;
+    GidSet current_neighbors_;
+    GidSet processed_neighbors_;
 
     AmrEdgeContainer edges_;
     // pointer to integral values of block, for termination criterion
     VertexValueMap* block_integral_values_ {nullptr};
-    UnionFind* block_disjoint_sets_ {nullptr};
 
 public:
     // methods
     FabConnectedComponent();
 
     FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value,
-            VertexValueMap* _integral_values, UnionFind* _disjoint_sets);
+            VertexValueMap* _integral_values);
 
     // getters
     AmrVertexId global_deepest() const
@@ -70,17 +66,11 @@ public:
     Real global_deepest_value() const
     { return global_deepest_value_; }
 
-    const AmrVertexSet& current_neighbors() const
+    const GidSet& current_neighbors() const
     { return current_neighbors_; }
 
-    const AmrVertexSet& processed_neighbors() const
+    const GidSet& processed_neighbors() const
     { return processed_neighbors_; }
-
-    const GidSet& current_gids() const
-    { return current_gids_; }
-
-    const GidSet& processed_gids() const
-    { return processed_gids_; }
 
     const AmrEdgeContainer edges() const
     { return edges_; }
@@ -91,17 +81,15 @@ public:
 
     void set_global_deepest(const VertexValue& vv);
 
-    void add_current_neighbor(const AmrVertexId& new_current_neighbor);
+    void add_current_neighbor(int new_current_neighbor);
 
-    void set_current_neighbors(const AmrVertexSet& new_current_neighbhors);
+    void set_current_neighbors(const GidSet& new_current_neighbhors);
 
     int must_send_tree_to_gid(int gid) const;
 
     int must_send_neighbors_to_gid(int gid) const;
 
     void mark_all_processed();
-//    void mark_gid_processed(int _gid);
-//    void mark_neighbor_processed(AmrVertexId v);
 
     void add_edge(const AmrEdge& e);
 
