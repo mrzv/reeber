@@ -15,11 +15,11 @@ template<class Cont>
 std::string container_to_string(const Cont& v)
 {
     std::stringstream ss;
-    ss << "{";
+    ss << "[";
     for (const auto& x : v) {
         ss << x << ", ";
     }
-    ss << "}";
+    ss << "]";
     return ss.str();
 }
 

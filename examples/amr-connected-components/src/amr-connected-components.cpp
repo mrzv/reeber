@@ -381,9 +381,11 @@ int main(int argc, char** argv)
         master.exchange();
         master.foreach(&amr_cc_receive<Real, DIM>);
 
+        world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", get OK";
         dlog::flush();
         master.exchange();
+        //LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", collectives exchange OK";
         // to compute total number of undone blocks
         global_n_undone = master.proxy(master.loaded_block()).read<int>();
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", global_n_undone = " << global_n_undone;
