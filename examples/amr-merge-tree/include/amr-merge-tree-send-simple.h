@@ -218,7 +218,6 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
             continue;
         AmrTripletMergeTree& rt = received_trees[i];
         r::merge(b->current_merge_tree_, rt, received_edges[i], true);
-        r::repair(b->current_merge_tree_);
 
         //if (debug) fmt::print( "In receive_simple for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid, sender_gids_debug[i], b->merge_tree_.size());
 
@@ -255,6 +254,9 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
             }
         }
     }
+
+    r::repair(b->current_merge_tree_);
+
     if (debug) fmt::print("In receive_simple for block = {}, processed_receiveres_ OK\n", b->gid);
 
     // update disjoint sets data structure (some components are now connected to each other)
