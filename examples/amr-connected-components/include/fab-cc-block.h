@@ -99,9 +99,6 @@ struct FabComponentBlock {
 
     std::unordered_map<int, AmrEdgeContainer> gid_to_outgoing_edges_;
 
-    VertexValueMap original_integral_values_;
-    VertexValueMap global_integral_;
-
     std::unordered_map<AmrVertexId, Diagram> local_diagrams_;
 
     bool negate_;

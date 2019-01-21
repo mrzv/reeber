@@ -38,58 +38,58 @@ public:
 private:
     // fields
     bool negate_;
-    AmrVertexId global_deepest_;    // will be updated in each communication round
     AmrVertexId original_deepest_;
     Real global_deepest_value_;
 
-    GidSet current_neighbors_;
-    GidSet processed_neighbors_;
+    AmrVertexSet current_neighbors_;
+//    AmrVertexSet received_neighbors_;
+
+    GidSet current_gids_;
+    GidSet processed_gids_;
 
     AmrEdgeContainer edges_;
     // pointer to integral values of block, for termination criterion
-    VertexValueMap* block_integral_values_ {nullptr};
+
+    std::size_t n_prev_current_neighbors_;
 
 public:
     // methods
     FabConnectedComponent();
 
-    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value,
-            VertexValueMap* _integral_values);
+    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value);
 
     // getters
-    AmrVertexId global_deepest() const
-    { return global_deepest_; }
 
-    AmrVertexId original_deepest() const
-    { return original_deepest_; }
+    AmrVertexId original_deepest() const { return original_deepest_; }
 
-    Real global_deepest_value() const
-    { return global_deepest_value_; }
+    const AmrVertexSet& current_neighbors() const { return current_neighbors_; }
+    const GidSet& current_gids() const { return current_gids_; }
+    const GidSet& processed_gids() const { return processed_gids_; }
 
-    const GidSet& current_neighbors() const
-    { return current_neighbors_; }
-
-    const GidSet& processed_neighbors() const
-    { return processed_neighbors_; }
+//    const auto& processed_neighbors() const
+//    { return processed_neighbors_; }
 
     const AmrEdgeContainer edges() const
     { return edges_; }
 
     bool cmp(Real x, Real y) const;
 
-    int is_done() const;
+//    int is_done() const;
+    bool is_done_sending() const;
 
-    void set_global_deepest(const VertexValue& vv);
 
-    void add_current_neighbor(int new_current_neighbor);
+//    void set_global_deepest(const VertexValue& vv);
 
-    void set_current_neighbors(const GidSet& new_current_neighbhors);
+//
+    void add_current_neighbor(const AmrVertexId& new_current_neighbor);
+    void set_current_neighbors(const AmrVertexSet& new_current_neighbors);
 
-    int must_send_tree_to_gid(int gid) const;
+    bool must_send_to_gid(int gid) const;
+    bool must_send_tree_to_gid(int gid) const;
 
-    int must_send_neighbors_to_gid(int gid) const;
+    int must_send_neighbors() const;
 
-    void mark_all_processed();
+    void mark_all_gids_processed();
 
     void add_edge(const AmrEdge& e);
 
@@ -117,22 +117,22 @@ namespace diy {
 
         static void save(BinaryBuffer& bb, const Component& c)
         {
-            diy::save(bb, c.global_deepest_);
             diy::save(bb, c.original_deepest_);
             diy::save(bb, c.negate_);
             diy::save(bb, c.global_deepest_value_);
             diy::save(bb, c.current_neighbors_);
-            diy::save(bb, c.processed_neighbors_);
+            diy::save(bb, c.current_gids_);
+            diy::save(bb, c.processed_gids_);
         }
 
         static void load(BinaryBuffer& bb, Component& c)
         {
-            diy::load(bb, c.global_deepest_);
             diy::load(bb, c.original_deepest_);
             diy::load(bb, c.negate_);
             diy::load(bb, c.global_deepest_value_);
             diy::load(bb, c.current_neighbors_);
-            diy::load(bb, c.processed_neighbors_);
+            diy::load(bb, c.current_gids_);
+            diy::load(bb, c.processed_gids_);
         }
     };
 }

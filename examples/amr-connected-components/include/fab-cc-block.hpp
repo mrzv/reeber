@@ -451,7 +451,7 @@ void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContain
         AmrVertexId other_deepest = received_vertex_to_deepest.at(std::get<1>(e));
 
         Component& my_component = get_component_by_deepest(my_deepest);
-        my_component.add_current_neighbor(other_deepest.gid);
+        my_component.add_current_neighbor(other_deepest);
 
         if (debug)
         {
@@ -591,9 +591,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
 
         integral_val *= scaling_factor();
 
-        components_.emplace_back(negate_, deepest, deepest_value, &original_integral_values_);
-
-        original_integral_values_[deepest] = integral_val;
+        components_.emplace_back(negate_, deepest, deepest_value);
     }
 
     // copy nodes from local merge tree of block to merge trees of components
@@ -705,7 +703,7 @@ void FabComponentBlock<Real, D>::compute_final_connected_components()
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::update_connectivity(const AmrVertexContainer& deepest)
 {
-
+    bool debug = false;
     for(const Component& c : components_)
     {
         auto original_deepest = c.original_deepest();
@@ -715,6 +713,7 @@ void FabComponentBlock<Real, D>::update_connectivity(const AmrVertexContainer& d
 
     for(AmrVertexId v : deepest)
     {
+        if (debug) fmt::print("in update_connectivity, gid = {}, v = {}\n", gid, v);
         auto current_deepest =  merge_tree_.find_deepest(merge_tree_[v])->vertex;
         vertex_to_deepest_[v] = current_deepest;
     }
@@ -774,7 +773,7 @@ int FabComponentBlock<Real, D>::are_all_components_done() const
 
     for(const Component& c : components_)
     {
-        if (not c.is_done())
+        if (not c.is_done_sending())
         {
             return 0;
         }
@@ -939,8 +938,6 @@ void FabComponentBlock<Real, D>::save(const void *b, diy::BinaryBuffer& bb)
     diy::save(bb, block->domain_);
     diy::save(bb, block->negate_);
     diy::save(bb, block->round_);
-    diy::save(bb, block->global_integral_);
-    diy::save(bb, block->original_integral_values_);
     diy::save(bb, block->vertex_to_deepest_);
     diy::save(bb, block->merge_tree_);
     diy::save(bb, block->local_diagrams_);
@@ -956,8 +953,6 @@ void FabComponentBlock<Real, D>::load(void *b, diy::BinaryBuffer& bb)
     diy::load(bb, block->domain_);
     diy::load(bb, block->negate_);
     diy::load(bb, block->round_);
-    diy::load(bb, block->global_integral_);
-    diy::load(bb, block->original_integral_values_);
     diy::load(bb, block->vertex_to_deepest_);
     diy::load(bb, block->merge_tree_);
     diy::load(bb, block->local_diagrams_);
