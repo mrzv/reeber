@@ -14,6 +14,8 @@
 #include "reeber/edges.h"
 #include "reeber/amr_helper.h"
 
+#include "small_set.h"
+
 
 template<class Real_>
 class FabConnectedComponent {
@@ -30,6 +32,7 @@ public:
     using AmrEdge = reeber::AmrEdge;
     using AmrEdgeContainer = reeber::AmrEdgeContainer;
     using AmrVertexSet = std::unordered_set<AmrVertexId>;
+//    using AmrVertexSet = SmallSet<AmrVertexId>;
     using GidSet = std::unordered_set<int>;
     using TripletMergeTree = reeber::TripletMergeTree<AmrVertexId, Real>;
     using VertexValueMap = std::unordered_map<AmrVertexId, Real>;
