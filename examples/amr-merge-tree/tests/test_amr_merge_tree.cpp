@@ -276,7 +276,7 @@ TEST_CASE("Check masked_box in 2 dimensions", "[masked_box][dim2]")
 
 TEST_CASE("Check blocks constructor in simplest case", "[FabTmtBlock][dim2]")
 {
-    using Point = diy::Point<int, 4>;
+    using Point = diy::DynamicPoint<int, 4>;
     using Grid = diy::Grid<double, 2>;
     using IntGrid = diy::Grid<int, 2>;
     using Block = FabTmtBlock<double, 2>;
@@ -499,7 +499,7 @@ TEST_CASE("Check blocks constructor in simplest case", "[FabTmtBlock][dim2]")
 
 TEST_CASE("Check blocks constructor in simple masked case", "[FabTmtBlock][dim2][mask]")
 {
-    using Point = diy::Point<int, 4>;
+    using Point = diy::DynamicPoint<int, 4>;
     using Grid = diy::Grid<double, 2>;
     using IntGrid = diy::Grid<int, 2>;
     using Block = FabTmtBlock<double, 2>;

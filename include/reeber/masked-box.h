@@ -26,6 +26,7 @@ namespace reeber {
         using MaskValue = int;   // type of single cell in mask
         using MaskType = Grid<MaskValue, D>;
         using Position = typename MaskType::Vertex;
+        using NewDynamicPoint = diy::DynamicPoint<int, D>;
 
         // all special mask values must be negative
         // indicates vertex is not active due to the function value
@@ -61,7 +62,8 @@ namespace reeber {
                 gid_(-1)
         {}
 
-        MaskedBox(const Position& core_from,
+
+         MaskedBox(const Position& core_from,
                   const Position& core_to,
                   const Position& bounds_from,
                   const Position& bounds_to,
@@ -73,9 +75,34 @@ namespace reeber {
                 core_to_(core_to),
                 bounds_from_(bounds_from),
                 bounds_to_(bounds_to),
-                core_shape_(core_to - core_from + Position::one()),
-                mask_shape_(bounds_to - bounds_from + Position::one()),
-                ghost_adjustment_(core_from - bounds_from),
+                core_shape_(core_to_ - core_from_ + Position::one()),
+                mask_shape_(bounds_to_ - bounds_from_ + Position::one()),
+                ghost_adjustment_(core_from_ - bounds_from_),
+                mask_(mask_shape_, c_order),
+                refinement_(_ref),
+                level_(_level),
+                gid_(_gid)
+        {
+            //assert(ghost_adjustment_ == bounds_to - core_to);
+            diy::for_each(mask_.shape(), [this](const Position& p) { this->set_mask(p, this->UNINIT); });
+        }
+
+
+        MaskedBox(const NewDynamicPoint& core_from,
+                  const NewDynamicPoint& core_to,
+                  const NewDynamicPoint& bounds_from,
+                  const NewDynamicPoint& bounds_to,
+                  int _ref,
+                  int _level,
+                  int _gid,
+                  bool c_order) :
+                core_from_( point_from_dynamic_point<D>(core_from)),
+                core_to_(point_from_dynamic_point<D>(core_to)),
+                bounds_from_(point_from_dynamic_point<D>(bounds_from)),
+                bounds_to_(point_from_dynamic_point<D>(bounds_to)),
+                core_shape_(core_to_ - core_from_ + Position::one()),
+                mask_shape_(bounds_to_ - bounds_from_ + Position::one()),
+                ghost_adjustment_(core_from_ - bounds_from_),
                 mask_(mask_shape_, c_order),
                 refinement_(_ref),
                 level_(_level),

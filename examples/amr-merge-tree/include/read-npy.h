@@ -40,11 +40,11 @@ void read_from_npy_file(std::string infn,
     }
 
     using Decomposer = diy::RegularDecomposer<diy::DiscreteBounds>;
-    using Point   = diy::Point<int, DIY_MAX_DIM>;
+    using Point   = diy::DynamicPoint<int, DIY_MAX_DIM>;
 
     domain.min = { 0, 0, 0, 0 };
     domain.max = { 0, 0, 0, 0 };
-    Point one = Point::one();
+    Point one = Point::one(D);
 
     for(unsigned i = D; i < DIY_MAX_DIM; ++i)
         one[i] = 0;
@@ -122,8 +122,8 @@ void read_from_npy_file(std::string infn,
                     if (!wrap[2] && dir_z) continue;
                     if (dir_z < 0 && core.min[2] != domain.min[2]) continue;
                     if (dir_z > 0 && core.max[2] != domain.max[2]) continue;
-
-                    amr_link->add_wrap(diy::Direction { dir_x, dir_y, dir_z });
+        // TODO! fix wrap
+                    //amr_link->add_wrap(diy::Direction(std::vector<int>({ dir_x, dir_y, dir_z })));
                 }
             }
         }

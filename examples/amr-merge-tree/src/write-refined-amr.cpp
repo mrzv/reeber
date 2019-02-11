@@ -82,11 +82,14 @@ int main(int argc, char** argv)
     int max_level = 0;
     int max_refinement = 1;
 
+    constexpr int FIXED_DIM = 3;
+
     master.foreach([&max_level, &max_refinement](Block* b, const diy::Master::ProxyWithLink& cp) {
         auto* l = static_cast<diy::AMRLink*>(cp.link());
 
         max_level = std::max(max_level, l->level());
-        max_refinement = std::max(max_refinement, l->refinement());
+        // TODO: vector refiniment
+        max_refinement = std::max(max_refinement, l->refinement()[0]);
 
         fmt::print("{}: level = {}, refinement = {}, shape = {}, core = {} - {}, bounds = {} - {}\n",
                    cp.gid(), l->level(), l->refinement(), b->fab.shape(),
@@ -98,7 +101,7 @@ int main(int argc, char** argv)
 
     diy::io::NumPy writer(out);
 
-    diy::DiscreteBounds refined_domain = refine_bounds<3>(domain, max_refinement);
+    diy::DiscreteBounds refined_domain = refine_bounds<FIXED_DIM>(domain, max_refinement);
 
     writer.write_header<double>(3, refined_domain);
 
@@ -107,12 +110,14 @@ int main(int argc, char** argv)
             auto* l = static_cast<diy::AMRLink*>(cp.link());
             if (l->level() == current_level) {
                 fmt::print("processing block = {}\n", cp.gid());
-                auto refined_grid = refine_grid(b->fab_storage_, l->refinement(), max_refinement);
-                int scale = max_refinement / l->refinement();
-                diy::DiscreteBounds refined_bounds = refine_bounds<3>(l->bounds(), scale);
-                diy::DiscreteBounds refined_core = refine_bounds<3>(l->core(), scale);
+                // TODO: vector refinement
+                auto refined_grid = refine_grid(b->fab_storage_, l->refinement()[0], max_refinement);
+                // TODO: vector refinement
+                int scale = max_refinement / l->refinement()[0];
+                diy::DiscreteBounds refined_bounds = refine_bounds<FIXED_DIM>(l->bounds(), scale);
+                diy::DiscreteBounds refined_core = refine_bounds<FIXED_DIM>(l->core(), scale);
 
-                assert(project_point<3>(refined_bounds.max - refined_bounds.min + diy::Point<int, 4>::one()) == refined_grid.shape());
+                //assert(project_point<FIXED_DIM>(refined_bounds.max - refined_bounds.min + diy::DynamicPoint<int, 4>::one(FIXED_DIM)) == refined_grid.shape());
 
                 writer.write(refined_bounds, refined_grid.data(), refined_core);
             }

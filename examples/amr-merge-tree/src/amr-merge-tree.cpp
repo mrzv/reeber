@@ -335,7 +335,8 @@ int main(int argc, char** argv)
                 AMRLink* new_link = new AMRLink(*l);
 
                 // prepare neighbor box info to save in MaskedBox
-                int local_ref = l->refinement();
+                // TODO: vector refinement
+                int local_ref = l->refinement()[0];
                 int local_lev = l->level();
 
                 master.add(cp.gid(),

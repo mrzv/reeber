@@ -23,6 +23,15 @@ std::string container_to_string(const Cont& v)
     return ss.str();
 }
 
+template<unsigned D, size_t DD=DIY_MAX_DIM>
+diy::Point<int, D> point_from_dynamic_point(const diy::DynamicPoint<int, DD>& pt)
+{
+    static_assert(D<=DD, "cast to point drops dimension");
+    diy::Point<int, D> result;
+    for(int i = 0; i < D; ++i)
+        result[i] = pt[i];
+    return result;
+}
 
 // take point p from level with get_refinement = point_refinement
 // return coarsened point for get_refinement = target_refinement
@@ -75,6 +84,16 @@ inline diy::Point<C, D> project_point(const typename diy::Point<C, DIY_MAX_DIM>&
     return result;
 }
 
+// return the first D coordinates of p
+template<size_t D, class C>
+inline diy::DynamicPoint<C, D> project_point(const typename diy::DynamicPoint<C, DIY_MAX_DIM>& p)
+{
+    diy::DynamicPoint<C, D> result { D };
+    for(unsigned int i = 0; i < D; ++i)
+        result[i] = p[i];
+    return result;
+}
+
 // v: point in global coordinates from some level
 // v_refinement: refinement of the level of v
 // link_idx: index of a block in which v must be contained
@@ -87,9 +106,10 @@ size_t get_vertex_id(const diy::Point<int, D>& v, int v_refinement, int link_idx
 {
     using Position = diy::Point<int, D>;
 
-    Position from = project_point<D>(l->bounds(link_idx).min);
-    Position to = project_point<D>(l->bounds(link_idx).max);
-    int refinement = l->refinement(link_idx);
+    Position from = point_from_dynamic_point<D>(l->bounds(link_idx).min);
+    Position to = point_from_dynamic_point<D>(l->bounds(link_idx).max);
+    // TODO: vector refinement
+    int refinement = l->refinement(link_idx)[0];
 
 
     bool debug = false;
@@ -134,6 +154,9 @@ refine_vertex(const diy::Point<int, D>& v, int v_refinement, int target_refineme
     return std::tie(from, to);
 }
 
+
+
+
 /**
  *
  * @tparam D dimension, template parameter
@@ -150,9 +173,10 @@ bool neighbor_contains(size_t i, diy::AMRLink* l, diy::Point<int, D>& v_glob, in
 {
     using Position = diy::Point<int, D>;
 
-    Position from = project_point<D>(l->core(i).min);
-    Position to = project_point<D>(l->core(i).max);
-    int refinement = l->refinement(i);
+    Position from = point_from_dynamic_point<D>(l->core(i).min);
+    Position to = point_from_dynamic_point<D>(l->core(i).max);
+    // TODO: vector refinement
+    int refinement = l->refinement(i)[0];
 
     bool debug = false;
 
@@ -204,7 +228,7 @@ diy::DiscreteBounds refine_bounds(const diy::DiscreteBounds& bounds_in, int scal
     diy::DiscreteBounds result;
 
     result.min = scale * bounds_in.min;
-    result.max = scale * (bounds_in.max + diy::Point<int, 4>::one()) - diy::Point<int, 4>::one();
+    result.max = scale * (bounds_in.max + diy::DynamicPoint<int, 4>::one(D)) - diy::DynamicPoint<int, 4>::one(D);
 
     for(int i = D; i < DIY_MAX_DIM; ++i) {
         result.min[i] = 0;

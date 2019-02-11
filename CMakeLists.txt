@@ -24,7 +24,10 @@ endif                       ()
 
 # Find everything that's always required
 find_package                (Boost)
+
+set(MPI_EXECUTABLE_SUFFIX ".openmpi")
 find_package                (MPI REQUIRED)
+
 find_package                (Threads)
 
 # TBB
@@ -59,7 +62,8 @@ if                          (counters)
 endif                       (counters)
 
 # DIY
-set(DIY_INCLUDE_DIR "/home/narn/code/berkeley-2018/diy/include")
+#set(DIY_INCLUDE_DIR "/home/narn/code/berkeley-2018/diy/include")
+set(DIY_INCLUDE_DIR "/home/narn/code/diy_versions/diy-new/include")
 find_path                   (DIY_INCLUDE_DIR        diy/master.hpp)
 
 # BOXLIB
