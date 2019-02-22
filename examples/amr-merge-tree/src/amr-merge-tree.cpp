@@ -339,6 +339,18 @@ int main(int argc, char** argv)
                 int local_ref = l->refinement()[0];
                 int local_lev = l->level();
 
+//    FabTmtBlock(diy::GridRef<const Real, D>& fab_grid,
+//                int _ref,
+//                int _level,
+//                const diy::DiscreteBounds& _domain,
+//                const diy::DiscreteBounds& bounds,
+//                const diy::DiscreteBounds& core,
+//                int _gid,
+//                diy::AMRLink *amr_link,
+//                Real rho,                                           // threshold for LOW value
+//                bool _negate,
+//                bool is_absolute_threshold) :
+
                 master.add(cp.gid(),
                            new Block(b->fab, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
                                      new_link, rho, negate, absolute),

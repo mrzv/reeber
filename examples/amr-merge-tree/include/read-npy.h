@@ -123,7 +123,7 @@ void read_from_npy_file(std::string infn,
                     if (dir_z < 0 && core.min[2] != domain.min[2]) continue;
                     if (dir_z > 0 && core.max[2] != domain.max[2]) continue;
         // TODO! fix wrap
-                    //amr_link->add_wrap(diy::Direction(std::vector<int>({ dir_x, dir_y, dir_z })));
+                    amr_link->add_wrap(diy::Direction{ dir_x, dir_y, dir_z });
                 }
             }
         }

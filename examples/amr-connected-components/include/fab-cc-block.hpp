@@ -279,9 +279,9 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
         }
 
         auto nb_level = l->level(link_idx);
-        Position nb_from = project_point<D>(l->bounds(link_idx).min);
-        Position nb_to = project_point<D>(l->bounds(link_idx).max);
-        int nb_refinement = l->refinement(link_idx);
+        auto nb_from = l->bounds(link_idx).min;
+        auto nb_to = l->bounds(link_idx).max;
+        int nb_refinement = l->refinement(link_idx)[0];
 
         if (debug)
         {
