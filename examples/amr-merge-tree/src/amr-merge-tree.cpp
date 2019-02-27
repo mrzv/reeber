@@ -30,6 +30,8 @@
 #include "amr-merge-tree-send-simple.h"
 #endif
 
+#include "amr-plot-reader.h"
+
 
 // block-independent types
 using AMRLink = diy::AMRLink;
@@ -292,6 +294,8 @@ int main(int argc, char** argv)
             throw std::runtime_error("Bad integral threshold");
     }
 
+    bool read_plotfile = true;
+
     diy::FileStorage storage(prefix);
 
     diy::Master master_reader(world, 1, in_memory, &FabBlockR::create, &FabBlockR::destroy);
@@ -338,18 +342,6 @@ int main(int argc, char** argv)
                 // TODO: vector refinement
                 int local_ref = l->refinement()[0];
                 int local_lev = l->level();
-
-//    FabTmtBlock(diy::GridRef<const Real, D>& fab_grid,
-//                int _ref,
-//                int _level,
-//                const diy::DiscreteBounds& _domain,
-//                const diy::DiscreteBounds& bounds,
-//                const diy::DiscreteBounds& core,
-//                int _gid,
-//                diy::AMRLink *amr_link,
-//                Real rho,                                           // threshold for LOW value
-//                bool _negate,
-//                bool is_absolute_threshold) :
 
                 master.add(cp.gid(),
                            new Block(b->fab, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
@@ -716,6 +708,11 @@ int main(int argc, char** argv)
                 << dlog::clock_to_string(timer.elapsed());
         dlog::flush();
         timer.restart();
+    }
+
+    if (read_plotfile)
+    {
+//        amrex::Finalize();
     }
 
     return 0;
