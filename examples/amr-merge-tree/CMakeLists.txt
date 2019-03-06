@@ -31,9 +31,9 @@ set(libraries ${libraries} ${CMAKE_THREAD_LIBS_INIT})
 
 # AMR
 set(AMREX_HOME "/home/narn/code/berkeley-2018/amrex")
-find_package(AMReX 18 REQUIRED HINTS /home/narn/code/berkeley-2018/amrex_install_dir/)
-
-
+find_package(AMReX 18 REQUIRED HINTS /home/narn/berkeley-2018/amrex_install_dir_14/)
+#
+#
 set (libraries ${libraries}
         ${CMAKE_THREAD_LIBS_INIT}
         AMReX::amrex
@@ -53,6 +53,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
 
 # src files
 #file(GLOB AMT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+
 
 foreach(real   float double)
 
@@ -93,4 +94,5 @@ if (MPI_LINK_FLAGS)
 #    set_target_properties(my_tests PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
 endif ()
 
+add_definitions(-std=c++14)
 endforeach()

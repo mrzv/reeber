@@ -10,18 +10,6 @@ using AmrEdgeContainer = reeber::AmrEdgeContainer;
 using AmrEdge = reeber::AmrEdge;
 using AmrVertexId = r::AmrVertexId;
 
-std::set<diy::BlockID> link_unique(diy::AMRLink *amr_link, int gid)
-{
-    std::set<diy::BlockID> result;
-    for (int i = 0; i < amr_link->size(); ++i)
-    {
-        if (amr_link->target(i).gid != gid)
-        {
-            result.insert(amr_link->target(i));
-        }
-    }
-    return result;
-}
 
 /**
  *

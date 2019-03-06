@@ -15,7 +15,7 @@
 #include "diy/vertices.hpp"
 #include "reeber/grid.h"
 
-
+/*
 TEST_CASE("Small check", "[masked_box][dim2]")
 {
     using MaskedBox = reeber::MaskedBox<2>;
@@ -751,4 +751,4 @@ TEST_CASE("Check blocks constructor in simple masked case", "[FabTmtBlock][dim2]
         }
     }
 }
-
+*/

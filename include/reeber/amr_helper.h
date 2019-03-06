@@ -8,6 +8,7 @@
 #include "diy/constants.h"
 #include "diy/point.hpp"
 #include "diy/grid.hpp"
+#include "diy/link.hpp"
 
 #include "reeber/amr-vertex.h"
 
@@ -21,6 +22,26 @@ std::string container_to_string(const Cont& v)
     }
     ss << "]";
     return ss.str();
+}
+
+
+inline std::ostream& operator<<(std::ostream& os, diy::BlockID bid)
+{
+    os << "BlockID(proc = " << bid.proc << ", gid = " << bid.gid << ")";
+    return os;
+}
+
+inline std::set<diy::BlockID> link_unique(diy::AMRLink *amr_link, int gid)
+{
+    std::set<diy::BlockID> result;
+    for (int i = 0; i < amr_link->size(); ++i)
+    {
+        if (amr_link->target(i).gid != gid)
+        {
+            result.insert(amr_link->target(i));
+        }
+    }
+    return result;
 }
 
 template<unsigned D, size_t DD=DIY_MAX_DIM>

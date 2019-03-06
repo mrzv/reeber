@@ -72,7 +72,7 @@ namespace reeber {
 
     using AmrEdge = std::tuple<AmrVertexId, AmrVertexId>;
 
-    AmrEdge reverse_amr_edge(const AmrEdge& e)
+    inline AmrEdge reverse_amr_edge(const AmrEdge& e)
     {
         return AmrEdge{std::get<1>(e), std::get<0>(e)};
     }
@@ -111,7 +111,7 @@ namespace std {
         }
     };
 
-    std::ostream& operator<<(std::ostream& os, const reeber::AmrEdge& e)
+    inline std::ostream& operator<<(std::ostream& os, const reeber::AmrEdge& e)
     {
         os << "(" << std::get<0>(e) << " <-> " << std::get<1>(e) << ")";
         return os;

@@ -1,4 +1,3 @@
-
 template<class Real, unsigned D>
 bool FabTmtBlock<Real, D>::cmp(Real a, Real b) const
 {
@@ -9,7 +8,7 @@ bool FabTmtBlock<Real, D>::cmp(Real a, Real b) const
 }
 
 template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
+void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
                                     diy::AMRLink *l,
                                     const Real& rho,
                                     bool is_absolute_threshold)
@@ -18,45 +17,46 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
 
     int debug_gid = local_.gid();
 
-    bool debug = false;
+    bool debug = gid == 0;
 
-    bool is_ghost = local_.is_ghost(v_bounds);
+    bool is_ghost = local_.is_ghost(v_mask);
+
     bool is_low = false;
     if (is_absolute_threshold)
         is_low = not is_ghost and
-                 cmp(rho, fab_(v_bounds));   //(negate_ ? fab_(v_bounds) < rho : fab_(v_bounds) > rho);
+                 cmp(rho, fab_(v_mask));   //(negate_ ? fab_(v_mask) < rho : fab_(v_mask) > rho);
 
     r::AmrVertexId v_idx;
-    if (not is_ghost) v_idx = local_.get_vertex_from_global_position(local_.global_position_from_local(v_bounds));
+    // does not matter here
+//    if (not is_ghost) v_idx = local_.get_vertex_from_global_position(local_.global_position_from_local(v_mask));
 
     if (debug)
     {
-        fmt::print("gid = {}, in set_mask, v_bounds = {}, v_idx = {}, value = {}, is_ghost = {}\n", debug_gid, v_bounds,
+        fmt::print("gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}\n", debug_gid, v_mask,
                    v_idx,
-                   fab_(v_bounds), is_ghost);
+                   fab_(v_mask), is_ghost);
     }
 
 
     // initialization, actual mask to be set later
     if (is_ghost)
     {
-        if (debug)
-        { fmt::print("in set_mask, gid = {}, v_bounds = {}, GHOST detected\n", debug_gid, v_bounds); }
-        local_.set_mask(v_bounds, MaskedBox::GHOST);
+        if (debug) { fmt::print("in set_mask, gid = {}, v_mask = {}, GHOST detected\n", debug_gid, v_mask); }
+        local_.set_mask(v_mask, MaskedBox::GHOST);
     } else
     {
-        local_.set_mask(v_bounds, MaskedBox::ACTIVE);
+        local_.set_mask(v_mask, MaskedBox::ACTIVE);
     }
 
     const int v_ref = local_.refinement();
     const int v_level = local_.level();
 
-    Position v_glob = wrap_point(v_bounds + local_.bounds_from(), domain_, v_ref);
+    Position v_glob = wrap_point(v_mask + local_.mask_from(), domain_, v_ref);
 
     if (debug)
     {
         fmt::print("in set_mask, gid = {}, unwrapped v_glob = {}, wrapped = {}, v_idx = {}\n", local_.gid(),
-                   v_bounds + local_.bounds_from(), v_glob, v_idx);
+                   v_mask + local_.mask_from(), v_glob, v_idx);
     }
 
 
@@ -72,7 +72,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
                            l->target(i).gid, v_idx);
             }
             mask_set = true;
-            local_.set_mask(v_bounds, l->target(i).gid);
+            local_.set_mask(v_mask, l->target(i).gid);
             break;
         }
 
@@ -90,7 +90,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
                                local_.gid(), v_idx);
                 }
                 mask_set = true;
-                local_.set_mask(v_bounds, l->target(i).gid);
+                local_.set_mask(v_mask, l->target(i).gid);
                 break;
             }
         }
@@ -110,7 +110,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
                                local_.gid(), v_idx);
                 }
                 mask_set = true;
-                local_.set_mask(v_bounds, l->target(i).gid);
+                local_.set_mask(v_mask, l->target(i).gid);
                 break;
             }
         }
@@ -118,7 +118,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
 
     if (not mask_set and is_low)
     {
-        local_.set_mask(v_bounds, MaskedBox::LOW);
+        local_.set_mask(v_mask, MaskedBox::LOW);
     }
 
     if (not is_absolute_threshold and not mask_set and not is_ghost)
@@ -126,25 +126,26 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_bounds,
         // we need to store local sum and local number of unmasked vertices in a block
         // and use this later to mark low vertices
         n_unmasked_++;
-        sum_ += fab_(v_bounds);
+        sum_ += fab_(v_mask);
+//        if (gid == 0) fmt::print("gid = {}, sum = {}, v_mask = {}, f(v) = {}, index(v) = {} ,stride = {}, shape = {}, data = {}, size = {}\n", gid,  sum_, v_mask, fab_(v_mask), fab_.index(v_mask), fab_.stride_, fab_.shape(), (void*)fab_.data(), sizeof(fab_.data()[fab_.index(v_mask)]));
     }
 
     if (debug)
     {
-        fmt::print("in set_mask, final mask = {}, gid = {}, v_bounds = {},  v_idx = {}\n",
-                   local_.pretty_mask_value(v_bounds), local_.gid(), v_bounds, v_idx);
+        fmt::print("in set_mask, final mask = {}, {}, gid = {}, v_mask = {},  v_idx = {}\n",
+                   local_.pretty_mask_value(v_mask), local_.mask(v_mask), local_.gid(), v_mask, v_idx);
     }
 }
 
 template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
+void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_mask,
                                    const Real& absolute_threshold)
 {
-    if (local_.mask(v_bounds) != MaskedBox::ACTIVE)
+    if (local_.mask(v_mask) != MaskedBox::ACTIVE)
         return;
-    bool is_low = cmp(absolute_threshold, fab_(v_bounds)); //   negate_ ? fab_(v_bounds) < absolute_threshold : fab_(v_bounds) > absolute_threshold;
+    bool is_low = cmp(absolute_threshold, fab_(v_mask)); //   negate_ ? fab_(v_mask) < absolute_threshold : fab_(v_mask) > absolute_threshold;
     if (is_low)
-        local_.set_mask(v_bounds, MaskedBox::LOW);
+        local_.set_mask(v_mask, MaskedBox::LOW);
 }
 
 template<class Real, unsigned D>
@@ -153,8 +154,8 @@ void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
     bool debug = false;
     std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
 
-    diy::for_each(local_.mask_shape(), [this, absolute_rho](const Vertex& v) {
-        this->set_low(v, absolute_rho);
+    diy::for_each(local_.mask_shape(), [this, absolute_rho](const Vertex& v_mask) {
+        this->set_low(v_mask, absolute_rho);
     });
 
     reeber::compute_merge_tree2(current_merge_tree_, local_, fab_);
@@ -242,7 +243,10 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
 
         //assert(link_idx_found);
         if (not link_idx_found)
+        {
+            fmt::print("Error here: gid = {}\n", gid);
             throw std::runtime_error("gid not found in link");
+        }
 
         auto nb_level = l->level(link_idx);
         Position nb_from = point_from_dynamic_point<D>(l->bounds(link_idx).min);
@@ -332,6 +336,12 @@ template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMap& vertex_to_outgoing_edges)
 {
     bool debug = false;
+    fmt::print("Enter compute_outgoing_edges, gid = {}\n", gid);
+
+    auto receivers = link_unique(l, gid);
+    if (debug) fmt::print("In compute_outgoing_edges for block = {}, link size = {}, unique = {}, link = {}\n", gid, l->size(), receivers.size(), container_to_string(receivers));
+
+
     for (const Vertex& v_glob : local_.active_global_positions())
     {
 //        debug = (v_glob[0] == 0 and v_glob[1] == 0 and v_glob[2] == 6);

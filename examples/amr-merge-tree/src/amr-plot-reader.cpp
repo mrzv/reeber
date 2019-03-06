@@ -5,8 +5,6 @@
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_DataServices.H>
 
-#include "fab-block.h"
-
 
 #include <iostream>
 #include <stdexcept>
@@ -22,13 +20,8 @@
 #include <diy/fmt/format.h>
 #include <diy/io/block.hpp> // for saving blocks in DIY format
 
+#include "reeber/amr_helper.h"
 #include "fab-block.h"
-
-static constexpr unsigned DIY_DIM = 3;
-
-using namespace amrex;
-
-using FabBlockR = FabBlock<Real, DIY_DIM>;
 
 static constexpr unsigned DIY_DIM = 3;
 
@@ -46,7 +39,6 @@ diy::AMRLink::Bounds bounds(const amrex::Box& box)
     }
     return bounds;
 }
-
 
 struct AMReXMeshHierarchy
 {
@@ -80,18 +72,18 @@ public:
     const Vector<int>& RefRatio() const
     { return refRatio; }
 
-    const Vector <Real>& ProbSize() const
+    const Vector<Real>& ProbSize() const
     { return probSize; }
 
-    const Vector <Box>& ProbDomain() const
+    const Vector<Box>& ProbDomain() const
     { return probDomain; }
 
 protected:
     int finestLevel;
     std::vector<const BoxArray*> ba;
     Vector<int> refRatio;
-    Vector <Real> probSize;
-    Vector <Box> probDomain;
+    Vector<Real> probSize;
+    Vector<Box> probDomain;
 };
 
 struct AMReXDataHierarchy
@@ -101,10 +93,10 @@ struct AMReXDataHierarchy
   named variables managed by an AmrData object.
 */
 public:
-    AMReXDataHierarchy(AmrData& ad, const Vector <std::string>& varNames)
+    AMReXDataHierarchy(AmrData& ad, const Vector<std::string>& varNames)
     {
         mesh.define(ad);
-        const Vector <std::string>& plotVarNames = ad.PlotVarNames();
+        const Vector<std::string>& plotVarNames = ad.PlotVarNames();
         int nComp = varNames.size();
         int nlevs = mesh.FinestLevel() + 1;
         for(int i = 0; i < nComp; ++i)
@@ -178,7 +170,7 @@ void read_amr_plotfile(std::string infile,
                        diy::Master& master_reader,
 //                       diy::ContiguousAssigner& assigner,
                        diy::MemoryBuffer& header,
-                       diy::DiscreteBounds& domain)
+                       diy::DiscreteBounds& domain_diy)
 {
     amrex::Initialize(world);
 
@@ -186,43 +178,42 @@ void read_amr_plotfile(std::string infile,
 
     DataServices::SetBatchMode();
     Amrvis::FileType fileType(Amrvis::NEWPLT);
-    DataServices dataServices(infile, fileType);
+    DataServices* pdataServices =  new DataServices(infile, fileType);
+    DataServices& dataServices =  *pdataServices;
     if (!dataServices.AmrDataOk())
     {
         DataServices::Dispatch(DataServices::ExitRequest, NULL);
     }
     AmrData& amrData = dataServices.AmrDataRef();
 
-    std::string varName;
-
-    std::vector<string> varNames{varName};
+    amrex::Vector<string> varNames;
+    varNames.push_back(varName);
 
     // Make a data struct for just the variables needed
-    AMReXDataHierarchy data(amrData, varNames);
+    AMReXDataHierarchy* pdata = new AMReXDataHierarchy(amrData, varNames);
+    AMReXDataHierarchy& data = *pdata;
     const AMReXMeshHierarchy& mesh = data.Mesh();
 
     int periodic = 0;
     std::array<bool, 3> is_periodic;
     for(int i = 0; i < 3; ++i)
-        is_periodic[i] = periodic & (1 << i);
+        is_periodic[i] = 1; // periodic & (1 << i);
 
     const Box& domain = mesh.ProbDomain()[0];
 
-    std::cout << "printing ProbDomain" << std::endl;
-
-    for(const Box& d : mesh.ProbDomain())
-    {
-        print_box(d);
-    }
-
-    std::cout << "finisned printing ProbDomain" << std::endl;
+//    std::cout << "printing ProbDomain" << std::endl;
+//
+//    for(const Box& d : mesh.ProbDomain())
+//    {
+//        print_box(d);
+//    }
+//
+//    std::cout << "finisned printing ProbDomain" << std::endl;
 
     // Compute the volume integrals
-    const int nGrow = 0;
     const int finestLevel = mesh.FinestLevel();
     const int nLev = finestLevel + 1;
 
-    int nblocks = 0;
     std::vector<int> gid_offsets = {0};
     std::vector<int> refinements = {1};
     for(int lev = 0; lev <= finestLevel; lev++)
@@ -233,12 +224,16 @@ void read_amr_plotfile(std::string infile,
 
         const MultiFab& mf = data.GetGrids(lev, varName);
         const BoxArray& ba = mf.boxArray();
+
+        fmt::print("rank = {}, nblocks = {}, ba.size() = {}\n", world.rank(), nblocks, ba.size());
+
         nblocks += ba.size();
         gid_offsets.push_back(nblocks);
 
         auto refinement = mesh.RefRatio();
 
-        if (world.rank() == 0) { fmt::print("refinement = {}", refinement[0]); }
+        if (world.rank() == 0)
+        { fmt::print("refinement = {}", refinement[0]); }
 
         if (refinement.size() != 1)
             throw std::runtime_error("Unexpected uneven refinement");
@@ -260,7 +255,7 @@ void read_amr_plotfile(std::string infile,
         // Make copy of original data because we will modify here
         const MultiFab& mf = data.GetGrids(lev, varName);
 
-        for(MFIter mfi(mf, true); mfi.isValid(); ++mfi)
+        for(MFIter mfi(mf, false); mfi.isValid(); ++mfi)
         {
             const FArrayBox& myFab = mf[mfi];
 
@@ -272,21 +267,36 @@ void read_amr_plotfile(std::string infile,
             // This is the Box on which the FArrayBox is defined.
             // Note that "abox" includes ghost cells (if there are any),
             // and is thus larger than or equal to "box".
-            const Box& abox = myFab.box();
+            Box abox = myFab.box();
 
             int gid = gid_offsets[lev] + mfi.index();
-            Block::Shape hi = abox.hiVect(), lo = abox.loVect();
-//                Block::Shape shape = hi - lo + Block::Shape::one();
-
-
-            if (world.rank() == 0) { fmt::print("gid = {}, hi = ({}, {}, {})", gid, hi[0], hi[1], hi[2]); }
 
             std::vector<std::pair<int, Box>> isects;
 
             diy::AMRLink* link = new diy::AMRLink(3, lev, refinements[lev], bounds(box), bounds(abox));
             // init fab
             // TODO: c_order!
-            master_reader.add(gid, new Block(const_cast<Real*>(myFab.dataPtr(componentIndex)), shape), link);
+            Real* fab_ptr = const_cast<Real*>(myFab.dataPtr(componentIndex));
+
+            int fab_size = shape[0] * shape[1] * shape[2];
+            Real total_sum = 0;
+            for(int i = 0 ; i < fab_size; ++i)
+            {
+//                if (gid == 0) { fmt::print("rank = {}, gid = {}, value = {}, i  = {}, size = {}\n", world.rank(), gid, fab_ptr[i], i, sizeof(fab_ptr[i])); }
+                total_sum += fab_ptr[i];
+            }
+            fmt::print("rank = {}, gid = {}, fab_ptr = {}, sum = {}, fabs_soize = {}\n",
+                    world.rank(), gid, (void*)fab_ptr, total_sum, fab_size);
+
+//            Real* fab_ptr = myFab.dataPtr(componentIndex);
+            master_reader.add(gid, new Block(fab_ptr, shape), link);
+            fmt::print("rank = {}, ADDED\n", world.rank());
+
+            fmt::print(
+                    "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n",
+                    world.rank(), gid,  box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
+                    box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index());
+
 
             // record wrap
             for(int dir_x : {-1, 0, 1})
@@ -310,7 +320,7 @@ void read_amr_plotfile(std::string infile,
                         if (dir_z < 0 && box.loVect()[2] != domain.loVect()[2]) continue;
                         if (dir_z > 0 && box.hiVect()[2] != domain.hiVect()[2]) continue;
 
-                            link->add_wrap(diy::Direction { dir_x, dir_y, dir_z });
+                        link->add_wrap(diy::Direction{dir_x, dir_y, dir_z});
                     }
                 }
             }
@@ -319,12 +329,12 @@ void read_amr_plotfile(std::string infile,
             for(int nbr_lev = std::max(0, lev - 1); nbr_lev <= std::min(finestLevel, lev + 1); ++nbr_lev)
             {
 
-                std::cout << "in nbr_lev loop, nbr_lev = " << nbr_lev << std::endl;
+//                std::cout << "in nbr_lev loop, nbr_lev = " << nbr_lev << std::endl;
                 // gotta do this yoga to work around AMReX's static variables
                 const Box& nbr_lev_domain = mesh.ProbDomain().at(nbr_lev);
                 Periodicity periodicity(IntVect(AMREX_D_DECL(nbr_lev_domain.length(0) * is_periodic[0],
-                                                 nbr_lev_domain.length(1) * is_periodic[1],
-                                                 nbr_lev_domain.length(2) * is_periodic[2])));
+                                                             nbr_lev_domain.length(1) * is_periodic[1],
+                                                             nbr_lev_domain.length(2) * is_periodic[2])));
 
 
                 const std::vector<IntVect>& pshifts = periodicity.shiftIntVect();
@@ -348,32 +358,36 @@ void read_amr_plotfile(std::string infile,
                     ba.intersections(gbx + piv, isects);
                     for(const auto& is : isects)
                     {
-                        std::cout << "intersection detected" << std::endl;
                         // is.first is the index of neighbor box
                         // ba[is.first] is the neighbor box
                         int nbr_gid = gid_offsets[nbr_lev] + is.first;
+                        fmt::print("{}: gid = {}, adding neighbor gid = {}\n", world.rank(), gid, nbr_gid);
                         const Box& nbr_box = ba[is.first];
                         Box nbr_ghost_box = grow(nbr_box, ng);
 
-                        link->add_neighbor(diy::BlockID{nbr_gid, -1});        // we don't know the proc, but we'll figure it out later through DynamicAssigner
+                        link->add_neighbor(diy::BlockID{nbr_gid,
+                                                        -1});        // we don't know the proc, but we'll figure it out later through DynamicAssigner
                         link->add_bounds(nbr_lev, refinements[nbr_lev], bounds(nbr_box), bounds(nbr_ghost_box));
                     }
                 }
             }
-
         }
     }
 
+    fmt::print("{}: started fixing links\n", world.rank());
     // fill dynamic assigner and fix links
     diy::DynamicAssigner assigner(master_reader.communicator(), master_reader.communicator().size(), nblocks);
     diy::fix_links(master_reader, assigner);
 
-    master_reader.foreach([](Block* b, const diy::Master::ProxyWithLink& cp)
-                   {
-                     auto* l = static_cast<diy::AMRLink*>(cp.link());
-                     fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}\n",
-                                cp.gid(), l->level(), b->fab.shape(),
-                                l->core().min, l->core().max,
-                                l->bounds().min, l->bounds().max);
-                   });
+    master_reader.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+        auto* l = static_cast<diy::AMRLink*>(cp.link());
+
+        auto receivers = link_unique(l, cp.gid());
+
+        fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n",
+                   cp.gid(), l->level(), b->fab.shape(),
+                   l->core().min, l->core().max,
+                   l->bounds().min, l->bounds().max,
+                   container_to_string(receivers));
+    });
 }

@@ -317,7 +317,14 @@ int main(int argc, char** argv)
     dlog::flush();
     world.barrier();
 
-    read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
+    if (read_plotfile)
+    {
+        std::string var_name = "density";
+        read_amr_plotfile(input_filename, var_name, world, nblocks, master_reader, header, domain);
+    } else
+    {
+        read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
+    }
 
     world.barrier();
 
@@ -354,6 +361,19 @@ int main(int argc, char** argv)
     auto time_for_local_computation = timer.elapsed();
 
     Real mean = std::numeric_limits<Real>::min();
+
+
+    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+        auto* l = static_cast<diy::AMRLink*>(cp.link());
+        std::cout << b->local_;
+        fmt::print("master, FabTmtBlocks: gid = {}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, sum_  = {}\n",
+                   cp.gid(), l->level(), b->fab_.shape(),
+                   l->core().min, l->core().max,
+                   l->bounds().min, l->bounds().max,
+                   b->sum_);
+    });
+
+    world.barrier();
 
     if (absolute)
     {

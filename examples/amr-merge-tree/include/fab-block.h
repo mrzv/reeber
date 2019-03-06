@@ -20,7 +20,7 @@ struct FabBlock
     {
     }
 
-    FabBlock(const T* data, const Shape& shape) :
+    FabBlock(T* data, const Shape& shape) :
             fab(data, shape, /* c_order = */ false)
     {
     }

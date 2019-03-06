@@ -4,6 +4,7 @@
 #include <numeric>
 #include <boost/functional/hash.hpp>
 
+
 #include "diy/serialization.hpp"
 #include "diy/grid.hpp"
 #include "diy/link.hpp"
@@ -250,24 +251,25 @@ struct FabTmtBlock
             processed_receivers_({ gid }),
             negate_(_negate)
     {
-        bool debug = false;
+        bool debug = true;
 
         std::string debug_prefix = "FabTmtBlock ctor, gid = " + std::to_string(gid);
 
-        if (debug) fmt::print("{} setting mask\n", debug_prefix);
+        if (debug) fmt::print("{} setting mask, pointer = {}\n", debug_prefix, (void*)fab_grid.data());
 
+        //  mask coordinates here
         diy::for_each(local_.mask_shape(), [this, amr_link, rho, is_absolute_threshold](const Vertex& v) {
             this->set_mask(v, amr_link, rho, is_absolute_threshold);
         });
 
-        //        if (debug) fmt::print("gid = {}, checking mask\n", gid);
         int max_gid = 0;
         for (int i = 0; i < amr_link->size(); ++i)
         {
             max_gid = std::max(max_gid, amr_link->target(i).gid);
         }
+        if (debug) fmt::print("gid = {}, local = {}, max_gid = {}, checking mask\n", gid, local_, max_gid);
 
-        //local_.check_mask_validity(max_gid);
+        if (debug) local_.check_mask_validity(max_gid);
 
         if (is_absolute_threshold)
         {
@@ -289,11 +291,11 @@ struct FabTmtBlock
     // compare w.r.t negate_ flag
     bool cmp(Real a, Real b) const;
 
-    void set_low(const diy::Point<int, D>& v_bounds,
+    void set_low(const diy::Point<int, D>& v_mask,
                  const Real& absolute_rho);
 
 
-    void set_mask(const diy::Point<int, D>& v_bounds,
+    void set_mask(const diy::Point<int, D>& v_mask,
                   diy::AMRLink *l,
                   const Real& rho,
                   bool is_absolute_threshold);
