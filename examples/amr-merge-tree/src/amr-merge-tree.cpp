@@ -366,11 +366,12 @@ int main(int argc, char** argv)
     master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
         auto* l = static_cast<diy::AMRLink*>(cp.link());
         std::cout << b->local_;
-        fmt::print("master, FabTmtBlocks: gid = {}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, sum_  = {}\n",
+        fmt::print("master, FabTmtBlocks: gid = {}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, sum_  = {}, n_active = {}\n",
                    cp.gid(), l->level(), b->fab_.shape(),
                    l->core().min, l->core().max,
                    l->bounds().min, l->bounds().max,
-                   b->sum_);
+                   b->sum_,
+                   b->n_active_);
     });
 
     world.barrier();

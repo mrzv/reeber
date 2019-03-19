@@ -54,6 +54,7 @@ namespace reeber {
                 bounds_from_(),
                 bounds_to_(),
                 core_shape_(),
+                bounds_shape_(),
                 mask_shape_(),
                 ghost_adjustment_(),
                 mask_(),
@@ -109,6 +110,7 @@ namespace reeber {
                 mask_from_(core_from_ - Position::one()),
                 mask_to_(core_to_ + Position::one()),
                 core_shape_(core_to_ - core_from_ + Position::one()),
+                bounds_shape_(bounds_to_ - bounds_from_ + Position::one()),
                 mask_shape_(mask_to_ - mask_from_ + Position::one()),
                 ghost_adjustment_(core_from_ - bounds_from_),
                 mask_adjustment_(bounds_from_ - mask_from_),
@@ -117,7 +119,7 @@ namespace reeber {
                 level_(_level),
                 gid_(_gid)
         {
-            assert(ghost_adjustment_ == bounds_to - core_to);
+            assert(ghost_adjustment_ == bounds_to_ - core_to_);
             diy::for_each(mask_.shape(), [this](const Position& p) { this->set_mask(p, this->UNINIT); });
         }
 
@@ -133,14 +135,14 @@ namespace reeber {
         void check_mask_validity(int max_gid)
         {
             bool debug = false;
-            diy::for_each(mask_.shape(), [this, max_gid, debug](const Position& p_bounds) {
-                MaskValue m = this->mask_(p_bounds);
-                Position p_core = p_bounds - Position::one();
+            diy::for_each(mask_.shape(), [this, max_gid, debug](const Position& p_mask) {
+                MaskValue m = this->mask_(p_mask);
+                Position p_core = p_mask - Position::one();
 
-                if (debug) fmt::print( "in check validity, p_bounds ={}, p_core = {}, m = {}, is_ghost = {}, contains = {}, core_from = {}, core_to = {}\n", p_bounds, p_core, pretty_mask_value(m), is_ghost(p_core), contains_local(p_bounds), core_from_, core_to_);
+                if (debug) fmt::print( "in check validity, p_mask ={}, p_core = {}, m = {}, is_ghost = {}, contains = {}, core_from = {}, core_to = {}\n", p_mask, p_core, pretty_mask_value(m), is_outer(p_mask), contains_local(p_mask), core_from_, core_to_);
 
-                assert((m == ACTIVE and not is_ghost(p_bounds)) or
-                       (contains_local(p_bounds) and m == LOW) or
+                assert((m == ACTIVE and not is_outer(p_mask)) or
+                       (contains_local(p_mask) and m == LOW) or
                        (m >= 0 and m <= max_gid and m != this->gid()));
             });
         }
@@ -209,7 +211,8 @@ namespace reeber {
         operator<<(std::basic_ostream<C_, T_>& out, const MaskedBox& b)
         {
             out << "MaskedBox: " << b.core_from_ << " - " << b.core_to_ << ", mask_shape: " << b.mask_shape();
-            out << ", ghost_adjustement = " << b.ghost_adjustment_;
+            out << ", mask_from_: " << b.mask_from_ << ", mask_to_: " << b.mask_to_;
+            out << ", ghost_adjustement = " << b.ghost_adjustment_ << ", mask_adjustment = " << b.mask_adjustment_;
             return out;
         }
 
@@ -243,15 +246,14 @@ namespace reeber {
 
         /**
          *
-         * @param p_local cell in local coordinates
+         * @param p_mask cell in mask coordinates
          * @return true, if cell is ghost
          * just checks that cell is not in the core
          */
-        bool is_ghost(const Position& p_local)
+        bool is_outer(const Position& p_mask) const
         {
-            Position p_core = p_local - ghost_adjustment_;
             for (size_t i = 0; i < D; ++i) {
-                if (p_core[i] < 0 or p_core[i] >= core_shape_[i]) {
+                if (p_mask[i] < 1 or p_mask[i] > core_shape_[i]) {
                     return true;
                 }
             }
@@ -263,6 +265,8 @@ namespace reeber {
         Position mask_from() const { return mask_from_; }
 
         Position mask_shape() const { return mask_shape_; }
+
+        Position core_shape() const { return core_shape_; }
 
         int level() const { return level_; }
 
@@ -308,7 +312,7 @@ namespace reeber {
             return mask_(p_mask);
         }
 
-        Position core_shape() const { return core_shape_; }
+        Position bounds_shape() const { return bounds_shape_; }
 
         /**
          *
@@ -329,7 +333,7 @@ namespace reeber {
          Position global_position(const Vertex& v) const
         {
             Position p = local_box_.vertex(static_cast<size_t>(v));
-            return p + bounds_from_;
+            return global_position_from_local(p);
         }
 
         /**
@@ -342,8 +346,93 @@ namespace reeber {
         {
             //assert(bounds_contains_global(p_global));
             Position p_local = local_position_from_global(p_global);
-            return AmrVertexId { gid(), mask_.index(p_local) };
+            return AmrVertexId { gid(), local_box_.index(p_local) };
         }
+
+        Position mask_position_from_local(const Position& p_bounds) const
+        {
+            return p_bounds + mask_adjustment_;
+        }
+
+        /**
+         *
+         * @param p_global cell in global coordinates
+         * @return cell in local coordinates
+         */
+        Position local_position_from_global(const Position& p_global) const
+        {
+            return p_global - bounds_from_;
+        }
+
+        Position local_position_from_global(const NewDynamicPoint& p_global) const { return local_position_from_global(point_from_dynamic_point<D>(p_global)); }
+
+        /**
+         *
+         * @param v index of vertex (w.r.t. bounds)
+         * @return
+         */
+        Position mask_position(Vertex v) const
+        {
+            Position p_bounds = local_box_.vertex(static_cast<size_t>(v));
+            return p_bounds + mask_adjustment_;
+        }
+
+        /**
+         *
+         * @param v index of cell (AmrVertexId)
+         * @return cell in local coordinates
+         */
+        Position local_position(const Vertex& v) const
+        {
+            //assert(static_cast<size_t>(v) < mask_.size());
+            auto result = local_box_.vertex(static_cast<size_t>(v));
+            return result;
+        }
+
+        /**
+         *
+         * @param p_global cell in global coordinates
+         * @return true, if cell belongs to the core of the box (between core_from and core_to)
+         */
+        bool core_contains_global(const Position& p_global) const;
+        bool core_contains_global(const NewDynamicPoint& p_global) const { return core_contains_global(point_from_dynamic_point<D>(p_global)); }
+
+        /**
+         *
+         * @param p_global cell in global coordinates
+         * @return true, if cell belongs to the box with ghosts (between bounds_from and bounds_to)
+         */
+        bool bounds_contains_global(const Position& p_global) const;
+        bool bounds_contains_global(const NewDynamicPoint& p_global) const { return bounds_contains_global(point_from_dynamic_point<D>(p_global)); }
+
+
+        /**
+         *
+         * @param p_local cell in local coordinates
+         * @return true, if cell belongs to the box
+         */
+        bool contains_local(const Position& p_local) const;
+
+        /**
+         *
+         * @param p Cell in local coordinates
+         * @return range of all active local vertices of Freudenthal link of p
+         * in local coordinates
+         */
+        decltype(auto) local_position_link(const Position& p) const
+        {
+            return FreudenthalLinkRange(FreudenthalLinkIterator::begin(p), FreudenthalLinkIterator::end(p))
+                   | range::filtered(std::bind(&MaskedBox::is_active_local, this, std::placeholders::_1));
+        }
+
+        // for test only
+        decltype(auto) local_position_link(const NewDynamicPoint& p) const { return local_position_link(point_from_dynamic_point<D>(p)); }
+
+        Vertex local_position_to_vertex(const Position& p_local) const
+        {
+            return AmrVertexId { gid(), local_box_.index(p_local) };
+        }
+
 
         static void save(const void* mb, diy::BinaryBuffer& bb);
 
@@ -363,62 +452,11 @@ namespace reeber {
         }
 
 
-        /**
-         *
-         * @param p Cell in local coordinates
-         * @return range of all active local vertices of Freudenthal link of p
-         * in local coordinates
-         */
-        decltype(auto) local_position_link(const Position& p) const
+
+        Position mask_position_from_global(const Position& p_global) const
         {
-            return FreudenthalLinkRange(FreudenthalLinkIterator::begin(p), FreudenthalLinkIterator::end(p))
-                   | range::filtered(std::bind(&MaskedBox::is_active_local, this, std::placeholders::_1));
+            return p_global - bounds_from_ + mask_adjustment_;
         }
-
-        /**
-         *
-         * @param p_global cell in global coordinates
-         * @return true, if cell belongs to the core of the box (between core_from and core_to)
-         */
-        bool core_contains_global(const Position& p_global) const;
-
-        /**
-         *
-         * @param p_global cell in global coordinates
-         * @return true, if cell belongs to the box with ghosts (between bounds_from and bounds_to)
-         */
-        bool bounds_contains_global(const Position& p_global) const;
-
-
-        /**
-         *
-         * @param p_local cell in local coordinates
-         * @return true, if cell belongs to the box
-         */
-        bool contains_local(const Position& p_local) const;
-
-
-        /**
-         *
-         * @param p_global cell in global coordinates
-         * @return cell in local coordinates
-         */
-        Position local_position_from_global(const Position& p_global) const
-        {
-            return p_global - bounds_from_;
-        }
-
-        /**
-         *
-         * @param v index of vertex (w.r.t. bounds)
-         * @return
-         */
-        Position mask_position(Vertex v)
-        {
-            Position p_bounds = local_box_.vertex(static_cast<size_t>(v));
-            return p_bounds + mask_adjustment_;
-        }
-
 
         /**
          *
@@ -427,7 +465,8 @@ namespace reeber {
          */
         bool is_active_global(const Position& p_global) const
         {
-            return mask_(p_global - mask_from_) == ACTIVE;
+//            std::cout << "called is_active_global for p_global = " << p_global << ", mask value = " << pretty_mask_value(mask_(p_global - bounds_from_ + mask_adjustment_)) << std::endl;
+            return mask_(p_global - bounds_from_ + mask_adjustment_) == ACTIVE;
         }
 
         /**
@@ -437,7 +476,10 @@ namespace reeber {
          */
         bool is_active_local(const Position& p_local) const
         {
-            return mask_(p_local) == ACTIVE;
+//            fmt::print("call is_active_local, p_local = {}, is_valid_local = {}, mask = {} \n",
+//                    p_local, is_valid_local_position(p_local),
+//                    pretty_mask_value(mask_(mask_position_from_local(p_local))));
+            return is_valid_local_position(p_local) && mask_(mask_position_from_local(p_local)) == ACTIVE;
         }
 
         /**
@@ -457,38 +499,36 @@ namespace reeber {
          */
         bool is_outer_edge_start_glob(const Position& p_global) const
         {
-            Position p_mask = p_global - mask_from_;
+            Position p_mask = mask_position_from_global(p_global);
+
+            if ((mask_(p_mask) != ACTIVE and mask_(p_mask) != LOW) and not is_outer(p_mask))
+            {
+                fmt::print("Error in is_outer_edge_start, p_global = {}, p_mask = {}, this = {}, not outer\n", p_global, p_mask, *this);
+                throw std::runtime_error("Error in is_outer_edge_start");
+            }
+
+            if ((mask_(p_mask) == ACTIVE or mask_(p_mask) == LOW) and is_outer(p_mask))
+            {
+                fmt::print("Error in is_outer_edge_start, p_global = {}, p_mask = {}, this = {}, is outer\n", p_global, p_mask, *this);
+                throw std::runtime_error("Error in is_outer_edge_start-2");
+            }
+
             return mask_(p_mask) != ACTIVE and mask_(p_mask) != LOW;
         }
 
-        bool is_valid_mask_position(const Position& p_bounds) const
+        bool is_valid_mask_position(const Position& p_mask) const
         {
-            return p_bounds.is_less_or_eq(mask_shape_) and p_bounds.is_greater_or_eq(Position::zero());
+            return p_mask.is_less_or_eq(mask_shape_) and p_mask.is_greater_or_eq(Position::zero());
         }
 
-        /**
-         *
-         * @param v index of cell (AmrVertexId)
-         * @return cell in local coordinates
-         */
-        Position local_position(const Vertex& v) const
+        bool is_valid_local_position(const Position& p_bounds) const
         {
-            //assert(static_cast<size_t>(v) < mask_.size());
-            auto result = local_box_.vertex(static_cast<size_t>(v));
-            return result;
+            return p_bounds.is_less_or_eq(bounds_shape_) and p_bounds.is_greater_or_eq(Position::zero());
         }
 
-
-
-
-        Vertex global_position_to_vertex(const Position& p_global) const
+       Vertex global_position_to_vertex(const Position& p_global) const
         {
             return local_position_to_vertex(local_position_from_global(p_global));
-        }
-
-        Vertex local_position_to_vertex(const Position& p_local) const
-        {
-            return AmrVertexId { gid(), local_box_.index(p_local) };
         }
 
 
@@ -497,7 +537,9 @@ namespace reeber {
         const Position bounds_from_, bounds_to_;
         diy::GridRef<void*, D> local_box_;
         const Position mask_from_, mask_to_;
-        const Position core_shape_, mask_shape_;
+        const Position core_shape_;
+        const Position bounds_shape_;
+        const Position mask_shape_;
         const Position ghost_adjustment_;
         const Position mask_adjustment_;
         MaskType mask_;

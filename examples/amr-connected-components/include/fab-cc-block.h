@@ -147,7 +147,7 @@ struct FabComponentBlock {
     void set_low(const diy::Point<int, D>& v_bounds,
                  const Real& absolute_rho);
 
-    void set_mask(const diy::Point<int, D>& v_bounds,
+    void set_mask(const diy::Point<int, D>& v_mask,
                   diy::AMRLink *l,
                   const Real& rho,
                   bool is_absolute_threshold);

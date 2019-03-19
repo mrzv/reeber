@@ -17,9 +17,10 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
     int debug_gid = local_.gid();
 
-    bool debug = gid == 0;
+    bool debug = false;
+    debug = (gid == 63) and (v_mask[0] == 2 and v_mask[1] == 2 and v_mask[2] == 65);
 
-    bool is_ghost = local_.is_ghost(v_mask);
+    bool is_ghost = local_.is_outer(v_mask);
 
     bool is_low = false;
     if (is_absolute_threshold)
@@ -28,7 +29,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
     r::AmrVertexId v_idx;
     // does not matter here
-//    if (not is_ghost) v_idx = local_.get_vertex_from_global_position(local_.global_position_from_local(v_mask));
+    if (not is_ghost) v_idx = local_.get_vertex_from_global_position(local_.global_position_from_local(v_mask));
 
     if (debug)
     {
@@ -51,12 +52,12 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     const int v_ref = local_.refinement();
     const int v_level = local_.level();
 
-    Position v_glob = wrap_point(v_mask + local_.mask_from(), domain_, v_ref);
+    Position v_glob = wrap_point(v_mask + local_.mask_from(), domain_, v_ref, true);
 
     if (debug)
     {
-        fmt::print("in set_mask, gid = {}, unwrapped v_glob = {}, wrapped = {}, v_idx = {}\n", local_.gid(),
-                   v_mask + local_.mask_from(), v_glob, v_idx);
+        fmt::print("in set_mask, gid = {}, unwrapped v_glob = {}, wrapped = {}, v_idx = {}, domain = [{} - {}], local = {}\n", local_.gid(),
+                   v_mask + local_.mask_from(), v_glob, v_idx, domain_.min, domain_.max, local_);
     }
 
 
@@ -130,33 +131,50 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 //        if (gid == 0) fmt::print("gid = {}, sum = {}, v_mask = {}, f(v) = {}, index(v) = {} ,stride = {}, shape = {}, data = {}, size = {}\n", gid,  sum_, v_mask, fab_(v_mask), fab_.index(v_mask), fab_.stride_, fab_.shape(), (void*)fab_.data(), sizeof(fab_.data()[fab_.index(v_mask)]));
     }
 
+
     if (debug)
     {
-        fmt::print("in set_mask, final mask = {}, {}, gid = {}, v_mask = {},  v_idx = {}\n",
-                   local_.pretty_mask_value(v_mask), local_.mask(v_mask), local_.gid(), v_mask, v_idx);
+        fmt::print("in set_mask, is_ghost = {}, final mask = {}, {}, gid = {}, v_mask = {},  v_idx = {}\n",
+                   is_ghost, local_.pretty_mask_value(v_mask), local_.mask(v_mask), local_.gid(), v_mask, v_idx);
+    }
+
+    if (is_ghost and local_.mask(v_mask) == gid)
+    {
+        fmt::print("in set_mask, is_ghost = {}, final mask = {}, {}, gid = {}, v_mask = {},  v_idx = {}\n",
+                is_ghost, local_.pretty_mask_value(v_mask), local_.mask(v_mask), local_.gid(), v_mask, v_idx);
+        fmt::print("Error, same gid in mask\n");
+        throw std::runtime_error("Bad mask");
     }
 }
 
 template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_mask,
+void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
                                    const Real& absolute_threshold)
 {
+    auto v_mask = local_.mask_position_from_local(v_bounds);
     if (local_.mask(v_mask) != MaskedBox::ACTIVE)
         return;
-    bool is_low = cmp(absolute_threshold, fab_(v_mask)); //   negate_ ? fab_(v_mask) < absolute_threshold : fab_(v_mask) > absolute_threshold;
+    bool is_low = cmp(absolute_threshold, fab_(v_bounds)); //   negate_ ? fab_(v_bounds) < absolute_threshold : fab_(v_bounds) > absolute_threshold;
     if (is_low)
         local_.set_mask(v_mask, MaskedBox::LOW);
+    else
+    {
+        n_active_++;
+        if (gid == 0) fmt::print("HERE ACTIVE: {}\n", local_.global_position_from_local(v_bounds));
+    }
 }
 
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
 {
-    bool debug = false;
+    bool debug = true;
     std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
 
-    diy::for_each(local_.mask_shape(), [this, absolute_rho](const Vertex& v_mask) {
-        this->set_low(v_mask, absolute_rho);
+    diy::for_each(local_.bounds_shape(), [this, absolute_rho](const Vertex& v_bounds) {
+        this->set_low(v_bounds, absolute_rho);
     });
+
+    if (debug) fmt::print("{}, absolute_rho = {}, n_active = {}\n", debug_prefix, absolute_rho, n_active_);
 
     reeber::compute_merge_tree2(current_merge_tree_, local_, fab_);
     current_merge_tree_.make_deep_copy(original_tree_);
@@ -228,13 +246,14 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
 
         Position wrapped_neighb_vert_glob = wrap_point(neighb_v_glob, domain, local.refinement());
 
-        int gid = local.mask(neighb_v_bounds);
+        Position neighb_v_mask = local.mask_position_from_local(neighb_v_bounds);
+        int masking_gid = local.mask(neighb_v_mask);
 
         size_t link_idx = 0;
         bool link_idx_found = false;
         for (; link_idx < (size_t) l->size(); ++link_idx)
         {
-            if (l->target(link_idx).gid == gid)
+            if (l->target(link_idx).gid == masking_gid)
             {
                 link_idx_found = true;
                 break;
@@ -244,8 +263,8 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
         //assert(link_idx_found);
         if (not link_idx_found)
         {
-            fmt::print("Error here: gid = {}\n", gid);
-            throw std::runtime_error("gid not found in link");
+            fmt::print("Error here: masking_gid = {}\n", local.pretty_mask_value(masking_gid));
+            throw std::runtime_error("masking_gid not found in link");
         }
 
         auto nb_level = l->level(link_idx);
@@ -257,9 +276,9 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
         if (debug)
         {
             fmt::print(
-                    "In get_vertex_edges, v_glob = {}, gid = {}, masked by gid= {}, glob_coord = {}, nb_from = {}, nb_to = {}\n",
+                    "In get_vertex_edges, v_glob = {}, gid = {}, masked by masking_gid= {}, glob_coord = {}, nb_from = {}, nb_to = {}\n",
                     v_glob,
-                    local.gid(), gid, wrapped_neighb_vert_glob, nb_from, nb_to);
+                    local.gid(), masking_gid, wrapped_neighb_vert_glob, nb_from, nb_to);
         }
 
         //assert(abs(nb_level - local.level()) <= 1);
@@ -271,11 +290,11 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
             size_t neighb_vertex_idx = get_vertex_id(wrapped_neighb_vert_glob, local.refinement(), link_idx, l,
                                                      local.mask_grid().c_order());
 
-            result.emplace_back(v_glob_idx, reeber::AmrVertexId { gid, neighb_vertex_idx });
+            result.emplace_back(v_glob_idx, reeber::AmrVertexId { masking_gid, neighb_vertex_idx });
 
             if (debug)
             {
-                fmt::print("In get_vertex_edges, v_glob = {}, gid = {}, Added edge to idx = {}\n", v_glob, local.gid(),
+                fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, Added edge to idx = {}\n", v_glob, local.gid(),
                            neighb_vertex_idx);
             }
 
@@ -285,7 +304,7 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
             std::tie(masking_box_from, masking_box_to) = refine_vertex(neighb_v_glob, local.refinement(),
                                                                        nb_refinement);
             if (debug)
-                fmt::print("In get_vertex_edges, v_glob = {}, gid = {}, masking_box_from = {}, masking_box_to = {}\n",
+                fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, masking_box_from = {}, masking_box_to = {}\n",
                            v_glob, local.gid(), masking_box_from, masking_box_to);
 
             reeber::Box<D> masking_box(masking_box_from, masking_box_to);
@@ -301,7 +320,7 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
                             domain, local.refinement());
                     if (debug)
                     {
-                        fmt::print("In get_vertex_edges, v_glob = {}, gid = {}, cov_vert = {}, cov_vert_loc = {}\n",
+                        fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, cov_vert = {}, cov_vert_loc = {}\n",
                                    v_glob, local.gid(), covering_position_glob,
                                    covering_position_coarsened);
                     }
@@ -310,14 +329,14 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
                     {
 
                         Position masking_position_global = wrap_point(masking_position, domain, nb_refinement);
-                        r::AmrVertexId masking_vertex_idx { gid, get_vertex_id(masking_position_global, nb_refinement,
+                        r::AmrVertexId masking_vertex_idx { masking_gid, get_vertex_id(masking_position_global, nb_refinement,
                                                                                link_idx, l,
                                                                                local.mask_grid().c_order()) };
 
                         if (debug)
                         {
                             fmt::print(
-                                    "IN get_vertex_edges, v_glob = {}, gid = {}, masking_position = {}, nb_from = {}, nb_to = {}, adding edge {}\n",
+                                    "IN get_vertex_edges, v_glob = {}, masking_gid = {}, masking_position = {}, nb_from = {}, nb_to = {}, adding edge {}\n",
                                     v_glob, local.gid(), masking_position, nb_from, nb_to,
                                     r::AmrEdge { v_glob_idx, masking_vertex_idx });
                         }
@@ -809,12 +828,13 @@ int FabTmtBlock<Real, D>::is_done_simple(const std::vector<FabTmtBlock::AmrVerte
     // do not start in any component of our original local tree
 
 //        bool debug = (gid == 0);
-    bool debug = false;
+    bool debug = true;
 
     if (debug)
         fmt::print("is_done_simple, gid = {}, #vertices = {}, round = {}\n", gid, vertices_to_check.size(), round_);
     for (const AmrVertexId& v : vertices_to_check)
     {
+        if (debug) fmt::print("is_done_simple, gid = {}, checking v = {}\n", gid, v);
         AmrVertexId deepest_v = original_vertex_to_deepest_.at(v);
         if (is_component_connected_to_any_internal(deepest_v))
         {

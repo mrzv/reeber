@@ -225,7 +225,15 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
 
     vector<Vertex> vertices(std::begin(vertices_), std::end(vertices_));
 
+//    for(const Vertex& v : vertices)
+//    {
+//        fmt::print("HERE VERTICES: {}\n", topology.global_position(v));
+//    }
+
+
     for_each(0, vertices.size(), [&](size_t i) { Vertex a = vertices[i]; mt.add(a, f(a)); });
+
+    fmt::print("vertices.size = {}, add to mt OK\n", vertices.size());
 
     for_each(0, vertices.size(), [&](size_t i)
     {
@@ -233,9 +241,19 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
         Neighbor u = mt[a];
         for (const Vertex& b : topology.link(a))
         {
+//            fmt::print("link loop a = {} local = {}, global =  {}, mask = {}, value = {},  b = {} local = {} global = {}, mask = {}, value = {}, masked_box = {}\n",
+//                    a, topology.local_position(a), topology.global_position(a),
+//                    topology.pretty_mask_value_by_index(a),
+//                    f(a),
+//                    b, topology.local_position(b), topology.global_position(b),
+//                    topology.pretty_mask_value_by_index(b),
+//                    f(b),
+//                    topology);
             if (b < a) continue;
             Neighbor v = mt[b];
+//            fmt::print("link loop a = {}, b = {}, got v OK\n", a, b);
             mt.merge(u, v);
+//            fmt::print("a = {}, b = {}, merge OK\n", a, b);
         }
     });
 

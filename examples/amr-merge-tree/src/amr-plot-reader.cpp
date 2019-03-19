@@ -201,14 +201,20 @@ void read_amr_plotfile(std::string infile,
 
     const Box& domain = mesh.ProbDomain()[0];
 
-//    std::cout << "printing ProbDomain" << std::endl;
-//
-//    for(const Box& d : mesh.ProbDomain())
-//    {
-//        print_box(d);
-//    }
-//
-//    std::cout << "finisned printing ProbDomain" << std::endl;
+    std::cout << "printing ProbDomain" << std::endl;
+
+    for(const Box& d : mesh.ProbDomain())
+    {
+        print_box(d);
+    }
+
+    std::cout << "finisned printing ProbDomain" << std::endl;
+
+    for(int i = 0; i < 3; ++i)
+    {
+        domain_diy.min[i] = domain.loVect()[i];
+        domain_diy.max[i] = domain.hiVect()[i];
+    }
 
     // Compute the volume integrals
     const int finestLevel = mesh.FinestLevel();

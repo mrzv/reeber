@@ -76,7 +76,7 @@ inline diy::Point<C, D> coarsen_point(const diy::Point<C, D>& p, int point_refin
 // take point p from level with get_refinement ref and domain (not refined; domains is assumed to start from origin)
 // return wrapped point
 template<class C, unsigned int D>
-inline diy::Point<C, D> wrap_point(const diy::Point<C, D>& p, const diy::DiscreteBounds& domain, int ref)
+inline diy::Point<C, D> wrap_point(const diy::Point<C, D>& p, const diy::DiscreteBounds& domain, int ref, bool is_debug = false)
 {
     // we assume that domain starts from the origin
     //assert(domain.min == decltype(domain.min)::zero());
@@ -109,7 +109,9 @@ inline diy::Point<C, D> project_point(const typename diy::Point<C, DIY_MAX_DIM>&
 template<size_t D, class C>
 inline diy::DynamicPoint<C, D> project_point(const typename diy::DynamicPoint<C, DIY_MAX_DIM>& p)
 {
-    diy::DynamicPoint<C, D> result { D };
+    diy::DynamicPoint<C, D> result(D, 0);
+    std::cout << "result.size = " << result.size() << std::endl;
+    std::cout << "p.size = " << p.size() << std::endl;
     for(unsigned int i = 0; i < D; ++i)
         result[i] = p[i];
     return result;

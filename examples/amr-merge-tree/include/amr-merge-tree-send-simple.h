@@ -122,9 +122,9 @@ template<class Real, unsigned D>
 void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = false;
+    bool debug = true;
 
-    //    if (debug) fmt::print("Called receive_simple for block = {}\n", b->gid);
+    if (debug) fmt::print("Called receive_simple for block = {}\n", b->gid);
 
     using Block = FabTmtBlock<Real, D>;
     using AmrTripletMergeTree = typename Block::TripletMergeTree;
@@ -148,6 +148,11 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
 
     auto senders = link_unique(l, b->gid);
+    std::vector<int> sender_gids_debug;
+    for(const auto& sender : senders)
+    {
+        sender_gids_debug.push_back(sender.gid);
+    }
 
     if (debug) fmt::print("In receive_simple for block = {}, # senders = {}\n", b->gid, senders.size());
 
@@ -164,7 +169,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
         cp.dequeue(sender, n_trees);
 
-        //if (debug) fmt::print("In receive_simple for block = {}, dequeued from sender {} n_trees = {} \n", b->gid, sender.gid, n_trees);
+        if (debug) fmt::print("In receive_simple for block = {}, dequeued from sender {} n_trees = {} \n", b->gid, sender.gid, n_trees);
 
         if (n_trees > 0)
         {
@@ -180,7 +185,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
             cp.dequeue(sender, received_deepest_vertices.back());
             cp.dequeue(sender, received_edges.back());
 
-            //if (debug) fmt::print( "In receive_simple for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
+            if (debug) fmt::print( "In receive_simple for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
 
 
         }
@@ -219,7 +224,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
         AmrTripletMergeTree& rt = received_trees[i];
         r::merge(b->current_merge_tree_, rt, received_edges[i], true);
 
-        //if (debug) fmt::print( "In receive_simple for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid, sender_gids_debug[i], b->merge_tree_.size());
+        if (debug) fmt::print( "In receive_simple for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid, sender_gids_debug[i], b->get_merge_tree().size());
 
         // save information about vertex-component relation and component merging in block
         b->original_vertex_to_deepest_.insert(received_vertex_to_deepest[i].begin(),
@@ -279,7 +284,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
     b->sparsify_local_tree();
 
-    //if (debug) fmt::print("In receive_simple for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->merge_tree_.size());
+    if (debug) fmt::print("In receive_simple for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->get_merge_tree().size());
 
     b->done_ = b->is_done_simple(vertices_to_check);
     int n_undone = 1 - b->done_;
@@ -293,7 +298,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
     int old_size_unique = l->size_unique();
     int old_size = l->size();
 
-    //if (debug) fmt::print( "In receive_simple for block = {}, b->done_ = {}, old link size = {}, old link size_unqie = {}\n", b->gid, b->done_, old_size, old_size_unique);
+    if (debug) fmt::print( "In receive_simple for block = {}, b->done_ = {}, old link size = {}, old link size_unqie = {}\n", b->gid, b->done_, old_size, old_size_unique);
 
     expand_link(b, cp, l, received_links, received_original_gids);
 

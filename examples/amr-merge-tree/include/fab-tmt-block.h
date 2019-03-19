@@ -170,6 +170,7 @@ struct FabTmtBlock
     // we resume initialization
     Real sum_ { 0 };
     size_t n_unmasked_ { 0 };
+    size_t n_active_ { 0 };
     GridRef fab_;
 
     // this vector is not serialized, because we send trees component-wise
@@ -251,7 +252,7 @@ struct FabTmtBlock
             processed_receivers_({ gid }),
             negate_(_negate)
     {
-        bool debug = true;
+        bool debug = _gid == 0 or _gid == 1;
 
         std::string debug_prefix = "FabTmtBlock ctor, gid = " + std::to_string(gid);
 
@@ -291,7 +292,7 @@ struct FabTmtBlock
     // compare w.r.t negate_ flag
     bool cmp(Real a, Real b) const;
 
-    void set_low(const diy::Point<int, D>& v_mask,
+    void set_low(const diy::Point<int, D>& v_bounds,
                  const Real& absolute_rho);
 
 
