@@ -354,6 +354,11 @@ namespace reeber {
             return p_bounds + mask_adjustment_;
         }
 
+        Position local_position_from_mask(const Position& p_mask) const
+        {
+            return p_mask - mask_adjustment_;
+        }
+
         /**
          *
          * @param p_global cell in global coordinates

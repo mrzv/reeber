@@ -110,8 +110,6 @@ template<size_t D, class C>
 inline diy::DynamicPoint<C, D> project_point(const typename diy::DynamicPoint<C, DIY_MAX_DIM>& p)
 {
     diy::DynamicPoint<C, D> result(D, 0);
-    std::cout << "result.size = " << result.size() << std::endl;
-    std::cout << "p.size = " << p.size() << std::endl;
     for(unsigned int i = 0; i < D; ++i)
         result[i] = p[i];
     return result;

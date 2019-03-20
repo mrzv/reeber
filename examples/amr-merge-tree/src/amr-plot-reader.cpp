@@ -367,7 +367,7 @@ void read_amr_plotfile(std::string infile,
                         // is.first is the index of neighbor box
                         // ba[is.first] is the neighbor box
                         int nbr_gid = gid_offsets[nbr_lev] + is.first;
-                        fmt::print("{}: gid = {}, adding neighbor gid = {}\n", world.rank(), gid, nbr_gid);
+//                        fmt::print("{}: gid = {}, adding neighbor gid = {}\n", world.rank(), gid, nbr_gid);
                         const Box& nbr_box = ba[is.first];
                         Box nbr_ghost_box = grow(nbr_box, ng);
 
