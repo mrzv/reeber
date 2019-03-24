@@ -176,7 +176,7 @@ struct FabTmtBlock
     // this vector is not serialized, because we send trees component-wise
     std::vector<Component> components_;
 
-    diy::DiscreteBounds domain_;
+    diy::DiscreteBounds domain_ { D };
 
     int done_ { 0 };
 
@@ -252,7 +252,7 @@ struct FabTmtBlock
             processed_receivers_({ gid }),
             negate_(_negate)
     {
-        bool debug = _gid == 0 or _gid == 1;
+        bool debug = false;
 
         std::string debug_prefix = "FabTmtBlock ctor, gid = " + std::to_string(gid);
 

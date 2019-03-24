@@ -1,4 +1,8 @@
-#pragma once
+#ifndef REEBER_AMR_HELPER_H
+#define REEBER_AMR_HELPER_H
+
+//#pragma once
+
 
 #include <assert.h>
 #include <string>
@@ -49,7 +53,7 @@ diy::Point<int, D> point_from_dynamic_point(const diy::DynamicPoint<int, DD>& pt
 {
     static_assert(D<=DD, "cast to point drops dimension");
     diy::Point<int, D> result;
-    for(int i = 0; i < D; ++i)
+    for(size_t i = 0; i < D; ++i)
         result[i] = pt[i];
     return result;
 }
@@ -246,7 +250,7 @@ template<unsigned D>
 diy::DiscreteBounds refine_bounds(const diy::DiscreteBounds& bounds_in, int scale)
 {
     //assert(scale >= 1);
-    diy::DiscreteBounds result;
+    diy::DiscreteBounds result(D);
 
     result.min = scale * bounds_in.min;
     result.max = scale * (bounds_in.max + diy::DynamicPoint<int, 4>::one(D)) - diy::DynamicPoint<int, 4>::one(D);
@@ -259,3 +263,12 @@ diy::DiscreteBounds refine_bounds(const diy::DiscreteBounds& bounds_in, int scal
     return result;
 }
 
+template<class Link>
+inline bool link_contains_gid(Link* link, int gid)
+{
+    for(int i = 0; i < link->size(); ++i)
+        if(link->target(i).gid == gid)
+            return true;
+    return false;
+}
+#endif

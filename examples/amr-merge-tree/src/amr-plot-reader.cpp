@@ -172,6 +172,8 @@ void read_amr_plotfile(std::string infile,
                        diy::MemoryBuffer& header,
                        diy::DiscreteBounds& domain_diy)
 {
+    bool debug = false;
+
     amrex::Initialize(world);
 
     // Create the AmrData object from a pltfile on disk
@@ -194,6 +196,7 @@ void read_amr_plotfile(std::string infile,
     AMReXDataHierarchy& data = *pdata;
     const AMReXMeshHierarchy& mesh = data.Mesh();
 
+    // TODO: fix wrap
     int periodic = 0;
     std::array<bool, 3> is_periodic;
     for(int i = 0; i < 3; ++i)
@@ -201,14 +204,14 @@ void read_amr_plotfile(std::string infile,
 
     const Box& domain = mesh.ProbDomain()[0];
 
-    std::cout << "printing ProbDomain" << std::endl;
-
-    for(const Box& d : mesh.ProbDomain())
+    if (debug)
     {
-        print_box(d);
+        fmt::print("printing ProbDomain\n");
+        for(const Box& d : mesh.ProbDomain())
+            print_box(d);
+        fmt::print("finished printing ProbDomain\n");
     }
 
-    std::cout << "finisned printing ProbDomain" << std::endl;
 
     for(int i = 0; i < 3; ++i)
     {
@@ -225,21 +228,19 @@ void read_amr_plotfile(std::string infile,
     for(int lev = 0; lev <= finestLevel; lev++)
     {
 
-        if (world.rank() == 0)
-        { fmt::print("Processing lev = {}", lev); }
+        if (debug and world.rank() == 0) { fmt::print("Processing lev = {}", lev); }
 
         const MultiFab& mf = data.GetGrids(lev, varName);
         const BoxArray& ba = mf.boxArray();
 
-        fmt::print("rank = {}, nblocks = {}, ba.size() = {}\n", world.rank(), nblocks, ba.size());
+        if (debug) fmt::print("rank = {}, nblocks = {}, ba.size() = {}\n", world.rank(), nblocks, ba.size());
 
         nblocks += ba.size();
         gid_offsets.push_back(nblocks);
 
         auto refinement = mesh.RefRatio();
 
-        if (world.rank() == 0)
-        { fmt::print("refinement = {}", refinement[0]); }
+        if (debug and world.rank() == 0) { fmt::print("refinement = {}", refinement[0]); }
 
         if (refinement.size() != 1)
             throw std::runtime_error("Unexpected uneven refinement");
@@ -267,7 +268,7 @@ void read_amr_plotfile(std::string infile,
 
             const Box& box = mfi.tilebox();
             Block::Shape shape;
-            for(int i = 0; i < DIY_DIM; ++i)
+            for(size_t i = 0; i < DIY_DIM; ++i)
                 shape[i] = box.bigEnd()[i] - box.smallEnd()[i] + 1;
 
             // This is the Box on which the FArrayBox is defined.
@@ -291,17 +292,19 @@ void read_amr_plotfile(std::string infile,
 //                if (gid == 0) { fmt::print("rank = {}, gid = {}, value = {}, i  = {}, size = {}\n", world.rank(), gid, fab_ptr[i], i, sizeof(fab_ptr[i])); }
                 total_sum += fab_ptr[i];
             }
-            fmt::print("rank = {}, gid = {}, fab_ptr = {}, sum = {}, fabs_soize = {}\n",
-                    world.rank(), gid, (void*)fab_ptr, total_sum, fab_size);
+            if (debug) { fmt::print("rank = {}, gid = {}, fab_ptr = {}, sum = {}, fabs_size = {}\n", world.rank(), gid, (void*)fab_ptr, total_sum, fab_size); }
 
 //            Real* fab_ptr = myFab.dataPtr(componentIndex);
             master_reader.add(gid, new Block(fab_ptr, shape), link);
-            fmt::print("rank = {}, ADDED\n", world.rank());
 
-            fmt::print(
-                    "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n",
-                    world.rank(), gid,  box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
-                    box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index());
+            if (debug)
+            {
+                fmt::print("rank = {}, ADDED\n", world.rank());
+                fmt::print(
+                        "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n",
+                        world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
+                        box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index());
+            }
 
 
             // record wrap
@@ -380,20 +383,23 @@ void read_amr_plotfile(std::string infile,
         }
     }
 
-    fmt::print("{}: started fixing links\n", world.rank());
+    if (debug) { fmt::print("{}: started fixing links\n", world.rank()); }
     // fill dynamic assigner and fix links
     diy::DynamicAssigner assigner(master_reader.communicator(), master_reader.communicator().size(), nblocks);
     diy::fix_links(master_reader, assigner);
 
-    master_reader.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+    master_reader.foreach([debug](Block* b, const diy::Master::ProxyWithLink& cp) {
         auto* l = static_cast<diy::AMRLink*>(cp.link());
 
         auto receivers = link_unique(l, cp.gid());
 
-        fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n",
-                   cp.gid(), l->level(), b->fab.shape(),
-                   l->core().min, l->core().max,
-                   l->bounds().min, l->bounds().max,
-                   container_to_string(receivers));
+        if (debug)
+        {
+            fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n",
+                    cp.gid(), l->level(), b->fab.shape(),
+                    l->core().min, l->core().max,
+                    l->bounds().min, l->bounds().max,
+                    container_to_string(receivers));
+        }
     });
 }

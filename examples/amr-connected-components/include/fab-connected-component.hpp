@@ -26,7 +26,7 @@ bool FabConnectedComponent<Real>::cmp(Real x, Real y) const
 template<class Real>
 bool FabConnectedComponent<Real>::is_done_sending() const
 {
-    bool debug = false;
+    [[maybe_unused]] bool debug = false;
 
     assert(std::all_of(processed_gids().begin(), processed_gids().end(),
                        [this](const auto& gid) { return this->current_gids_.count(gid) == 1; }));
@@ -41,13 +41,13 @@ void FabConnectedComponent<Real>::add_current_neighbor(const AmrVertexId& new_cu
     bool debug = false;
     current_neighbors_.insert(new_current_neighbor);
     current_gids_.insert(new_current_neighbor.gid);
-//    if (debug) { fmt::print("in add_current_neighbor for {}, added ncn = {}, processed_gids = {}\n", original_deepest(), new_current_neighbor, container_to_string(processed_gids_)); }
+    if (debug) { fmt::print("in add_current_neighbor for {}, added ncn = {}, processed_gids = {}\n", original_deepest(), new_current_neighbor, container_to_string(processed_gids_)); }
 }
 
 template<class Real>
 void FabConnectedComponent<Real>::set_current_neighbors(const AmrVertexSet& new_current_neighbors)
 {
-    bool debug = false;
+    [[maybe_unused]] bool debug = false;
 
     assert(std::all_of(current_neighbors_.begin(), current_neighbors_.end(),
                        [new_current_neighbors](const auto& x) { return new_current_neighbors.count(x) == 1; }));

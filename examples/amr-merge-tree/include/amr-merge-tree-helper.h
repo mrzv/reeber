@@ -66,14 +66,3 @@ void delete_low_edges(FabTmtBlock<Real, D> *b, const diy::Master::ProxyWithLink&
     b->adjust_outgoing_edges();
     b->sparsify_prune_original_tree();
 }
-
-template<class Link>
-bool link_contains_gid(Link *link, int gid)
-{
-    for (int i = 0; i < link->size(); ++i)
-        if (link->target(i).gid == gid)
-            return true;
-    return false;
-}
-
-

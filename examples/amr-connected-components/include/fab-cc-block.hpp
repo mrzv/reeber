@@ -531,7 +531,7 @@ template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_original_connected_components(
         const FabComponentBlock::VertexEdgesMap& vertex_to_outgoing_edges)
 {
-    bool debug = false;
+    [[maybe_unused]] bool debug = false;
     auto vertices_ = local_.vertices();
     std::vector<AmrVertexId> vertices(std::begin(vertices_), std::end(vertices_));
     std::unordered_set<AmrVertexId> global_processed_vertices;
@@ -783,11 +783,12 @@ int FabComponentBlock<Real, D>::are_all_components_done() const
     return 1;
 }
 
+//TODO: fix
 template<class Real, unsigned D>
 bool FabComponentBlock<Real, D>::check_symmetry(int other_gid,
                                                 const std::vector<FabComponentBlock::Component>& received_components)
 {
-    bool debug = false;
+//    bool debug = false;
     // check that all edges (outer_vertex -> my_vertex) have corresponding (my_vertex->outer_vertex) edge
 //    for(const Component& rc : received_components)
 //    {

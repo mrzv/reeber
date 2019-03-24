@@ -48,22 +48,7 @@ namespace reeber {
         // Topology interface
         using Vertex = reeber::AmrVertexId;
 
-        MaskedBox() :
-                core_from_(),
-                core_to_(),
-                bounds_from_(),
-                bounds_to_(),
-                core_shape_(),
-                bounds_shape_(),
-                mask_shape_(),
-                ghost_adjustment_(),
-                mask_(),
-                local_box_(nullptr, Position::zero()),
-                refinement_(0),
-                level_(0),
-                gid_(-1)
-        {}
-
+        MaskedBox() {}
 
         /*
          MaskedBox(const Position& core_from,
@@ -92,7 +77,6 @@ namespace reeber {
             diy::for_each(mask_.shape(), [this](const Position& p) { this->set_mask(p, this->UNINIT); });
         }
          */
-
 
         MaskedBox(const NewDynamicPoint& core_from,
                   const NewDynamicPoint& core_to,
@@ -540,7 +524,7 @@ namespace reeber {
         // data
         const Position core_from_, core_to_;
         const Position bounds_from_, bounds_to_;
-        diy::GridRef<void*, D> local_box_;
+        diy::GridRef<void*, D> local_box_ { nullptr, Position::zero() };
         const Position mask_from_, mask_to_;
         const Position core_shape_;
         const Position bounds_shape_;
@@ -548,9 +532,9 @@ namespace reeber {
         const Position ghost_adjustment_;
         const Position mask_adjustment_;
         MaskType mask_;
-        const int refinement_;
-        const int level_;
-        const int gid_;
+        const int refinement_ { 0 };
+        const int level_ { -1 };
+        const int gid_ { -1 };
 
     };
 

@@ -122,7 +122,7 @@ template<class Real, unsigned D>
 void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = true;
+    bool debug = false;
 
     if (debug) fmt::print("Called receive_simple for block = {}\n", b->gid);
 

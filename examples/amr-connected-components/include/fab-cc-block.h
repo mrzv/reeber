@@ -93,7 +93,7 @@ struct FabComponentBlock {
 
     VertexVertexMap vertex_to_deepest_;
 
-    diy::DiscreteBounds domain_;
+    diy::DiscreteBounds domain_ { D };
 
     int done_{0};
 

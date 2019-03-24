@@ -24,6 +24,7 @@
 
 #include "../../amr-merge-tree/include/read-npy.h"
 
+#include "amr-plot-reader.h"
 #include "amr-connected-components-complex.h"
 
 
@@ -228,7 +229,7 @@ int main(int argc, char** argv)
                        &Block::load);
     diy::ContiguousAssigner assigner(world.size(), nblocks);
     diy::MemoryBuffer header;
-    diy::DiscreteBounds domain;
+    diy::DiscreteBounds domain(DIM);
 
     dlog::add_stream(std::cerr, dlog::severity(log_level))
             << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level()
@@ -242,7 +243,16 @@ int main(int argc, char** argv)
     dlog::flush();
     world.barrier();
 
-    read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
+    bool read_plotfile = true;
+
+    if (read_plotfile)
+    {
+        std::string var_name = "density";
+        read_amr_plotfile(input_filename, var_name, world, nblocks, master_reader, header, domain);
+    } else
+    {
+        read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
+    }
 
     world.barrier();
 
