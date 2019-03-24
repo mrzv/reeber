@@ -221,6 +221,7 @@ void catch_sig(int signum)
 
 int main(int argc, char** argv)
 {
+    bool debug = false;
     signal(SIGSEGV, catch_sig);
     signal(SIGABRT, catch_sig);
 
@@ -303,7 +304,7 @@ int main(int argc, char** argv)
                        &Block::load);
     diy::ContiguousAssigner assigner(world.size(), nblocks);
     diy::MemoryBuffer header;
-    diy::DiscreteBounds domain;
+    diy::DiscreteBounds domain(DIM);
 
     dlog::add_stream(std::cerr, dlog::severity(log_level))
             << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level()
@@ -363,15 +364,19 @@ int main(int argc, char** argv)
     Real mean = std::numeric_limits<Real>::min();
 
 
-    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+    master.foreach([debug](Block* b, const diy::Master::ProxyWithLink& cp) {
         auto* l = static_cast<diy::AMRLink*>(cp.link());
-        std::cout << b->local_;
-        fmt::print("master, FabTmtBlocks: gid = {}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, sum_  = {}, n_active = {}\n",
-                   cp.gid(), l->level(), b->fab_.shape(),
-                   l->core().min, l->core().max,
-                   l->bounds().min, l->bounds().max,
-                   b->sum_,
-                   b->n_active_);
+        if (debug)
+        {
+            fmt::print(
+                    "master, FabTmtBlocks: gid = {}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, sum_  = {}, n_active = {}, local = {}\n",
+                    cp.gid(), l->level(), b->fab_.shape(),
+                    l->core().min, l->core().max,
+                    l->bounds().min, l->bounds().max,
+                    b->sum_,
+                    b->n_active_,
+                    b->local_);
+        }
     });
 
     world.barrier();
@@ -389,11 +394,11 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
 
-        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([debug](Block* b, const diy::Master::ProxyWithLink& cp) {
             cp.collectives()->clear();
             cp.all_reduce(b->sum_, std::plus<Real>());
             cp.all_reduce(static_cast<Real>(b->n_unmasked_) * b->scaling_factor(), std::plus<Real>());
-            fmt::print("BEFORE EXCHANgE gid = {}, sum = {}, n_unmasked = {}\n", b->gid, b->sum_, b->n_unmasked_);
+            if (debug) fmt::print("BEFORE EXCHANgE gid = {}, sum = {}, n_unmasked = {}\n", b->gid, b->sum_, b->n_unmasked_);
         });
 
         master.exchange();

@@ -4,9 +4,12 @@
 
 #include <diy/link.hpp>
 #include <reeber/box.h>
+#include <reeber/amr_helper.h>
 #include "fab-cc-block.h"
-#include "amr-merge-tree-helper.h"
+
 using AMRLink = diy::AMRLink;
+using AmrVertexId = reeber::AmrVertexId;
+using AmrEdgeContainer = reeber::AmrEdgeContainer;
 
 template<class R, unsigned D>
 void send_edges_to_neighbors_cc(FabComponentBlock<R, D>* b, const diy::Master::ProxyWithLink& cp)

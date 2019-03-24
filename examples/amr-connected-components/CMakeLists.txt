@@ -28,10 +28,24 @@ include_directories(${DIY_PATH}/include)
 find_package(Threads)
 set(libraries ${libraries} ${CMAKE_THREAD_LIBS_INIT})
 
+# AMR
+set(AMREX_HOME "/home/narn/code/berkeley-2018/amrex")
+find_package(AMReX 18 REQUIRED HINTS /home/narn/berkeley-2018/amrex_install_dir_14/)
+#
+#
+set (libraries ${libraries}
+        ${CMAKE_THREAD_LIBS_INIT}
+        AMReX::amrex
+        gfortran
+        )
+
 # include files
 file(GLOB AMT_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp)
 file(GLOB REEBER_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/../../include/reeber/*.h ${CMAKE_CURRENT_SOURCE_DIR}/../../include/reeber/*.hpp)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
+                    ${CMAKE_CURRENT_SOURCE_DIR}/../amr-merge-tree/include
+                    ${AMREX_HOME}/Src/Base
+                    ${AMREX_HOME}/Src/Extern/amrdata)
 
 
 # src files
@@ -39,6 +53,7 @@ foreach(real   float double)
 
 add_executable(amr_connected_components_${real}
         ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-connected-components.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../amr-merge-tree/src/amr-plot-reader.cpp
         ${AMT_HEADERS}
         ${REEBER_HEADERS})
 set_target_properties(amr_connected_components_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")

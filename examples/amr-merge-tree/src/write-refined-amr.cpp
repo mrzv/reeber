@@ -75,7 +75,7 @@ int main(int argc, char** argv)
         change_to_c_order<Real, 3>(b);
     });
 
-    diy::DiscreteBounds domain;
+    diy::DiscreteBounds domain(3);
     diy::load(header, domain);
     fmt::print("Domain: {} - {}\n", domain.min, domain.max);
 

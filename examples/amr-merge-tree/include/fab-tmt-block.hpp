@@ -18,7 +18,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     int debug_gid = local_.gid();
 
     bool debug = false;
-    debug = (gid == 63) and (v_mask[0] == 2 and v_mask[1] == 2 and v_mask[2] == 65);
+//    debug = (gid == 63) and (v_mask[0] == 2 and v_mask[1] == 2 and v_mask[2] == 65);
 
     bool is_ghost = local_.is_outer(v_mask);
 
@@ -168,7 +168,7 @@ void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
 {
-    bool debug = true;
+    bool debug = false;
     std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
 
     diy::for_each(local_.bounds_shape(), [this, absolute_rho](const Vertex& v_bounds) {
@@ -356,7 +356,7 @@ template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMap& vertex_to_outgoing_edges)
 {
     bool debug = false;
-    fmt::print("Enter compute_outgoing_edges, gid = {}\n", gid);
+    if (debug) fmt::print("Enter compute_outgoing_edges, gid = {}\n", gid);
 
     auto receivers = link_unique(l, gid);
     if (debug) fmt::print("In compute_outgoing_edges for block = {}, link size = {}, unique = {}, link = {}\n", gid, l->size(), receivers.size(), container_to_string(receivers));
@@ -383,8 +383,7 @@ void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMa
             for (const AmrEdge& e : out_edges)
             {
                 assert(std::get<0>(e).gid == gid);
-                if (debug)
-                    fmt::print("in compute_outgoing_edges, adding {} to gid_to_outoging_edges\n", e);
+                if (debug) fmt::print("in compute_outgoing_edges, adding {} to gid_to_outoging_edges\n", e);
                 gid_to_outgoing_edges_[std::get<1>(e).gid].push_back(e);
             }
         }
@@ -829,7 +828,7 @@ int FabTmtBlock<Real, D>::is_done_simple(const std::vector<FabTmtBlock::AmrVerte
     // do not start in any component of our original local tree
 
 //        bool debug = (gid == 0);
-    bool debug = true;
+    bool debug = false;
 
     if (debug)
         fmt::print("is_done_simple, gid = {}, #vertices = {}, round = {}\n", gid, vertices_to_check.size(), round_);
