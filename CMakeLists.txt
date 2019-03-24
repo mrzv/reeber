@@ -62,8 +62,7 @@ if                          (counters)
 endif                       (counters)
 
 # DIY
-#set(DIY_INCLUDE_DIR "/home/narn/code/berkeley-2018/diy/include")
-set(DIY_INCLUDE_DIR "/home/narn/code/diy_versions/diy-new/include")
+set(DIY_INCLUDE_DIR "/global/homes/g/greynarn/code/diy-new/diy/include")
 find_path                   (DIY_INCLUDE_DIR        diy/master.hpp)
 
 # BOXLIB
