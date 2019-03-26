@@ -172,7 +172,7 @@ void read_amr_plotfile(std::string infile,
                        diy::MemoryBuffer& header,
                        diy::DiscreteBounds& domain_diy)
 {
-    bool debug = false;
+    bool debug = true;
 
     amrex::Initialize(world);
 
@@ -180,8 +180,9 @@ void read_amr_plotfile(std::string infile,
 
     DataServices::SetBatchMode();
     Amrvis::FileType fileType(Amrvis::NEWPLT);
-    DataServices* pdataServices =  new DataServices(infile, fileType);
-    DataServices& dataServices =  *pdataServices;
+    DataServices dataServices(infile, fileType);
+//    DataServices* pdataServices =  new DataServices(infile, fileType);
+//    DataServices& dataServices =  *pdataServices;
     if (!dataServices.AmrDataOk())
     {
         DataServices::Dispatch(DataServices::ExitRequest, NULL);
@@ -192,8 +193,9 @@ void read_amr_plotfile(std::string infile,
     varNames.push_back(varName);
 
     // Make a data struct for just the variables needed
-    AMReXDataHierarchy* pdata = new AMReXDataHierarchy(amrData, varNames);
-    AMReXDataHierarchy& data = *pdata;
+    AMReXDataHierarchy data(amrData, varNames);
+//    AMReXDataHierarchy* pdata = new AMReXDataHierarchy(amrData, varNames);
+//    AMReXDataHierarchy& data = *pdata;
     const AMReXMeshHierarchy& mesh = data.Mesh();
 
     // TODO: fix wrap
@@ -285,17 +287,24 @@ void read_amr_plotfile(std::string infile,
             // TODO: c_order!
             Real* fab_ptr = const_cast<Real*>(myFab.dataPtr(componentIndex));
 
-            int fab_size = shape[0] * shape[1] * shape[2];
+
+            long long int fab_size = shape[0] * shape[1] * shape[2];
+
+            Real* fab_ptr_copy = new Real[fab_size];
+            memcpy(fab_ptr_copy, fab_ptr, sizeof(Real) * fab_size);
+
             Real total_sum = 0;
+            Real total_sum_1 = 0;
             for(int i = 0 ; i < fab_size; ++i)
             {
 //                if (gid == 0) { fmt::print("rank = {}, gid = {}, value = {}, i  = {}, size = {}\n", world.rank(), gid, fab_ptr[i], i, sizeof(fab_ptr[i])); }
                 total_sum += fab_ptr[i];
+                total_sum_1 += fab_ptr_copy[i];
             }
-            if (debug) { fmt::print("rank = {}, gid = {}, fab_ptr = {}, sum = {}, fabs_size = {}\n", world.rank(), gid, (void*)fab_ptr, total_sum, fab_size); }
+            if (debug) { fmt::print("rank = {}, gid = {}, fab_ptr = {}, sum = {}, sum_copy = {}, fabs_size = {}\n", world.rank(), gid, (void*)fab_ptr, total_sum, total_sum_1, fab_size); }
 
-//            Real* fab_ptr = myFab.dataPtr(componentIndex);
-            master_reader.add(gid, new Block(fab_ptr, shape), link);
+//            master_reader.add(gid, new Block(fab_ptr, shape), link);
+            master_reader.add(gid, new Block(fab_ptr_copy, shape), link);
 
             if (debug)
             {
