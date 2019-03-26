@@ -85,6 +85,7 @@ struct FabComponentBlock {
     // Pointer to grid data is saved in fab_ and after all blocks exchange their local averages
     // we resume initialization
     Real sum_{0};
+    size_t n_active_ {0};
     size_t n_unmasked_{0};
     std::unordered_map<AmrVertexId, Real> vertex_values_;
 
