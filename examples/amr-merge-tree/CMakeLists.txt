@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.2)
 project(amr_merge_tree)
 
+enable_language(Fortran)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_definitions(-std=c++14)
@@ -30,8 +32,21 @@ set(libraries ${libraries} ${CMAKE_THREAD_LIBS_INIT})
 
 
 # AMR
-set(AMREX_HOME "/home/narn/code/berkeley-2018/amrex")
-find_package(AMReX 18 REQUIRED HINTS /home/narn/berkeley-2018/amrex_install_dir_14/)
+if (DEFINED ENV{NERSC_HOST})
+    set(AMREX_HOME "/global/homes/g/greynarn/code/amrex")
+    message(STATUS "Looking for AMR on NERSC")
+    if ("$ENV{NERSC_HOST}" STREQUAL "edison")
+        message(STATUS "Linking with Edison version of AMReX")
+        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_edison_gnu")
+    else()
+        message(STATUS "Linking with Cori (non-Edison) version of AMReX")
+        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_cori_knl_gnu")
+    endif()
+else()
+    set(AMREX_HOME "/home/narn/code/berkeley-2018/amrex")
+    find_package(AMReX 18 REQUIRED HINTS "/home/narn/code/berkeley-2018/amrex/install_dir_14")
+    message(STATUS "Looking for AMR on Arnur's computer")
+endif()
 #
 #
 set (libraries ${libraries}
@@ -60,34 +75,25 @@ foreach(real   float double)
 add_executable(amr_merge_tree_simple_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-merge-tree.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-plot-reader.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
 set_target_properties(amr_merge_tree_simple_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")
 
-#add_executable(amr_merge_tree_send_components_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-merge-tree.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
-#set_target_properties(amr_merge_tree_send_components_${real} PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real};AMR_MT_SEND_COMPONENTS")
-
 add_executable(amr_merge_tree_test_${real} ${CMAKE_CURRENT_SOURCE_DIR}/tests/tests_main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_amr_merge_tree.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
 set_target_properties(amr_merge_tree_test_${real} PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")
 
 add_executable(write_refined_amr_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/write-refined-amr.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
 set_target_properties(write_refined_amr_${real}  PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")
 
-#add_executable(my_tests ${CMAKE_CURRENT_SOURCE_DIR}/src/tests.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
 
 target_link_libraries(amr_merge_tree_simple_${real} PUBLIC ${libraries})
-#target_link_libraries(amr_merge_tree_send_components_${real} PUBLIC ${libraries})
 target_link_libraries(amr_merge_tree_test_${real} PUBLIC ${libraries})
 target_link_libraries(write_refined_amr_${real} PUBLIC ${libraries})
 
 if (MPI_COMPILE_FLAGS)
     set_target_properties(amr_merge_tree_simple_${real} PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
-#    set_target_properties(amr_merge_tree_send_components_${real} PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
     set_target_properties(write_refined_amr_${real} PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
-#    set_target_properties(my_tests PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
 endif ()
 
 if (MPI_LINK_FLAGS)
     set_target_properties(amr_merge_tree_simple_${real} PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
-#    set_target_properties(amr_merge_tree_send_components_${real} PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
     set_target_properties(write_refined_amr_${real} PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
-#    set_target_properties(my_tests PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
 endif ()
 
 add_definitions(-std=c++14)

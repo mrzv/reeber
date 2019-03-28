@@ -172,22 +172,29 @@ void read_amr_plotfile(std::string infile,
                        diy::MemoryBuffer& header,
                        diy::DiscreteBounds& domain_diy)
 {
-    bool debug = true;
 
     amrex::Initialize(world);
+
+    bool debug = world.rank() == 45;
 
     // Create the AmrData object from a pltfile on disk
 
     DataServices::SetBatchMode();
     Amrvis::FileType fileType(Amrvis::NEWPLT);
     DataServices dataServices(infile, fileType);
+    if (debug) { fmt::print("dataaServices created\n"); }
+
+
 //    DataServices* pdataServices =  new DataServices(infile, fileType);
 //    DataServices& dataServices =  *pdataServices;
+//
     if (!dataServices.AmrDataOk())
     {
         DataServices::Dispatch(DataServices::ExitRequest, NULL);
     }
     AmrData& amrData = dataServices.AmrDataRef();
+
+    if (debug) { fmt::print("got amrData created\n"); }
 
     amrex::Vector<string> varNames;
     varNames.push_back(varName);
@@ -197,6 +204,8 @@ void read_amr_plotfile(std::string infile,
 //    AMReXDataHierarchy* pdata = new AMReXDataHierarchy(amrData, varNames);
 //    AMReXDataHierarchy& data = *pdata;
     const AMReXMeshHierarchy& mesh = data.Mesh();
+
+    if (debug) { fmt::print("got mesh created\n"); }
 
     // TODO: fix wrap
     int periodic = 0;
@@ -396,19 +405,20 @@ void read_amr_plotfile(std::string infile,
     // fill dynamic assigner and fix links
     diy::DynamicAssigner assigner(master_reader.communicator(), master_reader.communicator().size(), nblocks);
     diy::fix_links(master_reader, assigner);
+    if (debug) { fmt::print("{}: finished fixing links\n", world.rank()); }
 
     master_reader.foreach([debug](Block* b, const diy::Master::ProxyWithLink& cp) {
         auto* l = static_cast<diy::AMRLink*>(cp.link());
 
         auto receivers = link_unique(l, cp.gid());
 
-        if (debug)
-        {
-            fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n",
-                    cp.gid(), l->level(), b->fab.shape(),
-                    l->core().min, l->core().max,
-                    l->bounds().min, l->bounds().max,
-                    container_to_string(receivers));
-        }
+        //if (debug)
+        //{
+        //    fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n",
+        //            cp.gid(), l->level(), b->fab.shape(),
+        //            l->core().min, l->core().max,
+        //            l->bounds().min, l->bounds().max,
+        //            container_to_string(receivers));
+        //}
     });
 }
