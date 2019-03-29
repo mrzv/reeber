@@ -44,10 +44,26 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
     if (debug)
     {
-        fmt::print("gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n", debug_gid, v_mask,
-                   v_idx,
-                   value, is_ghost, is_on_boundary, is_in_core);
+        if (n_debug_printed_core_ < 10 and not is_on_boundary and is_in_core)
+        {
+            n_debug_printed_core_ ++;
+            fmt::print(
+                    "gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n",
+                    debug_gid, v_mask,
+                    v_idx,
+                    value, is_ghost, is_on_boundary, is_in_core);
+        }
+        if (n_debug_printed_bdry_ < 10 and is_on_boundary)
+        {
+            n_debug_printed_bdry_ ++;
+            fmt::print(
+                    "gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n",
+                    debug_gid, v_mask,
+                    v_idx,
+                    value, is_ghost, is_on_boundary, is_in_core);
+        }
     }
+    debug = false;
 
 
     // initialization, actual mask to be set later
@@ -65,11 +81,11 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
     Position v_glob = wrap_point(v_mask + local_.mask_from(), domain_, v_ref, true);
 
-    if (debug)
-    {
-        fmt::print("in set_mask, gid = {}, unwrapped v_glob = {}, wrapped = {}, v_idx = {}, domain = [{} - {}], local = {}\n", local_.gid(),
-                   v_mask + local_.mask_from(), v_glob, v_idx, domain_.min, domain_.max, local_);
-    }
+//    if (debug)
+//    {
+//        fmt::print("in set_mask, gid = {}, unwrapped v_glob = {}, wrapped = {}, v_idx = {}, domain = [{} - {}], local = {}\n", local_.gid(),
+//                   v_mask + local_.mask_from(), v_glob, v_idx, domain_.min, domain_.max, local_);
+//    }
 
 
     bool mask_set { false };
@@ -183,7 +199,7 @@ void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
 {
-    bool debug = true;
+    bool debug = gid == 0 or gid == 1;
     std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
 
     diy::for_each(local_.bounds_shape(), [this, absolute_rho](const Vertex& v_bounds) {
@@ -426,7 +442,7 @@ void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMa
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdgeContainer& edges_from_sender)
 {
-    bool debug = true;
+    bool debug = gid == 0 or gid == 1;
 
     auto iter = gid_to_outgoing_edges_.find(sender_gid);
     if (iter == gid_to_outgoing_edges_.end())
@@ -442,7 +458,7 @@ void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdge
     std::transform(edges_from_sender.begin(), edges_from_sender.end(), edges_from_sender.begin(),
                    &reeber::reverse_amr_edge);
 
-    if (debug) fmt::print("in FabTmtBlock::delete_low_edges, transform OK, n_edges_from_sender = {}\n", edges_from_sender.size());
+//    if (debug) fmt::print("in FabTmtBlock::delete_low_edges, transform OK, n_edges_from_sender = {}\n", edges_from_sender.size());
 
     // put edges into set to find the set difference
     std::set<AmrEdge> my_edges { iter->second.begin(), iter->second.end() };
@@ -452,7 +468,7 @@ void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdge
 
     iter->second.clear();
 
-    if (debug) fmt::print("In delete_low_edges in block with gid = {}, sender = {}, clear OK, my_edges.size = {}, neighbor_edges.size = {}\n", gid, sender_gid, my_edges.size(), neighbor_edges.size());
+//    if (debug) fmt::print("In delete_low_edges in block with gid = {}, sender = {}, clear OK, my_edges.size = {}, neighbor_edges.size = {}\n", gid, sender_gid, my_edges.size(), neighbor_edges.size());
 
     //if (debug)
     //{
@@ -474,8 +490,8 @@ void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdge
     if (iter->second.empty())
         gid_to_outgoing_edges_.erase(iter);
     if (debug)
-        fmt::print("in Block::delete_low_edges, erase OK, old_n_edges = {}, new_n_edges = {}\n", old_n_edges,
-                   new_n_edges);
+        fmt::print("in Block::delete_low_edges, gid = {}, sender_gid = {}, erase OK, old_n_edges = {}, new_n_edges = {}\n",
+                gid, sender_gid, old_n_edges, new_n_edges);
 }
 
 template<class Real, unsigned D>

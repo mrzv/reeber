@@ -64,9 +64,8 @@ template<class Real, unsigned D>
 void amr_tmt_send(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
 
-    //bool debug = (b->gid == 0);
+    bool debug = (b->gid == 0);
 //    bool debug = false;
-    bool debug = true;
     if (debug) fmt::print("Called send_simple for block = {}\n", b->gid);
 
     auto* l = static_cast<AMRLink*>(cp.link());
@@ -74,8 +73,7 @@ void amr_tmt_send(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 
     auto receivers = link_unique(l, b->gid);
 
-    if (debug)
-        fmt::print("In send_simple for block = {}, link size = {}, unique = {}\n", b->gid, l->size(), receivers.size());
+//    if (debug) fmt::print("In send_simple for block = {}, link size = {}, unique = {}\n", b->gid, l->size(), receivers.size());
 
 
     for (const diy::BlockID& receiver : receivers)
@@ -96,7 +94,7 @@ void amr_tmt_send(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
                        and b->done_ == 0);
 
 
-        if (debug) fmt::print("In send_simple for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid, n_trees);
+//        if (debug) fmt::print("In send_simple for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid, n_trees);
 
         cp.enqueue(receiver, n_trees);
 
@@ -125,8 +123,7 @@ void amr_tmt_send(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 template<class Real, unsigned D>
 void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-//    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = true; //b->gid % 1000 == 0;
+    bool debug = (b->gid == 1);
 
     if (debug) fmt::print("Called receive_simple for block = {}\n", b->gid);
 
@@ -173,7 +170,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
         cp.dequeue(sender, n_trees);
 
-        if (debug) fmt::print("In receive_simple for block = {}, dequeued from sender {} n_trees = {} \n", b->gid, sender.gid, n_trees);
+//        if (debug) fmt::print("In receive_simple for block = {}, dequeued from sender {} n_trees = {} \n", b->gid, sender.gid, n_trees);
 
         if (n_trees > 0)
         {
@@ -189,7 +186,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
             cp.dequeue(sender, received_deepest_vertices.back());
             cp.dequeue(sender, received_edges.back());
 
-            if (debug) fmt::print( "In receive_simple for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
+//            if (debug) fmt::print( "In receive_simple for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
 
 
         }
@@ -266,7 +263,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
     r::repair(b->current_merge_tree_);
 
-    if (debug) fmt::print("In receive_simple for block = {}, processed_receiveres_ OK\n", b->gid);
+//    if (debug) fmt::print("In receive_simple for block = {}, processed_receiveres_ OK\n", b->gid);
 
     // update disjoint sets data structure (some components are now connected to each other)
     for (size_t i = 0; i < received_trees.size(); ++i)

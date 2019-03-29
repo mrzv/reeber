@@ -179,6 +179,8 @@ struct FabTmtBlock
     diy::DiscreteBounds domain_ { D };
 
     int done_ { 0 };
+    int n_debug_printed_bdry_ { 0 };
+    int n_debug_printed_core_ { 0 };
 
     //    // will be changed in each communication round
     //    // only for baseiline algorithm
@@ -252,7 +254,7 @@ struct FabTmtBlock
             processed_receivers_({ gid }),
             negate_(_negate)
     {
-        bool debug = true;
+        bool debug = gid == 0;
 
         std::string debug_prefix = "FabTmtBlock ctor, gid = " + std::to_string(gid);
 
