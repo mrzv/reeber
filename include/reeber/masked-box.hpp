@@ -13,6 +13,24 @@ bool reeber::MaskedBox<D>::core_contains_global(const Position& p) const
 }
 
 template<unsigned D>
+bool reeber::MaskedBox<D>::is_on_boundary(const Position& p_global) const
+{
+    bool result = false;
+    for (unsigned i = 0; i < D; ++i)
+    {
+        if (p_global[i] > bounds_to_[i] || p_global[i] < bounds_from_[i])
+        {
+            return false;
+        }
+        if (p_global[i] == bounds_to_[i] or p_global[i] == bounds_from_[i])
+        {
+            result = true;
+        }
+    }
+    return result;
+}
+
+template<unsigned D>
 bool reeber::MaskedBox<D>::bounds_contains_global(const Position& p) const
 {
     for (unsigned i = 0; i < D; ++i)

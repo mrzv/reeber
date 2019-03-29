@@ -16,6 +16,8 @@
 #include <dlog/log.h>
 #include <opts/opts.h>
 
+#include <AMReX.H>
+
 #include "fab-block.h"
 #include "fab-tmt-block.h"
 #include "reader-interfaces.h"
@@ -260,6 +262,7 @@ int main(int argc, char** argv)
 
     bool absolute =
             ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
+    bool read_plotfile = ops >> Present("plotfile", "read AMR plotfiles");
     bool negate = ops >> opts::Present('n', "negate", "sweep superlevel sets");
     // ignored for now, wrap is always assumed
     bool wrap = ops >> opts::Present('w', "wrap", "wrap");
@@ -267,10 +270,12 @@ int main(int argc, char** argv)
     bool write_halo_diagrams = ops >> opts::Present("write-halo-diagrams", "Write diagrams of each halo");
 
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
+    std::string var_name;
 
     if (ops >> Present('h', "help", "show help message") or
-        not(ops >> PosOption(input_filename))
-        or not(ops >> PosOption(output_filename)))
+        not(ops >> PosOption(input_filename)) or
+        not(ops >> PosOption(var_name)) or
+        not(ops >> PosOption(output_filename)))
     {
         if (world.rank() == 0)
         {
@@ -295,8 +300,6 @@ int main(int argc, char** argv)
             throw std::runtime_error("Bad integral threshold");
     }
 
-    bool read_plotfile = true;
-
     diy::FileStorage storage(prefix);
 
     diy::Master master_reader(world, 1, in_memory, &FabBlockR::create, &FabBlockR::destroy);
@@ -314,13 +317,12 @@ int main(int argc, char** argv)
     dlog::Timer timer;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
                                                                                      << nblocks
-                                                                                     << ", rho = " << rho;
+                                                                                     << ", rho = " << rho << ", reading component: " << var_name;
     dlog::flush();
     world.barrier();
 
     if (read_plotfile)
     {
-        std::string var_name = "density";
         read_amr_plotfile(input_filename, var_name, world, nblocks, master_reader, header, domain);
     } else
     {
@@ -432,6 +434,7 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
     }
+
 
     int global_n_undone = 1;
 
@@ -739,7 +742,7 @@ int main(int argc, char** argv)
 
     if (read_plotfile)
     {
-//        amrex::Finalize();
+        amrex::Finalize();
     }
 
     return 0;

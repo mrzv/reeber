@@ -172,10 +172,11 @@ void read_amr_plotfile(std::string infile,
                        diy::MemoryBuffer& header,
                        diy::DiscreteBounds& domain_diy)
 {
+    static_assert(sizeof(amrex_real) == sizeof(Real));
 
     amrex::Initialize(world);
 
-    bool debug = world.rank() == 45;
+    bool debug = true; //world.rank() == 0;
 
     // Create the AmrData object from a pltfile on disk
 
@@ -277,6 +278,7 @@ void read_amr_plotfile(std::string infile,
         {
             const FArrayBox& myFab = mf[mfi];
 
+
             const Box& box = mfi.tilebox();
             Block::Shape shape;
             for(size_t i = 0; i < DIY_DIM; ++i)
@@ -289,12 +291,21 @@ void read_amr_plotfile(std::string infile,
 
             int gid = gid_offsets[lev] + mfi.index();
 
+            fmt::print("amr-plot-reader: gid = {}; smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), shape = ({}, {}, {})\n", gid,
+                    box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
+                    box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2],
+                    shape[0], shape[1], shape[2]);
+
+            fmt::print("amr-plot-reader: gid = {}, myFab.contains_inf() = {}, contains_nan = {}, size of Real = {}\n", gid, myFab.contains_inf(), myFab.contains_nan(),
+                    sizeof(Real), sizeof(Block::Grid::Value));
+
             std::vector<std::pair<int, Box>> isects;
 
             diy::AMRLink* link = new diy::AMRLink(3, lev, refinements[lev], bounds(box), bounds(abox));
             // init fab
             // TODO: c_order!
-            Real* fab_ptr = const_cast<Real*>(myFab.dataPtr(componentIndex));
+//            Real* fab_ptr = const_cast<Real*>(myFab.dataPtr(componentIndex));
+            const Real* const fab_ptr = myFab.dataPtr(componentIndex);
 
 
             long long int fab_size = shape[0] * shape[1] * shape[2];
@@ -306,24 +317,24 @@ void read_amr_plotfile(std::string infile,
             Real total_sum_1 = 0;
             for(int i = 0 ; i < fab_size; ++i)
             {
-//                if (gid == 0) { fmt::print("rank = {}, gid = {}, value = {}, i  = {}, size = {}\n", world.rank(), gid, fab_ptr[i], i, sizeof(fab_ptr[i])); }
+//                if (debug and (i % 5000 == 0 or i < 64 * 64 + 10)) { fmt::print("rank = {}, gid = {}, value = {}, i  = {}, size = {}\n", world.rank(), gid, fab_ptr[i], i, sizeof(fab_ptr[i])); }
                 total_sum += fab_ptr[i];
                 total_sum_1 += fab_ptr_copy[i];
             }
-            if (debug) { fmt::print("rank = {}, gid = {}, fab_ptr = {}, sum = {}, sum_copy = {}, fabs_size = {}\n", world.rank(), gid, (void*)fab_ptr, total_sum, total_sum_1, fab_size); }
+            if (debug) { fmt::print("rank = {}, gid = {}, fab_ptr = {}, fab_ptr_copy = {}, sum = {}, sum_copy = {}, fabs_size = {}\n", world.rank(), gid, (void*)fab_ptr, (void*)fab_ptr_copy, total_sum, total_sum_1, fab_size); }
 
 //            master_reader.add(gid, new Block(fab_ptr, shape), link);
             master_reader.add(gid, new Block(fab_ptr_copy, shape), link);
 
-            if (debug)
-            {
-                fmt::print("rank = {}, ADDED\n", world.rank());
-                fmt::print(
-                        "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n",
-                        world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
-                        box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index());
-            }
-
+//            if (debug)
+//            {
+//                fmt::print("rank = {}, ADDED\n", world.rank());
+//                fmt::print(
+//                        "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n",
+//                        world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
+//                        box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index());
+//            }
+//
 
             // record wrap
             for(int dir_x : {-1, 0, 1})
@@ -367,7 +378,7 @@ void read_amr_plotfile(std::string infile,
                 const std::vector<IntVect>& pshifts = periodicity.shiftIntVect();
 
                 // TODO: here we always assume ghosts, get this information somehow
-                int ng = 1;
+                int ng = 0;
                 const BoxArray& ba = mesh.boxArray(nbr_lev);
                 // TODO: need to divide?
                 int ratio = mesh.RefRatio().at(nbr_lev);

@@ -65,7 +65,8 @@ void amr_tmt_send(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
 
     //bool debug = (b->gid == 0);
-    bool debug = false;
+//    bool debug = false;
+    bool debug = true;
     if (debug) fmt::print("Called send_simple for block = {}\n", b->gid);
 
     auto* l = static_cast<AMRLink*>(cp.link());
@@ -95,7 +96,7 @@ void amr_tmt_send(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
                        and b->done_ == 0);
 
 
-        //if (debug) fmt::print("In send_simple for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid, n_trees);
+        if (debug) fmt::print("In send_simple for block = {}, sending to {}, n_trees = {}\n", b->gid, receiver_gid, n_trees);
 
         cp.enqueue(receiver, n_trees);
 
@@ -106,6 +107,9 @@ void amr_tmt_send(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
             cp.enqueue(receiver, b->original_vertex_to_deepest_);
             cp.enqueue(receiver, b->get_original_deepest_vertices());
             cp.enqueue(receiver, b->get_all_outgoing_edges());
+
+            if (debug) fmt::print("In send_simple for block = {}, sent data to {}, n_trees = {}, tree_size = {}, deepest_vertices = {}, n_edges = {}\n",
+                    b->gid, receiver_gid, n_trees, b->original_tree_.size(), b->get_original_deepest_vertices().size(), b->get_all_outgoing_edges().size());
 
             // mark receiver_gid as processed
             b->new_receivers_.erase(receiver_gid);
@@ -122,7 +126,7 @@ template<class Real, unsigned D>
 void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
 //    bool debug = (b->gid == 3) || (b->gid == 11) || (b->gid == 0) || (b->gid == 1);
-    bool debug = false;
+    bool debug = true; //b->gid % 1000 == 0;
 
     if (debug) fmt::print("Called receive_simple for block = {}\n", b->gid);
 

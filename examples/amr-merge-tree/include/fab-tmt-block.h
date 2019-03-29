@@ -252,7 +252,7 @@ struct FabTmtBlock
             processed_receivers_({ gid }),
             negate_(_negate)
     {
-        bool debug = false;
+        bool debug = true;
 
         std::string debug_prefix = "FabTmtBlock ctor, gid = " + std::to_string(gid);
 
@@ -268,7 +268,8 @@ struct FabTmtBlock
         {
             max_gid = std::max(max_gid, amr_link->target(i).gid);
         }
-        if (debug) fmt::print("gid = {}, local = {}, max_gid = {}, checking mask\n", gid, local_, max_gid);
+
+        if (debug) fmt::print("TMT constructed gid = {}, local = {}, max_gid = {}, sum = {}, fab_ = {}\n", gid, local_, max_gid, sum_, (void*)(fab_.data()));
 
         if (debug) local_.check_mask_validity(max_gid);
 

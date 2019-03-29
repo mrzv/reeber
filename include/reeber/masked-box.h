@@ -386,6 +386,8 @@ namespace reeber {
         bool core_contains_global(const Position& p_global) const;
         bool core_contains_global(const NewDynamicPoint& p_global) const { return core_contains_global(point_from_dynamic_point<D>(p_global)); }
 
+        bool is_on_boundary(const Position& p_global) const;
+        bool is_on_boundary(const Vertex& v) const { return is_on_boundary(global_position(v)); }
         /**
          *
          * @param p_global cell in global coordinates

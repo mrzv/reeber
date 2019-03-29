@@ -31,24 +31,31 @@ find_package(Threads)
 set(libraries ${libraries} ${CMAKE_THREAD_LIBS_INIT})
 
 
+
+# src files
+#file(GLOB AMT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+
+
+foreach(real   float double)
+
+
 # AMR
 if (DEFINED ENV{NERSC_HOST})
     set(AMREX_HOME "/global/homes/g/greynarn/code/amrex")
     message(STATUS "Looking for AMR on NERSC")
     if ("$ENV{NERSC_HOST}" STREQUAL "edison")
         message(STATUS "Linking with Edison version of AMReX")
-        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_edison_gnu")
+        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_edison_gnu_${real}")
     else()
         message(STATUS "Linking with Cori (non-Edison) version of AMReX")
-        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_cori_knl_gnu")
+        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_cori_knl_gnu_${real}")
     endif()
 else()
     set(AMREX_HOME "/home/narn/code/berkeley-2018/amrex")
-    find_package(AMReX 18 REQUIRED HINTS "/home/narn/code/berkeley-2018/amrex/install_dir_14")
-    message(STATUS "Looking for AMR on Arnur's computer")
+    find_package(AMReX 18 REQUIRED HINTS "/home/narn/code/berkeley-2018/amrex_install_dir_${real}")
+    message(STATUS "Looking for AMR on Arnur's computer for ${real}")
 endif()
-#
-#
+
 set (libraries ${libraries}
         ${CMAKE_THREAD_LIBS_INIT}
         AMReX::amrex
@@ -66,14 +73,13 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
         #${AMREX_HOME}/Src/AmrCore
         )
 
-# src files
-#file(GLOB AMT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
-
-
-foreach(real   float double)
-
 add_executable(amr_merge_tree_simple_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-merge-tree.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-plot-reader.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
-set_target_properties(amr_merge_tree_simple_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")
+if ("${real}" STREQUAL "float")
+    set_target_properties(amr_merge_tree_simple_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real};ENABLE_DP=OFF;BL_USE_FLOAT=1")
+else()
+    set_target_properties(amr_merge_tree_simple_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real};ENABLE_DP=ON;BL_USE_DOUBLE=1")
+endif()
+
 
 add_executable(amr_merge_tree_test_${real} ${CMAKE_CURRENT_SOURCE_DIR}/tests/tests_main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_amr_merge_tree.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
 set_target_properties(amr_merge_tree_test_${real} PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")

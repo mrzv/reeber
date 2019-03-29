@@ -28,21 +28,26 @@ include_directories(${DIY_PATH}/include)
 find_package(Threads)
 set(libraries ${libraries} ${CMAKE_THREAD_LIBS_INIT})
 
+
+
+# src files
+foreach(real   float double)
+
 # AMR
 if (DEFINED ENV{NERSC_HOST})
     set(AMREX_HOME "/global/homes/g/greynarn/code/amrex")
     message(STATUS "Looking for AMR on NERSC")
     if ("$ENV{NERSC_HOST}" STREQUAL "edison")
         message(STATUS "Linking with Edison version of AMReX")
-        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_edison_gnu")
+        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_edison_gnu_${real}")
     else()
         message(STATUS "Linking with Cori (non-Edison) version of AMReX")
-        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_cori_knl_gnu")
+        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_cori_knl_gnu_${real}")
     endif()
 else()
     set(AMREX_HOME "/home/narn/code/berkeley-2018/amrex")
-    find_package(AMReX 18 REQUIRED HINTS "/home/narn/code/berkeley-2018/amrex/install_dir_14")
-    message(STATUS "Looking for AMR on Arnur's computer")
+    find_package(AMReX 18 REQUIRED HINTS "/home/narn/code/berkeley-2018/amrex_install_dir_${real}")
+    message(STATUS "Looking for AMR on Arnur's computer for ${real}")
 endif()
 
 set (libraries ${libraries}
@@ -58,10 +63,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/../amr-merge-tree/include
                     ${AMREX_HOME}/Src/Base
                     ${AMREX_HOME}/Src/Extern/amrdata)
-
-
-# src files
-foreach(real   float double)
 
 add_executable(amr_connected_components_${real}
         ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-connected-components.cpp

@@ -142,7 +142,7 @@ size_t get_vertex_id(const diy::Point<int, D>& v, int v_refinement, int link_idx
     diy::GridRef<void*, D> grid(nullptr, to - from + Position::one(), c_order);
 
     if (debug) {
-        fmt::print("enter get_vertex_id v = {}, v_ref = {}\n", v, v_refinement);
+        fmt::print("enter get_vertex_id v = {}, v_refinement = {}, c_order = {}, from = {}, to = {}\n", v, v_refinement, c_order, from, to);
     }
 
     //assert(v_refinement >= refinement);

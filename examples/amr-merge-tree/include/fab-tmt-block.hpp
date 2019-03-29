@@ -17,15 +17,26 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
     int debug_gid = local_.gid();
 
-    bool debug = false;
+    bool debug = gid == 0;
 //    debug = (gid == 63) and (v_mask[0] == 2 and v_mask[1] == 2 and v_mask[2] == 65);
+
+    auto v_local = local_.local_position_from_mask(v_mask);
+    auto v_global = local_.global_position_from_local(v_local);
+
+    bool is_in_core = local_.core_contains_global(v_global);
+
+    bool is_on_boundary = local_.is_on_boundary(v_global);
 
     bool is_ghost = local_.is_outer(v_mask);
 
+    Real value = std::numeric_limits<Real>::infinity();
+    if (is_in_core)
+        value = fab_(v_local);
+
     bool is_low = false;
-    if (is_absolute_threshold)
+    if (is_absolute_threshold and is_in_core)
         is_low = not is_ghost and
-                 cmp(rho, fab_(v_mask));   //(negate_ ? fab_(v_mask) < rho : fab_(v_mask) > rho);
+                 cmp(rho, value);   //(negate_ ? fab_(v_mask) < rho : fab_(v_mask) > rho);
 
     r::AmrVertexId v_idx;
     // does not matter here
@@ -33,9 +44,9 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
     if (debug)
     {
-        fmt::print("gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}\n", debug_gid, v_mask,
+        fmt::print("gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n", debug_gid, v_mask,
                    v_idx,
-                   fab_(v_mask), is_ghost);
+                   value, is_ghost, is_on_boundary, is_in_core);
     }
 
 
@@ -122,14 +133,18 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
         local_.set_mask(v_mask, MaskedBox::LOW);
     }
 
+    if (is_ghost and is_in_core)
+        throw std::runtime_error("Contradiction");
+
     if (not is_absolute_threshold and not mask_set and not is_ghost)
     {
         // we need to store local sum and local number of unmasked vertices in a block
         // and use this later to mark low vertices
         n_unmasked_++;
-        sum_ += fab_(local_.local_position_from_mask(v_mask));
-//        if (gid == 0)
-//        fmt::print("FAB INFO gid = {}, sum = {}, v_mask = {}, f(v) = {}, index(v) = {} ,stride = {}, shape = {}, data = {}, size = {}\n", gid,  sum_, v_mask, fab_(v_mask), fab_.index(v_mask), fab_.stride_, fab_.shape(), (void*)fab_.data(), sizeof(fab_.data()[fab_.index(v_mask)]));
+        auto v_local = local_.local_position_from_mask(v_mask);
+        sum_ += fab_(v_local);
+        if (debug) fmt::print("FAB INFO gid = {}, sum = {}, v_mask = {}, v_local = {}, f(v) = {}, index(v) = {} ,stride = {}, shape = {}, data = {}, size = {}\n",
+                gid,  sum_, v_mask, v_local, fab_(v_local), fab_.index(v_local), fab_.stride_, fab_.shape(), (void*)fab_.data(), sizeof(fab_.data()[fab_.index(v_local)]));
     }
 
 
@@ -168,7 +183,7 @@ void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
 {
-    bool debug = false;
+    bool debug = true;
     std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
 
     diy::for_each(local_.bounds_shape(), [this, absolute_rho](const Vertex& v_bounds) {
@@ -213,20 +228,20 @@ void FabTmtBlock<Real, D>::sparsify_prune_original_tree()
     {
         special.insert(std::get<0>(out_edge));
     }
-    r::remove_degree_two(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
+//    r::remove_degree_two(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
     r::sparsify(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
 }
 
 template<unsigned D>
 r::AmrEdgeContainer
 get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& local, diy::AMRLink *l,
-                 const diy::DiscreteBounds& domain)
+                 const diy::DiscreteBounds& domain, bool debug = false)
 {
     using Position = diy::Point<int, D>;
 
     r::AmrVertexId v_glob_idx = local.get_vertex_from_global_position(v_glob);
 
-    bool debug = false;
+//    bool debug = v_glob_idx == r::AmrVertexId(0, 64) or v_glob_idx == r::AmrVertexId(1, 4486);
 
     if (debug)
     { fmt::print("get_vertex_edges called for {}, vertex {}, box = {}\n", v_glob, v_glob_idx, local); }
@@ -239,13 +254,14 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
         Position neighb_v_bounds = neighb_v_glob - local.bounds_from();
 
 
-        if (debug)
-        {
-            fmt::print("In get_vertex_edges, v_glob = {}, gid = {}, neighb_v_bounds = {}, neighb_v_glob = {}\n", v_glob,
-                       local.gid(), neighb_v_bounds, neighb_v_glob);
-        }
 
         Position wrapped_neighb_vert_glob = wrap_point(neighb_v_glob, domain, local.refinement());
+
+        if (debug)
+        {
+            fmt::print("In get_vertex_edges, v_glob = {}, gid = {}, neighb_v_bounds = {}, neighb_v_glob = {}, wrapped_neighb_vert_glob = {}\n", v_glob,
+                       local.gid(), neighb_v_bounds, neighb_v_glob, wrapped_neighb_vert_glob);
+        }
 
         Position neighb_v_mask = local.mask_position_from_local(neighb_v_bounds);
         int masking_gid = local.mask(neighb_v_mask);
@@ -295,7 +311,7 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
 
             if (debug)
             {
-                fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, Added edge to idx = {}\n", v_glob, local.gid(),
+                fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, Added edge to idx = {}\n", v_glob, masking_gid,
                            neighb_vertex_idx);
             }
 
@@ -355,18 +371,21 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMap& vertex_to_outgoing_edges)
 {
-    bool debug = false;
+    bool debug = false; //gid == 0 or gid == 1;
     if (debug) fmt::print("Enter compute_outgoing_edges, gid = {}\n", gid);
 
     auto receivers = link_unique(l, gid);
-    if (debug) fmt::print("In compute_outgoing_edges for block = {}, link size = {}, unique = {}, link = {}\n", gid, l->size(), receivers.size(), container_to_string(receivers));
+    if (debug) fmt::print("In compute_outgoing_edges for block = {}, link size = {}, unique = {}\n", gid, l->size(), receivers.size());
 
 
     for (const Vertex& v_glob : local_.active_global_positions())
     {
+        auto v_idx = local_.get_vertex_from_global_position(v_glob);
+//        debug = (gid == 0 or gid == 1) and (v_idx == 64 or v_idx == 4486);
+//        debug = (v_idx.gid == 0 and v_idx.vertex == 64) or (v_idx.gid == 1 and v_idx.vertex == 4486);
 //        debug = (v_glob[0] == 0 and v_glob[1] == 0 and v_glob[2] == 6);
 
-        AmrEdgeContainer out_edges = get_vertex_edges(v_glob, local_, l, domain());
+        AmrEdgeContainer out_edges = get_vertex_edges(v_glob, local_, l, domain(), debug);
 
         if (debug)
         {
@@ -407,7 +426,7 @@ void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMa
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdgeContainer& edges_from_sender)
 {
-    bool debug = false;
+    bool debug = true;
 
     auto iter = gid_to_outgoing_edges_.find(sender_gid);
     if (iter == gid_to_outgoing_edges_.end())
@@ -423,7 +442,7 @@ void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdge
     std::transform(edges_from_sender.begin(), edges_from_sender.end(), edges_from_sender.begin(),
                    &reeber::reverse_amr_edge);
 
-    if (debug) fmt::print("in FabTmtBlock::delete_low_edges, transform OK\n");
+    if (debug) fmt::print("in FabTmtBlock::delete_low_edges, transform OK, n_edges_from_sender = {}\n", edges_from_sender.size());
 
     // put edges into set to find the set difference
     std::set<AmrEdge> my_edges { iter->second.begin(), iter->second.end() };
@@ -433,7 +452,19 @@ void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdge
 
     iter->second.clear();
 
-    if (debug) fmt::print("In delete_low_edges in block with gid = {}, sender = {}, clear OK\n", gid, sender_gid);
+    if (debug) fmt::print("In delete_low_edges in block with gid = {}, sender = {}, clear OK, my_edges.size = {}, neighbor_edges.size = {}\n", gid, sender_gid, my_edges.size(), neighbor_edges.size());
+
+    //if (debug)
+    //{
+    //    for(auto e : my_edges)
+    //    {
+    //        fmt::print("my gid = {}, sender_gid = {}, my_edge = {}\n", gid, sender_gid, e);
+    //    }
+    //    for(auto e : neighbor_edges)
+    //    {
+    //        fmt::print("my gid = {}, sender_gid = {}, edge_from_sender = {}\n", gid, sender_gid, e);
+    //    }
+    // }
 
     std::set_intersection(my_edges.begin(), my_edges.end(), neighbor_edges.begin(), neighbor_edges.end(),
                           std::back_inserter(iter->second));
