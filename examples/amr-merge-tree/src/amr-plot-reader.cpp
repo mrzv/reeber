@@ -174,7 +174,7 @@ void read_amr_plotfile(std::string infile,
 {
     amrex::Initialize(world);
 
-    bool debug = true;
+    bool debug = false;
 
     // Create the AmrData object from a pltfile on disk
 
@@ -298,18 +298,18 @@ void read_amr_plotfile(std::string infile,
 
             int gid = gid_offsets[lev] + mfi.index();
 
-            fmt::print("amr-plot-reader: rank = {}, gid = {}; smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), shape = ({}, {}, {})\n", world.rank(), gid,
+            if(debug) fmt::print("amr-plot-reader: rank = {}, gid = {}; smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), shape = ({}, {}, {})\n", world.rank(), gid,
                     box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
                     box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2],
                     shape[0], shape[1], shape[2]);
 
-            fmt::print("amr-plot-reader: ALL SHAPES rank = {}, gid = {}; shape = ({}, {}, {}), valid_shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid,
+            if(debug) fmt::print("amr-plot-reader: ALL SHAPES rank = {}, gid = {}; shape = ({}, {}, {}), valid_shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid,
                     shape[0], shape[1], shape[2],
                     valid_shape[0], valid_shape[1], valid_shape[2],
                     a_shape[0], a_shape[1], a_shape[2]
                     );
 
-            fmt::print("amr-plot-reader: ALL BOXES rank = {}, gid = {}; TILEBOX smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), VALIDBOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),  ABOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),\n",
+            if(debug) fmt::print("amr-plot-reader: ALL BOXES rank = {}, gid = {}; TILEBOX smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), VALIDBOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),  ABOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),\n",
                     world.rank(), gid,
 
                     box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
@@ -322,7 +322,7 @@ void read_amr_plotfile(std::string infile,
                     abox.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2]
                     );
 
-            fmt::print("amr-plot-reader: gid = {}, myFab.contains_inf() = {}, contains_nan = {}, size of Real = {}\n", gid, myFab.contains_inf(), myFab.contains_nan(),
+            if(debug) fmt::print("amr-plot-reader: gid = {}, myFab.contains_inf() = {}, contains_nan = {}, size of Real = {}\n", gid, myFab.contains_inf(), myFab.contains_nan(),
                     sizeof(Real), sizeof(Block::Grid::Value));
 
             std::vector<std::pair<int, Box>> isects;
@@ -330,8 +330,12 @@ void read_amr_plotfile(std::string infile,
             diy::AMRLink* link = new diy::AMRLink(3, lev, refinements[lev], bounds(box), bounds(abox));
             // init fab
             // TODO: c_order!
-//            Real* fab_ptr = const_cast<Real*>(myFab.dataPtr(componentIndex));
-            const Real* const fab_ptr = myFab.dataPtr(componentIndex);
+            if (debug) fmt::print("n_comps = {}, componentIndex = {}, smallestPtr = {}, nextPtr = {}, diff = {}, max_ptr = {}\n",
+                    myFab.nComp(), componentIndex, (void*)myFab.dataPtr(0), (void*)myFab.dataPtr(1), ( myFab.dataPtr(1) - myFab.dataPtr(0) ),
+                    (void*)myFab.dataPtr(myFab.nComp()-1));
+            componentIndex = 0;
+            Real* fab_ptr = const_cast<Real*>(myFab.dataPtr(componentIndex));
+//            const Real* fab_ptr = myFab.dataPtr(componentIndex);
 
             long long int fab_size = shape[0] * shape[1] * shape[2];
 
@@ -339,14 +343,29 @@ void read_amr_plotfile(std::string infile,
             memcpy(fab_ptr_copy, fab_ptr, sizeof(Real) * fab_size);
 
             Real total_sum = 0;
+            Real total_sum_wo = 0;
             Real total_sum_1 = 0;
+            int n_nans = 0;
+            int n_infs = 0;
+            int n_wo = 0;
             for(int i = 0 ; i < fab_size; ++i)
             {
-//                if (debug and (i % 5000 == 0 or i < 64 * 64 + 10)) { fmt::print("rank = {}, gid = {}, value = {}, i  = {}, size = {}\n", world.rank(), gid, fab_ptr[i], i, sizeof(fab_ptr[i])); }
+                if (debug and (i % 5000 == 0 or i < 10)) { fmt::print("rank = {}, gid = {}, value = {}, i  = {}, size = {}\n", world.rank(), gid, fab_ptr[i], i, sizeof(fab_ptr[i])); }
                 total_sum += fab_ptr[i];
-                total_sum_1 += fab_ptr_copy[i];
+//                total_sum_1 += fab_ptr_copy[i];
+                n_nans += std::isnan(fab_ptr[i]);
+                n_infs += std::isinf(fab_ptr[i]);
+                if (not std::isnan(fab_ptr[i]) and not std::isinf(fab_ptr[i]))
+                {
+                    total_sum_wo += fab_ptr[i];
+                    n_wo += 1;
+                }
+
+
             }
-            if (true) { fmt::print("rank = {}, gid = {}, fab_ptr = {}, fab_ptr_copy = {}, sum = {}, sum_copy = {}, fabs_size = {}, avg_in_fab = {}\n", world.rank(), gid, (void*)fab_ptr, (void*)fab_ptr_copy, total_sum, total_sum_1, fab_size, total_sum / fab_size); }
+//            if (debug) { fmt::print("rank = {}, gid = {}, fab_ptr = {}, fab_ptr_copy = {}, sum = {}, sum_copy = {}, fabs_size = {}, avg_in_fab = {}, n_nans = {}, n_infs = {}, n_wo = {}, avg_wo = {}\n", world.rank(), gid, (void*)fab_ptr, (void*)fab_ptr_copy, total_sum, total_sum_1, fab_size, total_sum / fab_size, n_nans, n_infs, n_wo, total_sum_wo / n_wo); }
+            if (debug) { fmt::print("rank = {}, gid = {}, sum = {}, fabs_size = {}, avg_in_fab = {}, n_nans = {}, n_infs = {}, n_wo = {}, avg_wo = {}\n", world.rank(), gid,
+                    total_sum, fab_size, total_sum / fab_size, n_nans, n_infs, n_wo, total_sum_wo / n_wo); }
 
 //            master_reader.add(gid, new Block(fab_ptr, shape), link);
             master_reader.add(gid, new Block(fab_ptr_copy, shape), link);

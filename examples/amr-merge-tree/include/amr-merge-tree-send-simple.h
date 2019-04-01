@@ -64,7 +64,7 @@ template<class Real, unsigned D>
 void amr_tmt_send(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
 
-    bool debug = (b->gid == 0);
+    bool debug = (b->gid == 1 or b->gid == 100);
 //    bool debug = false;
     if (debug) fmt::print("Called send_simple for block = {}\n", b->gid);
 
@@ -123,7 +123,7 @@ void amr_tmt_send(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 template<class Real, unsigned D>
 void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
-    bool debug = (b->gid == 1);
+    bool debug = (b->gid == 1 or b->gid == 100);
 
     if (debug) fmt::print("Called receive_simple for block = {}\n", b->gid);
 

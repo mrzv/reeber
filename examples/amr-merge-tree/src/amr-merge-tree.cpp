@@ -17,6 +17,7 @@
 #include <opts/opts.h>
 
 #include <AMReX.H>
+#include <error.h>
 
 #include "fab-block.h"
 #include "fab-tmt-block.h"
@@ -417,8 +418,17 @@ int main(int argc, char** argv)
                                                             << dlog::clock_to_string(timer.elapsed());
 
         time_for_local_computation += timer.elapsed();
+
         dlog::flush();
         timer.restart();
+
+        if (mean < 0 or std::isnan(mean) or std::isinf(mean) or mean > 1e+40)
+        {
+            LOG_SEV_IF(world.rank() == 0, error) << "Bad average = " << mean << ", do not proceed";
+            if (read_plotfile)
+                amrex::Finalize();
+            return 1;
+        }
 
         master.foreach([rho](Block* b, const diy::Master::ProxyWithLink& cp) {
             AMRLink* l = static_cast<AMRLink*>(cp.link());

@@ -65,7 +65,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     if (is_in_core)
     {
         value = fab_(v_local);
-        fmt::print("VALUE = {}, v_local = {}, gid = {}\n", value, v_local, gid);
+        //fmt::print("VALUE = {}, v_local = {}, gid = {}\n", value, v_local, gid);
     }
 
     bool is_low = false;
@@ -191,7 +191,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
         // and use this later to mark low vertices
         n_unmasked_++;
         auto v_local = local_.local_position_from_mask(v_mask);
-        sum_ += fab_(v_local);
+        sum_ += value;
         if (debug) fmt::print("FAB INFO gid = {}, sum = {}, v_mask = {}, v_local = {}, f(v) = {}, index(v) = {} ,stride = {}, shape = {}, data = {}, size = {}\n",
                 gid,  sum_, v_mask, v_local, fab_(v_local), fab_.index(v_local), fab_.stride_, fab_.shape(), (void*)fab_.data(), sizeof(fab_.data()[fab_.index(v_local)]));
     }
@@ -232,7 +232,7 @@ void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
 {
-    bool debug = gid == 0 or gid == 1;
+    bool debug = gid == 1 or gid == 100;
     std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
 
     diy::for_each(local_.bounds_shape(), [this, absolute_rho](const Vertex& v_bounds) {
@@ -475,7 +475,7 @@ void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMa
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdgeContainer& edges_from_sender)
 {
-    bool debug = gid == 0 or gid == 1;
+    bool debug = gid == 1 or gid == 100;
 
     auto iter = gid_to_outgoing_edges_.find(sender_gid);
     if (iter == gid_to_outgoing_edges_.end())
