@@ -174,7 +174,7 @@ void read_amr_plotfile(std::string infile,
 {
     amrex::Initialize(world);
 
-    bool debug = world.rank() == 1;
+    bool debug = true;
 
     // Create the AmrData object from a pltfile on disk
 
@@ -276,6 +276,12 @@ void read_amr_plotfile(std::string infile,
         {
             const FArrayBox& myFab = mf[mfi];
 
+            Block::Shape valid_shape;
+            Block::Shape a_shape;
+
+            const Box& valid_box = mfi.validbox();
+            for(size_t i = 0; i < DIY_DIM; ++i)
+                valid_shape[i] = valid_box.bigEnd()[i] - valid_box.smallEnd()[i] + 1;
 
             const Box& box = mfi.tilebox();
             Block::Shape shape;
@@ -287,12 +293,34 @@ void read_amr_plotfile(std::string infile,
             // and is thus larger than or equal to "box".
             Box abox = myFab.box();
 
+            for(size_t i = 0; i < DIY_DIM; ++i)
+                a_shape[i] = abox.bigEnd()[i] - abox.smallEnd()[i] + 1;
+
             int gid = gid_offsets[lev] + mfi.index();
 
             fmt::print("amr-plot-reader: rank = {}, gid = {}; smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), shape = ({}, {}, {})\n", world.rank(), gid,
                     box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
                     box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2],
                     shape[0], shape[1], shape[2]);
+
+            fmt::print("amr-plot-reader: ALL SHAPES rank = {}, gid = {}; shape = ({}, {}, {}), valid_shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid,
+                    shape[0], shape[1], shape[2],
+                    valid_shape[0], valid_shape[1], valid_shape[2],
+                    a_shape[0], a_shape[1], a_shape[2]
+                    );
+
+            fmt::print("amr-plot-reader: ALL BOXES rank = {}, gid = {}; TILEBOX smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), VALIDBOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),  ABOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),\n",
+                    world.rank(), gid,
+
+                    box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
+                    box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2],
+
+                    valid_box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
+                    valid_box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2],
+
+                    abox.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
+                    abox.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2]
+                    );
 
             fmt::print("amr-plot-reader: gid = {}, myFab.contains_inf() = {}, contains_nan = {}, size of Real = {}\n", gid, myFab.contains_inf(), myFab.contains_nan(),
                     sizeof(Real), sizeof(Block::Grid::Value));
@@ -318,7 +346,7 @@ void read_amr_plotfile(std::string infile,
                 total_sum += fab_ptr[i];
                 total_sum_1 += fab_ptr_copy[i];
             }
-//            if (debug) { fmt::print("rank = {}, gid = {}, fab_ptr = {}, fab_ptr_copy = {}, sum = {}, sum_copy = {}, fabs_size = {}\n", world.rank(), gid, (void*)fab_ptr, (void*)fab_ptr_copy, total_sum, total_sum_1, fab_size); }
+            if (true) { fmt::print("rank = {}, gid = {}, fab_ptr = {}, fab_ptr_copy = {}, sum = {}, sum_copy = {}, fabs_size = {}, avg_in_fab = {}\n", world.rank(), gid, (void*)fab_ptr, (void*)fab_ptr_copy, total_sum, total_sum_1, fab_size, total_sum / fab_size); }
 
 //            master_reader.add(gid, new Block(fab_ptr, shape), link);
             master_reader.add(gid, new Block(fab_ptr_copy, shape), link);

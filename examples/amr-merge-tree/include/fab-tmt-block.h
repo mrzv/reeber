@@ -271,7 +271,7 @@ struct FabTmtBlock
             max_gid = std::max(max_gid, amr_link->target(i).gid);
         }
 
-        if (debug) fmt::print("TMT constructed gid = {}, local = {}, max_gid = {}, sum = {}, fab_ = {}\n", gid, local_, max_gid, sum_, (void*)(fab_.data()));
+        if (debug) fmt::print("TMT constructed gid = {}, local = {}, max_gid = {}, avg = {} / {} = {}, fab_ = {}\n", gid, local_, max_gid, sum_, n_active_,  sum_ / n_active_,  (void*)(fab_.data()));
 
         if (debug) local_.check_mask_validity(max_gid);
 

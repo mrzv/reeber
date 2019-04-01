@@ -17,7 +17,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
     int debug_gid = local_.gid();
 
-    bool debug = gid == 0;
+    bool debug = false; //gid == 0;
 //    debug = (gid == 63) and (v_mask[0] == 2 and v_mask[1] == 2 and v_mask[2] == 65);
 
     auto v_local = local_.local_position_from_mask(v_mask);
@@ -29,9 +29,44 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
     bool is_ghost = local_.is_outer(v_mask);
 
+
+    // TODO: get rid of this!
+//    if (is_in_core and is_on_boundary)
+//    {
+//        Real new_value = 0;
+//        int n = 0;
+//        for(auto internal_v_global : local_.inside_link(v_global))
+//        {
+//            auto internal_v = local_.local_position_from_global(internal_v_global);
+////            if (debug) fmt::print("HERE: internal_v = {}, internal_v_global = {}, v_global = {}\n", internal_v, internal_v_global, v_global);
+//            new_value += fab_(internal_v);
+//            ++n;
+//        }
+//
+//        if (n  == 0)
+//            throw std::runtime_error("zero division in correction code");
+//        new_value /= n;
+//
+//        if (debug)
+//        {
+//            Real old_value = fab_(v_local);
+//            fab_(v_local) = new_value;
+//            if (debug)
+//            {
+//                fmt::print(
+//                        "gid = {}, in set_mask, v_mask = {}, old_value = {}, new_value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n",
+//                        debug_gid, v_mask,
+//                        old_value, new_value, is_ghost, is_on_boundary, is_in_core);
+//            }
+//        }
+//    }
+
     Real value = std::numeric_limits<Real>::infinity();
     if (is_in_core)
+    {
         value = fab_(v_local);
+        fmt::print("VALUE = {}, v_local = {}, gid = {}\n", value, v_local, gid);
+    }
 
     bool is_low = false;
     if (is_absolute_threshold and is_in_core)
@@ -48,7 +83,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
         {
             n_debug_printed_core_ ++;
             fmt::print(
-                    "gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n",
+                    "PRINTING CORE gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n",
                     debug_gid, v_mask,
                     v_idx,
                     value, is_ghost, is_on_boundary, is_in_core);
@@ -57,14 +92,12 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
         {
             n_debug_printed_bdry_ ++;
             fmt::print(
-                    "gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n",
+                    "PRINTING BDRY gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n",
                     debug_gid, v_mask,
                     v_idx,
                     value, is_ghost, is_on_boundary, is_in_core);
         }
     }
-    debug = false;
-
 
     // initialization, actual mask to be set later
     if (is_ghost)

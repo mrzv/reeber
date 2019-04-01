@@ -175,6 +175,22 @@ namespace reeber {
                    | range::filtered(std::bind(&MaskedBox::is_outer_edge_start_glob, this, std::placeholders::_1));
         }
 
+
+        // for quick-and-dirty fix only
+        decltype(auto) inside_link(const Position& p_global) const
+        {
+            Position p_from = p_global;
+            Position p_to = p_global;
+            for(size_t i = 0; i < D; ++i)
+            {
+                p_from[i] -= 1;
+                p_to[i] += 1;
+            }
+
+            return range::iterator_range<VI>(VI::begin(p_from, p_to), VI::end(p_from, p_to))
+                    | range::filtered(std::bind(&MaskedBox::is_strictly_inside, this, std::placeholders::_1));
+        }
+
         void swap(MaskedBox& other)
         {
             mask_.swap(other.mask_);
@@ -388,6 +404,8 @@ namespace reeber {
 
         bool is_on_boundary(const Position& p_global) const;
         bool is_on_boundary(const Vertex& v) const { return is_on_boundary(global_position(v)); }
+
+        bool is_strictly_inside(const Position& p_global) const;
         /**
          *
          * @param p_global cell in global coordinates
