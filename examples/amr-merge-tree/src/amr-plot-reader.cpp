@@ -5,7 +5,6 @@
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_DataServices.H>
 
-
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -47,7 +46,7 @@ struct AMReXMeshHierarchy
  */
 public:
     AMReXMeshHierarchy()
-    {}
+    { }
 
     void define(const AmrData& ad)
     {
@@ -136,7 +135,8 @@ public:
         if (iter != varMap.end())
             return iter->second.first;
         else
-            return -1;
+            throw std::runtime_error("Non-existng index requested");
+//            return -1;
     }
 
     const AMReXMeshHierarchy& Mesh() const
@@ -146,7 +146,6 @@ protected:
     AMReXMeshHierarchy mesh;
     std::map<std::string, std::pair<int, std::vector<MultiFab*>>> varMap;
 };
-
 
 void print_3v(const int* v)
 {
@@ -162,15 +161,14 @@ void print_box(const Box& b)
     std::cout << ")" << std::endl;
 }
 
-
 void read_amr_plotfile(std::string infile,
-                       std::string varName,
-                       diy::mpi::communicator& world,
-                       int nblocks,
-                       diy::Master& master_reader,
+        std::string varName1,
+        diy::mpi::communicator& world,
+        int nblocks,
+        diy::Master& master_reader,
 //                       diy::ContiguousAssigner& assigner,
-                       diy::MemoryBuffer& header,
-                       diy::DiscreteBounds& domain_diy)
+        diy::MemoryBuffer& header,
+        diy::DiscreteBounds& domain_diy)
 {
     amrex::Initialize(world);
 
@@ -181,30 +179,23 @@ void read_amr_plotfile(std::string infile,
     DataServices::SetBatchMode();
     Amrvis::FileType fileType(Amrvis::NEWPLT);
     DataServices dataServices(infile, fileType);
-//    if (debug) { fmt::print("dataaServices created\n"); }
 
-
-//    DataServices* pdataServices =  new DataServices(infile, fileType);
-//    DataServices& dataServices =  *pdataServices;
-//
     if (!dataServices.AmrDataOk())
     {
         DataServices::Dispatch(DataServices::ExitRequest, NULL);
     }
     AmrData& amrData = dataServices.AmrDataRef();
 
-//    if (debug) { fmt::print("got amrData created\n"); }
 
     amrex::Vector<string> varNames;
-    varNames.push_back(varName);
+    varNames.push_back("density");
+    if (varName1 != "density")
+        varNames.push_back(varName1);
+    if (debug) fmt::print("ACHTUNG! varNames = {}\n", container_to_string(varNames));
 
     // Make a data struct for just the variables needed
     AMReXDataHierarchy data(amrData, varNames);
-//    AMReXDataHierarchy* pdata = new AMReXDataHierarchy(amrData, varNames);
-//    AMReXDataHierarchy& data = *pdata;
     const AMReXMeshHierarchy& mesh = data.Mesh();
-
-//    if (debug) { fmt::print("got mesh created\n"); }
 
     // TODO: fix wrap
     int periodic = 0;
@@ -213,15 +204,6 @@ void read_amr_plotfile(std::string infile,
         is_periodic[i] = 1; // periodic & (1 << i);
 
     const Box& domain = mesh.ProbDomain()[0];
-
-//    if (debug)
-//    {
-//        fmt::print("printing ProbDomain\n");
-//        for(const Box& d : mesh.ProbDomain())
-//            print_box(d);
-//        fmt::print("finished printing ProbDomain\n");
-//    }
-
 
     for(int i = 0; i < 3; ++i)
     {
@@ -237,10 +219,7 @@ void read_amr_plotfile(std::string infile,
     std::vector<int> refinements = {1};
     for(int lev = 0; lev <= finestLevel; lev++)
     {
-
-//        if (debug and world.rank() == 0) { fmt::print("Processing lev = {}", lev); }
-
-        const MultiFab& mf = data.GetGrids(lev, varName);
+        const MultiFab& mf = data.GetGrids(lev, varNames[0]);
         const BoxArray& ba = mf.boxArray();
 
         if (debug) fmt::print("rank = {}, nblocks = {}, ba.size() = {}\n", world.rank(), nblocks, ba.size());
@@ -250,230 +229,214 @@ void read_amr_plotfile(std::string infile,
 
         auto refinement = mesh.RefRatio();
 
-        if (debug and world.rank() == 0) { fmt::print("refinement = {}", refinement[0]); }
-
-        if (refinement.size() != 1)
-            throw std::runtime_error("Unexpected uneven refinement");
+        if (refinement.size() != 1) throw std::runtime_error("Unexpected uneven refinement");
         refinements.push_back(refinements.back() * refinement[0]);
     }
 
+    Real* fab_ptr_copy{nullptr};
+
+    Real total_sum = 0;
+    Real total_sum_wo = 0;
+    int n_nans = 0;
+    int n_infs = 0;
+    int n_negs = 0;
+    int n_wo = 0;
+
+    Real total_sum_1 = 0;
+    int n_nans_1 = 0;
+    int n_infs_1 = 0;
+    int n_negs_1 = 0;
+    int n_wo_1 = 0;
+
+    std::map<int, Real*> gid_to_fab;
+
     for(int lev = 0; lev < nLev; ++lev)
     {
-        const BoxArray ba = mesh.boxArray(lev);
-
-        // Make boxes that are projection of finer ones (if exist)
-        const BoxArray baf = lev < finestLevel
-                             ? BoxArray(mesh.boxArray(lev + 1)).coarsen(mesh.RefRatio()[lev])
-                             : BoxArray();
-
-        // For each component listed...
-        int componentIndex = data.GetIndex(varName);
-
-        // Make copy of original data because we will modify here
-        const MultiFab& mf = data.GetGrids(lev, varName);
-
-        for(MFIter mfi(mf, false); mfi.isValid(); ++mfi)
+        for(int varIdx = 0; varIdx < varNames.size(); ++varIdx)
         {
-            const FArrayBox& myFab = mf[mfi];
+            auto varName = varNames[varIdx];
+            const BoxArray ba = mesh.boxArray(lev);
 
-            Block::Shape valid_shape;
-            Block::Shape a_shape;
+            // Make boxes that are projection of finer ones (if exist)
+            const BoxArray baf = lev < finestLevel
+                                 ? BoxArray(mesh.boxArray(lev + 1)).coarsen(mesh.RefRatio()[lev])
+                                 : BoxArray();
 
-            const Box& valid_box = mfi.validbox();
-            for(size_t i = 0; i < DIY_DIM; ++i)
-                valid_shape[i] = valid_box.bigEnd()[i] - valid_box.smallEnd()[i] + 1;
+            // For each component listed...
+            const MultiFab& mf = data.GetGrids(lev, varName);
 
-            const Box& box = mfi.tilebox();
-            Block::Shape shape;
-            for(size_t i = 0; i < DIY_DIM; ++i)
-                shape[i] = box.bigEnd()[i] - box.smallEnd()[i] + 1;
-
-            // This is the Box on which the FArrayBox is defined.
-            // Note that "abox" includes ghost cells (if there are any),
-            // and is thus larger than or equal to "box".
-            Box abox = myFab.box();
-
-            for(size_t i = 0; i < DIY_DIM; ++i)
-                a_shape[i] = abox.bigEnd()[i] - abox.smallEnd()[i] + 1;
-
-            int gid = gid_offsets[lev] + mfi.index();
-
-            if(debug) fmt::print("amr-plot-reader: rank = {}, gid = {}; smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), shape = ({}, {}, {})\n", world.rank(), gid,
-                    box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
-                    box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2],
-                    shape[0], shape[1], shape[2]);
-
-            if(debug) fmt::print("amr-plot-reader: ALL SHAPES rank = {}, gid = {}; shape = ({}, {}, {}), valid_shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid,
-                    shape[0], shape[1], shape[2],
-                    valid_shape[0], valid_shape[1], valid_shape[2],
-                    a_shape[0], a_shape[1], a_shape[2]
-                    );
-
-            if(debug) fmt::print("amr-plot-reader: ALL BOXES rank = {}, gid = {}; TILEBOX smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), VALIDBOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),  ABOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),\n",
-                    world.rank(), gid,
-
-                    box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
-                    box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2],
-
-                    valid_box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
-                    valid_box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2],
-
-                    abox.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
-                    abox.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2]
-                    );
-
-            if(debug) fmt::print("amr-plot-reader: gid = {}, myFab.contains_inf() = {}, contains_nan = {}, size of Real = {}\n", gid, myFab.contains_inf(), myFab.contains_nan(),
-                    sizeof(Real), sizeof(Block::Grid::Value));
-
-            std::vector<std::pair<int, Box>> isects;
-
-            diy::AMRLink* link = new diy::AMRLink(3, lev, refinements[lev], bounds(box), bounds(abox));
-            // init fab
-            // TODO: c_order!
-            if (debug) fmt::print("n_comps = {}, componentIndex = {}, smallestPtr = {}, nextPtr = {}, diff = {}, max_ptr = {}\n",
-                    myFab.nComp(), componentIndex, (void*)myFab.dataPtr(0), (void*)myFab.dataPtr(1), ( myFab.dataPtr(1) - myFab.dataPtr(0) ),
-                    (void*)myFab.dataPtr(myFab.nComp()-1));
-            componentIndex = 0;
-            Real* fab_ptr = const_cast<Real*>(myFab.dataPtr(componentIndex));
-//            const Real* fab_ptr = myFab.dataPtr(componentIndex);
-
-            long long int fab_size = shape[0] * shape[1] * shape[2];
-
-            Real* fab_ptr_copy = new Real[fab_size];
-            memcpy(fab_ptr_copy, fab_ptr, sizeof(Real) * fab_size);
-
-            Real total_sum = 0;
-            Real total_sum_wo = 0;
-            Real total_sum_1 = 0;
-            int n_nans = 0;
-            int n_infs = 0;
-            int n_wo = 0;
-            for(int i = 0 ; i < fab_size; ++i)
+            for(MFIter mfi(mf, false); mfi.isValid(); ++mfi)
             {
-                if (debug and (i % 5000 == 0 or i < 10)) { fmt::print("rank = {}, gid = {}, value = {}, i  = {}, size = {}\n", world.rank(), gid, fab_ptr[i], i, sizeof(fab_ptr[i])); }
-                total_sum += fab_ptr[i];
-//                total_sum_1 += fab_ptr_copy[i];
-                n_nans += std::isnan(fab_ptr[i]);
-                n_infs += std::isinf(fab_ptr[i]);
-                if (not std::isnan(fab_ptr[i]) and not std::isinf(fab_ptr[i]))
+                const FArrayBox& myFab = mf[mfi];
+
+                Block::Shape valid_shape;
+                Block::Shape a_shape;
+
+                const Box& valid_box = mfi.validbox();
+                for(size_t i = 0; i < DIY_DIM; ++i)
+                    valid_shape[i] = valid_box.bigEnd()[i] - valid_box.smallEnd()[i] + 1;
+
+                const Box& box = mfi.tilebox();
+                Block::Shape shape;
+                for(size_t i = 0; i < DIY_DIM; ++i)
+                    shape[i] = box.bigEnd()[i] - box.smallEnd()[i] + 1;
+
+                // This is the Box on which the FArrayBox is defined.
+                // Note that "abox" includes ghost cells (if there are any),
+                // and is thus larger than or equal to "box".
+                Box abox = myFab.box();
+
+                for(size_t i = 0; i < DIY_DIM; ++i)
+                    a_shape[i] = abox.bigEnd()[i] - abox.smallEnd()[i] + 1;
+
+                int gid = gid_offsets[lev] + mfi.index();
+
+//                if (debug) fmt::print( "amr-plot-reader: rank = {}, gid = {}; smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), shape = ({}, {}, {})\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], shape[0], shape[1], shape[2]);
+//                if (debug) fmt::print( "amr-plot-reader: ALL SHAPES rank = {}, gid = {}; shape = ({}, {}, {}), valid_shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid, shape[0], shape[1], shape[2], valid_shape[0], valid_shape[1], valid_shape[2], a_shape[0], a_shape[1], a_shape[2] );
+//                if (debug) fmt::print( "amr-plot-reader: ALL BOXES rank = {}, gid = {}; TILEBOX smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), VALIDBOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),  ABOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], valid_box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], valid_box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], abox.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], abox.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2] );
+//                if (debug) fmt::print( "amr-plot-reader: gid = {}, myFab.contains_inf() = {}, contains_nan = {}, size of Real = {}\n", gid, myFab.contains_inf(), myFab.contains_nan(), sizeof(Real), sizeof(Block::Grid::Value));
+
+                std::vector<std::pair<int, Box>> isects;
+
+                diy::AMRLink* link = new diy::AMRLink(3, lev, refinements[lev], bounds(box), bounds(abox));
+                // init fab
+                // TODO: c_order!
+                if (debug) fmt::print( "n_comps = {}, varIdx = {}, smallestPtr = {}, nextPtr = {}, diff = {}, max_ptr = {}\n", myFab.nComp(), varIdx, (void*) myFab.dataPtr(0), (void*) myFab.dataPtr(1), (myFab.dataPtr(1) - myFab.dataPtr(0)), (void*) myFab.dataPtr(myFab.nComp() - 1));
+
+                Real* fab_ptr = const_cast<Real*>(myFab.dataPtr(0));
+                long long int fab_size = shape[0] * shape[1] * shape[2];
+                if (varIdx == 0)
                 {
-                    total_sum_wo += fab_ptr[i];
-                    n_wo += 1;
-                }
+                    fab_ptr_copy = new Real[fab_size];
+                    gid_to_fab[gid] = fab_ptr_copy;
+                    memcpy(fab_ptr_copy, fab_ptr, sizeof(Real) * fab_size);
 
+                    // TODO { for(int i = 0; i < fab_size; ++i) { fab_ptr_copy[i] += fab_ptr[i]; } }
 
-            }
-//            if (debug) { fmt::print("rank = {}, gid = {}, fab_ptr = {}, fab_ptr_copy = {}, sum = {}, sum_copy = {}, fabs_size = {}, avg_in_fab = {}, n_nans = {}, n_infs = {}, n_wo = {}, avg_wo = {}\n", world.rank(), gid, (void*)fab_ptr, (void*)fab_ptr_copy, total_sum, total_sum_1, fab_size, total_sum / fab_size, n_nans, n_infs, n_wo, total_sum_wo / n_wo); }
-            if (debug) { fmt::print("rank = {}, gid = {}, sum = {}, fabs_size = {}, avg_in_fab = {}, n_nans = {}, n_infs = {}, n_wo = {}, avg_wo = {}\n", world.rank(), gid,
-                    total_sum, fab_size, total_sum / fab_size, n_nans, n_infs, n_wo, total_sum_wo / n_wo); }
-
-//            master_reader.add(gid, new Block(fab_ptr, shape), link);
-            master_reader.add(gid, new Block(fab_ptr_copy, shape), link);
-
-//            if (debug)
-//            {
-//                fmt::print("rank = {}, ADDED\n", world.rank());
-//                fmt::print(
-//                        "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n",
-//                        world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2],
-//                        box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index());
-//            }
-//
-
-            // record wrap
-            for(int dir_x : {-1, 0, 1})
-            {
-                if (!is_periodic[0] && dir_x) continue;
-                if (dir_x < 0 && box.loVect()[0] != domain.loVect()[0]) continue;
-                if (dir_x > 0 && box.hiVect()[0] != domain.hiVect()[0]) continue;
-
-                for(int dir_y : {-1, 0, 1})
-                {
-                    if (!is_periodic[1] && dir_y) continue;
-                    if (dir_y < 0 && box.loVect()[1] != domain.loVect()[1]) continue;
-                    if (dir_y > 0 && box.hiVect()[1] != domain.hiVect()[1]) continue;
-
-                    for(int dir_z : {-1, 0, 1})
+                    for(int i = 0; i < fab_size; ++i)
                     {
-                        if (dir_x == 0 && dir_y == 0 && dir_z == 0)
-                            continue;
-
-                        if (!is_periodic[2] && dir_z) continue;
-                        if (dir_z < 0 && box.loVect()[2] != domain.loVect()[2]) continue;
-                        if (dir_z > 0 && box.hiVect()[2] != domain.hiVect()[2]) continue;
-
-                        link->add_wrap(diy::Direction{dir_x, dir_y, dir_z});
+                        if (debug and (i % 5000 == 0 or i < 10))
+                        {
+                            fmt::print("rank = {}, gid = {}, value = {}, i  = {}, size = {}\n", world.rank(), gid,
+                                    fab_ptr[i], i, sizeof(fab_ptr[i]));
+                        }
+                        total_sum += fab_ptr[i];
+                        n_nans += std::isnan(fab_ptr[i]);
+                        n_infs += std::isinf(fab_ptr[i]);
+                        n_negs += (fab_ptr[i] < 0);
+                        if (not std::isnan(fab_ptr[i]) and not std::isinf(fab_ptr[i]))
+                        {
+                            total_sum_wo += fab_ptr[i];
+                            n_wo += 1;
+                        }
                     }
-                }
-            }
+//                    if (debug) { fmt::print( "rank = {}, gid = {}, sum = {}, fabs_size = {}, avg_in_fab = {}, n_nans = {}, n_infs = {}, n_negs = {}, n_wo = {}, avg_wo = {}\n", world.rank(), gid, total_sum, fab_size, total_sum / fab_size, n_nans, n_infs, n_negs, n_wo, total_sum_wo / n_wo); }
 
-            // record neighbors
-            for(int nbr_lev = std::max(0, lev - 1); nbr_lev <= std::min(finestLevel, lev + 1); ++nbr_lev)
-            {
+                    master_reader.add(gid, new Block(fab_ptr_copy, shape), link);
 
-//                std::cout << "in nbr_lev loop, nbr_lev = " << nbr_lev << std::endl;
-                // gotta do this yoga to work around AMReX's static variables
-                const Box& nbr_lev_domain = mesh.ProbDomain().at(nbr_lev);
-                Periodicity periodicity(IntVect(AMREX_D_DECL(nbr_lev_domain.length(0) * is_periodic[0],
-                                                             nbr_lev_domain.length(1) * is_periodic[1],
-                                                             nbr_lev_domain.length(2) * is_periodic[2])));
+//                    if (debug) { fmt::print("rank = {}, ADDED\n", world.rank()); fmt::print( "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index()); }
 
-
-                const std::vector<IntVect>& pshifts = periodicity.shiftIntVect();
-
-                // TODO: here we always assume ghosts, get this information somehow
-                int ng = 0;
-                const BoxArray& ba = mesh.boxArray(nbr_lev);
-                // TODO: need to divide?
-                int ratio = mesh.RefRatio().at(nbr_lev);
-
-                Box gbx = box;
-
-                if (nbr_lev < lev)
-                    gbx.coarsen(ratio);
-                else if (nbr_lev > lev)
-                    gbx.refine(ratio);
-                gbx.grow(1);
-
-                for(const auto& piv : pshifts)
-                {
-                    ba.intersections(gbx + piv, isects);
-                    for(const auto& is : isects)
+                    // record wrap
+                    for(int dir_x : {-1, 0, 1})
                     {
-                        // is.first is the index of neighbor box
-                        // ba[is.first] is the neighbor box
-                        int nbr_gid = gid_offsets[nbr_lev] + is.first;
-//                        fmt::print("{}: gid = {}, adding neighbor gid = {}\n", world.rank(), gid, nbr_gid);
-                        const Box& nbr_box = ba[is.first];
-                        Box nbr_ghost_box = grow(nbr_box, ng);
+                        if (!is_periodic[0] && dir_x) continue;
+                        if (dir_x < 0 && box.loVect()[0] != domain.loVect()[0]) continue;
+                        if (dir_x > 0 && box.hiVect()[0] != domain.hiVect()[0]) continue;
 
-                        link->add_neighbor(diy::BlockID{nbr_gid,
-                                                        -1});        // we don't know the proc, but we'll figure it out later through DynamicAssigner
-                        link->add_bounds(nbr_lev, refinements[nbr_lev], bounds(nbr_box), bounds(nbr_ghost_box));
+                        for(int dir_y : {-1, 0, 1})
+                        {
+                            if (!is_periodic[1] && dir_y) continue;
+                            if (dir_y < 0 && box.loVect()[1] != domain.loVect()[1]) continue;
+                            if (dir_y > 0 && box.hiVect()[1] != domain.hiVect()[1]) continue;
+                            for(int dir_z : {-1, 0, 1})
+                            {
+                                if (dir_x == 0 && dir_y == 0 && dir_z == 0)
+                                    continue;
+
+                                if (!is_periodic[2] && dir_z) continue;
+                                if (dir_z < 0 && box.loVect()[2] != domain.loVect()[2]) continue;
+                                if (dir_z > 0 && box.hiVect()[2] != domain.hiVect()[2]) continue;
+
+                                link->add_wrap(diy::Direction{dir_x, dir_y, dir_z});
+                            }
+                        }
                     }
-                }
-            }
-        }
-    }
 
-//    if (debug) { fmt::print("{}: started fixing links\n", world.rank()); }
+                    // record neighbors
+                    for(int nbr_lev = std::max(0, lev - 1); nbr_lev <= std::min(finestLevel, lev + 1); ++nbr_lev)
+                    {
+
+                        // gotta do this yoga to work around AMReX's static variables
+                        const Box& nbr_lev_domain = mesh.ProbDomain().at(nbr_lev);
+                        Periodicity periodicity(IntVect(AMREX_D_DECL(nbr_lev_domain.length(0) * is_periodic[0],
+                                nbr_lev_domain.length(1) * is_periodic[1],
+                                nbr_lev_domain.length(2) * is_periodic[2])));
+
+                        const std::vector<IntVect>& pshifts = periodicity.shiftIntVect();
+                        // TODO: here we always assume ghosts, get this information somehow
+                        int ng = 0;
+                        const BoxArray& ba = mesh.boxArray(nbr_lev);
+                        // TODO: need to divide?
+                        int ratio = mesh.RefRatio().at(nbr_lev);
+
+                        Box gbx = box;
+
+                        if (nbr_lev < lev)
+                            gbx.coarsen(ratio);
+                        else if (nbr_lev > lev)
+                            gbx.refine(ratio);
+                        gbx.grow(1);
+
+                        for(const auto& piv : pshifts)
+                        {
+                            ba.intersections(gbx + piv, isects);
+                            for(const auto& is : isects)
+                            {
+                                // is.first is the index of neighbor box
+                                // ba[is.first] is the neighbor box
+                                int nbr_gid = gid_offsets[nbr_lev] + is.first;
+                                const Box& nbr_box = ba[is.first];
+                                Box nbr_ghost_box = grow(nbr_box, ng);
+
+                                link->add_neighbor(diy::BlockID{nbr_gid,
+                                                                -1});        // we don't know the proc, but we'll figure it out later through DynamicAssigner
+                                link->add_bounds(nbr_lev, refinements[nbr_lev], bounds(nbr_box), bounds(nbr_ghost_box));
+                            }
+                        }
+                    }
+                } else
+                {
+                    Real* block_fab_ptr = gid_to_fab.at(gid);
+                    if (debug) fmt::print("Adding next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}\n", (void*)block_fab_ptr, (void*) fab_ptr, gid);
+                    for(int i = 0; i < fab_size; ++i)
+                    {
+                        total_sum_1 += fab_ptr[i];
+                        n_nans_1 += std::isnan(fab_ptr[i]);
+                        n_infs_1 += std::isinf(fab_ptr[i]);
+                        n_negs_1 += (fab_ptr[i] < 0);
+                        if (not std::isnan(fab_ptr[i]) and not std::isinf(fab_ptr[i]))
+                        {
+                            n_wo_1 += 1;
+                        }
+
+                        block_fab_ptr[i] += fab_ptr[i];
+                    }
+
+                    if (debug) fmt::print("Added next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}, n_nans_1 = {}, n_negs_1 = {}, n_infs_1 = {}, totao_sum_1 = {}\n" , (void*)block_fab_ptr, (void*) fab_ptr, gid, n_nans_1, n_negs_1, n_infs_1, total_sum_1);
+
+
+                }
+            } // loop over tiles
+        } // loop over varNames
+    } // loop over levels
+
     // fill dynamic assigner and fix links
     diy::DynamicAssigner assigner(master_reader.communicator(), master_reader.communicator().size(), nblocks);
     diy::fix_links(master_reader, assigner);
-//    if (debug) { fmt::print("{}: finished fixing links\n", world.rank()); }
 
     master_reader.foreach([debug](Block* b, const diy::Master::ProxyWithLink& cp) {
         auto* l = static_cast<diy::AMRLink*>(cp.link());
-
         auto receivers = link_unique(l, cp.gid());
-
-        //if (debug)
-        //{
-        //    fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n",
-        //            cp.gid(), l->level(), b->fab.shape(),
-        //            l->core().min, l->core().max,
-        //            l->bounds().min, l->bounds().max,
-        //            container_to_string(receivers));
-        //}
-    });
+        if (debug) { fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n", cp.gid(), l->level(), b->fab.shape(), l->core().min, l->core().max, l->bounds().min, l->bounds().max, container_to_string(receivers)); } }
+        );
 }
