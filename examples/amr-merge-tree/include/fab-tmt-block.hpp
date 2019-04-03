@@ -232,7 +232,7 @@ void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
 {
-    bool debug = gid == 1 or gid == 100;
+    bool debug = false; //gid == 1 or gid == 100;
     std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
 
     diy::for_each(local_.bounds_shape(), [this, absolute_rho](const Vertex& v_bounds) {
@@ -475,7 +475,7 @@ void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMa
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdgeContainer& edges_from_sender)
 {
-    bool debug = gid == 1 or gid == 100;
+    bool debug = false; //gid == 1 or gid == 100;
 
     auto iter = gid_to_outgoing_edges_.find(sender_gid);
     if (iter == gid_to_outgoing_edges_.end())

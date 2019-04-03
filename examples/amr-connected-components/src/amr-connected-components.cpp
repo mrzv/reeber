@@ -7,6 +7,8 @@
 #include <execinfo.h>
 #include <cxxabi.h>
 
+#include <AMReX.H>
+
 #include <diy/master.hpp>
 #include <diy/io/block.hpp>
 #include <diy/io/shared.hpp>
@@ -182,20 +184,23 @@ int main(int argc, char** argv)
 
     bool absolute =
             ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
+    bool read_plotfile = ops >> Present("plotfile", "read AMR plotfiles");
     bool negate = ops >> opts::Present('n', "negate", "sweep superlevel sets");
     // ignored for now, wrap is always assumed
     bool wrap = ops >> opts::Present('w', "wrap", "wrap");
     bool split = ops >> opts::Present("split", "use split IO");
 
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
+    std::string var_name;
 
     if (ops >> Present('h', "help", "show help message") or
-        not(ops >> PosOption(input_filename))
-        or not(ops >> PosOption(output_filename)))
+        not(ops >> PosOption(input_filename)) or
+        not(ops >> PosOption(var_name)) or
+        not(ops >> PosOption(output_filename)))
     {
         if (world.rank() == 0)
         {
-            fmt::print("Usage: {} INPUT.AMR OUTPUT.mt [OUT_DIAGRAMS] [OUT_INTEGRAL] \n", argv[0]);
+            fmt::print("Usage: {} INPUT-PLTFILE FIELD OUTPUT.mt [OUT_DIAGRAMS] [OUT_INTEGRAL] \n", argv[0]);
             fmt::print("Compute local-global tree from AMR data\n");
             fmt::print("{}", ops);
         }
@@ -243,11 +248,10 @@ int main(int argc, char** argv)
     dlog::flush();
     world.barrier();
 
-    bool read_plotfile = true;
+    read_plotfile = true;
 
     if (read_plotfile)
     {
-        std::string var_name = "density";
         read_amr_plotfile(input_filename, var_name, world, nblocks, master_reader, header, domain);
     } else
     {
@@ -321,6 +325,14 @@ int main(int argc, char** argv)
         LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
                                                             << ", time to compute average: "
                                                             << dlog::clock_to_string(timer.elapsed());
+
+        if (mean < 0 or std::isnan(mean) or std::isinf(mean) or mean > 1e+40)
+        {
+            LOG_SEV_IF(world.rank() == 0, error) << "Bad average = " << mean << ", do not proceed";
+            if (read_plotfile)
+                amrex::Finalize();
+            return 1;
+        }
 
         time_for_local_computation += timer.elapsed();
         dlog::flush();
@@ -529,6 +541,11 @@ int main(int argc, char** argv)
                                             time_for_local_computation, time_for_communication, time_for_output);
     LOG_SEV_IF(world.rank() == 0, info) << final_timings;
     dlog::flush();
+
+    if (read_plotfile)
+    {
+        amrex::Finalize();
+    }
 
     return 0;
 }
