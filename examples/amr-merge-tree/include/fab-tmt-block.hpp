@@ -17,7 +17,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
     int debug_gid = local_.gid();
 
-    bool debug = false; //gid == 0;
+    bool debug = false; //gid == 24316;
 //    debug = (gid == 63) and (v_mask[0] == 2 and v_mask[1] == 2 and v_mask[2] == 65);
 
     auto v_local = local_.local_position_from_mask(v_mask);
@@ -134,6 +134,8 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
             }
             mask_set = true;
             local_.set_mask(v_mask, l->target(i).gid);
+            if (not is_ghost)
+                n_masked_++;
             break;
         }
 
@@ -152,6 +154,8 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
                 }
                 mask_set = true;
                 local_.set_mask(v_mask, l->target(i).gid);
+                if (not is_ghost)
+                    n_masked_++;
                 break;
             }
         }
@@ -167,7 +171,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
             {
                 if (debug)
                 {
-                    fmt::print("Is masked SAME {} , is_ghost = {}, gid = {}, v_idx = {}\n", l->target(i).gid, is_ghost,
+                    fmt::print("Is masked FAKE {} , is_ghost = {}, gid = {}, v_idx = {}\n", l->target(i).gid, is_ghost,
                                local_.gid(), v_idx);
                 }
                 mask_set = true;
@@ -221,7 +225,10 @@ void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
         return;
     bool is_low = cmp(absolute_threshold, fab_(v_bounds)); //   negate_ ? fab_(v_bounds) < absolute_threshold : fab_(v_bounds) > absolute_threshold;
     if (is_low)
+    {
+        n_low_ ++;
         local_.set_mask(v_mask, MaskedBox::LOW);
+    }
     else
     {
         n_active_++;
@@ -239,7 +246,8 @@ void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
         this->set_low(v_bounds, absolute_rho);
     });
 
-    if (debug) fmt::print("{}, absolute_rho = {}, n_active = {}\n", debug_prefix, absolute_rho, n_active_);
+    if (debug) fmt::print("{}, absolute_rho = {}, n_active = {}, n_masked = {}, total_size = {}, level = {}\n", debug_prefix, absolute_rho, n_active_,
+            n_masked_, local_.core_shape()[0] * local_.core_shape()[1] * local_.core_shape()[2], level());
 
     reeber::compute_merge_tree2(current_merge_tree_, local_, fab_);
     current_merge_tree_.make_deep_copy(original_tree_);
@@ -260,11 +268,15 @@ void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
     }
 
     if (debug)
-        fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n",
-                   debug_prefix, refinement(), level(), local_, domain().max, components_.size());
+        fmt::print("{}, constructed, refinement = {}, level = {}, local = {},  #components = {}\n",
+                   debug_prefix, refinement(), level(), local_, components_.size());
     if (debug)
-        fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}\n",
-                   debug_prefix, current_merge_tree_.size(), new_receivers_.size());
+    {
+        int n_edges = 0;
+        for(auto& gid_edges : gid_to_outgoing_edges_) { n_edges += gid_edges.second.size(); }
+        fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}, n_edges = {}\n",
+                debug_prefix, current_merge_tree_.size(), new_receivers_.size(), n_edges);
+    }
 
     assert(current_merge_tree_.size() >= original_tree_.size());
 }
@@ -753,7 +765,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::compute_final_connected_components()
 {
-    bool debug = false;
+    bool debug = true;
 
     const auto& const_tree = current_merge_tree_;
 

@@ -171,6 +171,8 @@ struct FabTmtBlock
     Real sum_ { 0 };
     size_t n_unmasked_ { 0 };
     size_t n_active_ { 0 };
+    size_t n_masked_ { 0 };
+    size_t n_low_ { 0 };
     GridRef fab_;
 
     // this vector is not serialized, because we send trees component-wise

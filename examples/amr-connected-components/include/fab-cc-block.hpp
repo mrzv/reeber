@@ -123,6 +123,8 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
             }
             mask_set = true;
             local_.set_mask(v_mask, l->target(i).gid);
+            if (not is_ghost)
+                n_masked_++;
             break;
         }
 
@@ -206,7 +208,10 @@ void FabComponentBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
         return;
     bool is_low = cmp(absolute_threshold, fab_(v_bounds)); //   negate_ ? fab_(v_bounds) < absolute_threshold : fab_(v_bounds) > absolute_threshold;
     if (is_low)
+    {
+        n_low_ ++;
         local_.set_mask(v_mask, MaskedBox::LOW);
+    }
     else
     {
         n_active_++;
@@ -217,7 +222,7 @@ void FabComponentBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
 {
-    bool debug = false;
+    bool debug = true;
     std::string debug_prefix = "In FabComponentBlock::init, gid = " + std::to_string(gid);
 
     diy::for_each(local_.mask_shape(), [this, absolute_rho](const Vertex& v) {
@@ -236,6 +241,18 @@ void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
         fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n",
                    debug_prefix, refinement(), level(), local_, domain().max, components_.size());
     }
+
+    if (debug)
+    {
+        int n_edges = 0;
+        for(auto& gid_edges : vertex_to_outgoing_edges) { n_edges += gid_edges.second.size(); }
+        fmt::print("{},  constructed, tree.size = {}, n_edges = {}, n_active = {}, n_low = {}, n_masked = {}, n_unmasked = {}, total_core_size = {}, diff_check = {}, diff_check_1 = {}\n",
+                debug_prefix, merge_tree_.size(), n_edges, n_active_, n_low_, n_masked_, n_unmasked_,
+                local_.core_shape()[0] * local_.core_shape()[1] * local_.core_shape()[2],
+                n_low_ + n_active_ - n_unmasked_, n_low_ + n_active_ + n_masked_ - local_.core_shape()[0] * local_.core_shape()[1] * local_.core_shape()[2]);
+    }
+
+
 }
 template<unsigned D>
 r::AmrEdgeContainer

@@ -274,9 +274,9 @@ int main(int argc, char** argv)
     std::string var_name;
 
     if (ops >> Present('h', "help", "show help message") or
-        not(ops >> PosOption(input_filename)) or
-        not(ops >> PosOption(var_name)) or
-        not(ops >> PosOption(output_filename)))
+            not(ops >> PosOption(input_filename)) or
+            not(ops >> PosOption(var_name)) or
+            not(ops >> PosOption(output_filename)))
     {
         if (world.rank() == 0)
         {
@@ -305,7 +305,7 @@ int main(int argc, char** argv)
 
     diy::Master master_reader(world, 1, in_memory, &FabBlockR::create, &FabBlockR::destroy);
     diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
-                       &Block::load);
+            &Block::load);
     diy::ContiguousAssigner assigner(world.size(), nblocks);
     diy::MemoryBuffer header;
     diy::DiscreteBounds domain(DIM);
@@ -318,7 +318,9 @@ int main(int argc, char** argv)
     dlog::Timer timer;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
                                                                                      << nblocks
-                                                                                     << ", rho = " << rho << ", reading component: " << var_name;
+                                                                                     << ", rho = " << rho
+                                                                                     << ", reading component: "
+                                                                                     << var_name;
     dlog::flush();
     world.barrier();
 
@@ -355,17 +357,15 @@ int main(int argc, char** argv)
                 int local_lev = l->level();
 
                 master.add(cp.gid(),
-                           new Block(b->fab, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
-                                     new_link, rho, negate, absolute),
-                           new_link);
+                        new Block(b->fab, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
+                                new_link, rho, negate, absolute),
+                        new_link);
 
             });
-
 
     auto time_for_local_computation = timer.elapsed();
 
     Real mean = std::numeric_limits<Real>::min();
-
 
     master.foreach([debug](Block* b, const diy::Master::ProxyWithLink& cp) {
         auto* l = static_cast<diy::AMRLink*>(cp.link());
@@ -401,7 +401,8 @@ int main(int argc, char** argv)
             cp.collectives()->clear();
             cp.all_reduce(b->sum_, std::plus<Real>());
             cp.all_reduce(static_cast<Real>(b->n_unmasked_) * b->scaling_factor(), std::plus<Real>());
-            if (debug) fmt::print("BEFORE EXCHANgE gid = {}, sum = {}, n_unmasked = {}\n", b->gid, b->sum_, b->n_unmasked_);
+            if (debug)
+                fmt::print("BEFORE EXCHANgE gid = {}, sum = {}, n_unmasked = {}\n", b->gid, b->sum_, b->n_unmasked_);
         });
 
         master.exchange();
@@ -436,7 +437,6 @@ int main(int argc, char** argv)
             cp.collectives()->clear();
         });
 
-
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) <<
         "Time to initialize FabTmtBlocks (low vertices, local trees, components, outgoing edges): " << timer.elapsed();
@@ -444,7 +444,6 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
     }
-
 
     int global_n_undone = 1;
 
@@ -510,7 +509,7 @@ int main(int argc, char** argv)
     timer.restart();
 
     int rounds = 0;
-    while (global_n_undone)
+    while(global_n_undone)
     {
         rounds++;
 
@@ -553,6 +552,43 @@ int main(int argc, char** argv)
     //        fmt::print("finished gid = {}, mt.size = {}, my_nodes = {}, not_my_nodes = {}\n", b->gid, b->mt.size(), my_nodes, not_my_nodes);
     //    });
     //    fmt::print("----------------------------------------\n");
+
+
+
+    {
+        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+            auto sum_n_vertices_pair = b->get_local_stats();
+            int n_low = b->n_low_;
+            int n_active = b->n_active_;
+            cp.collectives()->clear();
+            cp.all_reduce(sum_n_vertices_pair.first, std::plus<Real>());
+            cp.all_reduce(sum_n_vertices_pair.second, std::plus<size_t>());
+            cp.all_reduce(n_low, std::plus<size_t>());
+            cp.all_reduce(n_active, std::plus<size_t>());
+
+        });
+
+        master.exchange();
+
+        world.barrier();
+
+        const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+
+        Real total_value = proxy.get<Real>();
+        size_t total_vertices = proxy.get<size_t>();
+        size_t total_n_low = proxy.get<size_t>();
+        size_t total_n_active = proxy.get<size_t>();
+
+        LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = "
+                                                                << total_vertices
+                                                                << ", mean = " << mean << ", total_n_low = "
+                                                                << total_n_low << ", total_n_active = "
+                                                                << total_n_active << ", master.size = " <<  master.size();
+        dlog::flush();
+    }
+
+
+
 
     // save the result
     if (output_filename != "none")
@@ -603,9 +639,14 @@ int main(int argc, char** argv)
 
         master.foreach([rho_min, rho_max](Block* b, const diy::Master::ProxyWithLink& cp) {
 
+            bool debug = false;
+
+            if (debug) fmt::print("PI gid = {}, started final_cc\n", b->gid);
             b->compute_final_connected_components();
+            if (debug) fmt::print("PI gid = {}, final_cc done\n", b->gid);
 
             b->compute_local_integral(rho_min, rho_max);
+            if (debug) fmt::print("PI gid = {}, compute_local_integral done\n", b->gid);
 
             AMRLink* l = static_cast<AMRLink*>(cp.link());
 
@@ -617,6 +658,7 @@ int main(int argc, char** argv)
                 auto receiver = l->target(l->find(receiver_gid));
                 cp.enqueue(receiver, vertex_value_pair);
             }
+            if (debug) fmt::print("PI gid = {}, enqueing done\n", b->gid);
         });
 
         master.exchange();
@@ -625,6 +667,7 @@ int main(int argc, char** argv)
 
         master.foreach([&integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
             AMRLink* l = static_cast<AMRLink*>(cp.link());
+            bool debug = false;
             for(auto bid : l->neighbors())
             {
                 while (cp.incoming(bid.gid))
@@ -636,6 +679,8 @@ int main(int argc, char** argv)
                 }
             }
 
+            if (debug) fmt::print("PI gid = {}, dequeing done\n", b->gid);
+
             for(const auto& root_value_pair : b->local_integral_)
             {
                 AmrVertexId root = root_value_pair.first;
@@ -645,6 +690,7 @@ int main(int argc, char** argv)
 //                integral_file << fmt::format("{} {} {}\n", root, b->local_.global_position(root), root_value_pair.second);
                 integral_file << fmt::format("{} {}\n", b->local_.global_position(root), root_value_pair.second);
             }
+            if (debug) fmt::print("PI gid = {}, writing to file done\n", b->gid);
         });
 
         world.barrier();
@@ -657,9 +703,13 @@ int main(int argc, char** argv)
 
     master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
         auto sum_n_vertices_pair = b->get_local_stats();
+        int n_low = b->n_low_;
+        int n_active = b->n_active_;
         cp.collectives()->clear();
         cp.all_reduce(sum_n_vertices_pair.first, std::plus<Real>());
         cp.all_reduce(sum_n_vertices_pair.second, std::plus<size_t>());
+        cp.all_reduce(n_low, std::plus<size_t>());
+        cp.all_reduce(n_active, std::plus<size_t>());
 
     });
 
@@ -671,9 +721,11 @@ int main(int argc, char** argv)
 
     Real total_value = proxy.get<Real>();
     size_t total_vertices = proxy.get<size_t>();
+    size_t total_n_low = proxy.get<size_t>();
+    size_t total_n_active = proxy.get<size_t>();
 
     LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = " << total_vertices
-                                                            << ", mean = " << mean;
+                                        << ", mean = " << mean << ", total_n_low = " << total_n_low << ", total_n_active = " << total_n_active;
     dlog::flush();
 
     std::string final_timings = fmt::format("read: {} local: {} exchange: {} output: {}\n", time_to_read_data,

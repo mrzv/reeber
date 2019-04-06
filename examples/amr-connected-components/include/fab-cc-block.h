@@ -87,6 +87,8 @@ struct FabComponentBlock {
     Real sum_{0};
     size_t n_active_ {0};
     size_t n_unmasked_{0};
+    size_t n_low_{0};
+    size_t n_masked_{0};
     std::unordered_map<AmrVertexId, Real> vertex_values_;
 
 //    UnionFind disjoint_sets_;   // keep topology of graph of connected components

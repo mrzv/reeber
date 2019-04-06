@@ -188,7 +188,7 @@ void read_amr_plotfile(std::string infile,
 
 
     amrex::Vector<string> varNames;
-    varNames.push_back("density");
+//    varNames.push_back("density");
     if (varName1 != "density")
         varNames.push_back(varName1);
     if (debug) fmt::print("ACHTUNG! varNames = {}\n", container_to_string(varNames));
@@ -229,7 +229,15 @@ void read_amr_plotfile(std::string infile,
 
         auto refinement = mesh.RefRatio();
 
-        if (refinement.size() != 1) throw std::runtime_error("Unexpected uneven refinement");
+        if (refinement.size() != 1)
+        {
+            for(auto r : refinement)
+            {
+                if (r != refinement[0])
+                    throw std::runtime_error("stop here");
+            }
+        }
+
         refinements.push_back(refinements.back() * refinement[0]);
     }
 
@@ -292,8 +300,8 @@ void read_amr_plotfile(std::string infile,
                 int gid = gid_offsets[lev] + mfi.index();
 
 //                if (debug) fmt::print( "amr-plot-reader: rank = {}, gid = {}; smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), shape = ({}, {}, {})\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], shape[0], shape[1], shape[2]);
-//                if (debug) fmt::print( "amr-plot-reader: ALL SHAPES rank = {}, gid = {}; shape = ({}, {}, {}), valid_shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid, shape[0], shape[1], shape[2], valid_shape[0], valid_shape[1], valid_shape[2], a_shape[0], a_shape[1], a_shape[2] );
-//                if (debug) fmt::print( "amr-plot-reader: ALL BOXES rank = {}, gid = {}; TILEBOX smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), VALIDBOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),  ABOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], valid_box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], valid_box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], abox.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], abox.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2] );
+                if (debug) fmt::print( "amr-plot-reader: ALL SHAPES rank = {}, gid = {}; shape = ({}, {}, {}), valid_shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid, shape[0], shape[1], shape[2], valid_shape[0], valid_shape[1], valid_shape[2], a_shape[0], a_shape[1], a_shape[2] );
+                if (debug) fmt::print( "amr-plot-reader: ALL BOXES rank = {}, gid = {}; TILEBOX smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), VALIDBOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),  ABOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], valid_box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], valid_box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], abox.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], abox.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2] );
 //                if (debug) fmt::print( "amr-plot-reader: gid = {}, myFab.contains_inf() = {}, contains_nan = {}, size of Real = {}\n", gid, myFab.contains_inf(), myFab.contains_nan(), sizeof(Real), sizeof(Block::Grid::Value));
 
                 std::vector<std::pair<int, Box>> isects;
@@ -310,8 +318,6 @@ void read_amr_plotfile(std::string infile,
                     fab_ptr_copy = new Real[fab_size];
                     gid_to_fab[gid] = fab_ptr_copy;
                     memcpy(fab_ptr_copy, fab_ptr, sizeof(Real) * fab_size);
-
-                    // TODO { for(int i = 0; i < fab_size; ++i) { fab_ptr_copy[i] += fab_ptr[i]; } }
 
                     for(int i = 0; i < fab_size; ++i)
                     {
@@ -334,7 +340,7 @@ void read_amr_plotfile(std::string infile,
 
                     master_reader.add(gid, new Block(fab_ptr_copy, shape), link);
 
-//                    if (debug) { fmt::print("rank = {}, ADDED\n", world.rank()); fmt::print( "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index()); }
+                    if (debug) { fmt::print("rank = {}, ADDED\n", world.rank()); fmt::print( "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index()); }
 
                     // record wrap
                     for(int dir_x : {-1, 0, 1})
@@ -376,8 +382,10 @@ void read_amr_plotfile(std::string infile,
                         // TODO: here we always assume ghosts, get this information somehow
                         int ng = 0;
                         const BoxArray& ba = mesh.boxArray(nbr_lev);
-                        // TODO: need to divide?
-                        int ratio = mesh.RefRatio().at(nbr_lev);
+                        // TODO!
+//                        int ratio = mesh.RefRatio().at(std::min(lev, nbr_lev));
+                        int ratio = 2;
+//                        fmt::print("ACHTUNG, lev = {}, nbr_lev = {}, RATIO = {}\n", lev, nbr_lev, ratio);
 
                         Box gbx = box;
 
