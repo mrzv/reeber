@@ -557,6 +557,7 @@ int main(int argc, char** argv)
 
     {
         master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+//            fmt::print("PRINT ADF gid = {}, mt.size = {}\n", b->gid, b->current_merge_tree_.size());
             auto sum_n_vertices_pair = b->get_local_stats();
             int n_low = b->n_low_;
             int n_active = b->n_active_;

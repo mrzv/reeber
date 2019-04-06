@@ -102,7 +102,10 @@ template<class Real>
 std::string FabConnectedComponent<Real>::to_string() const
 {
     return fmt::format(
-            "Component(negate = {}, original_deepest = {}, current_gids = {}, processed_gids = {}\n",
+            "Component(negate = {}, original_deepest = {}, current_gids = {}, processed_gids = {}, must_send_neighbors = {}, current_neighbors = {}\n",
             negate_, original_deepest_, container_to_string(current_gids()),
-            container_to_string(processed_gids()));
+            container_to_string(processed_gids()),
+            must_send_neighbors(),
+            container_to_string(current_neighbors())
+            );
 }

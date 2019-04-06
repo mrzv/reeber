@@ -222,7 +222,7 @@ void FabComponentBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
 {
-    bool debug = true;
+    bool debug = false;
     std::string debug_prefix = "In FabComponentBlock::init, gid = " + std::to_string(gid);
 
     diy::for_each(local_.mask_shape(), [this, absolute_rho](const Vertex& v) {

@@ -114,7 +114,7 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
 
     b->round_++;
 
-    bool debug = false;
+    bool debug = false; //b->gid == 23938 or b->gid == 23945;
 
     auto* l = static_cast<AMRLink*>(cp.link());
     auto receivers = link_unique(l, b->gid);
@@ -149,6 +149,7 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
             cp.enqueue(receiver, c.current_neighbors());
             int n_trees = c.must_send_tree_to_gid(receiver_gid);
             if (debug) fmt::print("in amr_cc_send, c = {}, receiver gid = {}, sent original deepest, n_trees = {}\n", c.original_deepest(), receiver_gid, n_trees);
+            if (debug) fmt::print("in amr_cc_send, cfull = {}\n", c);
             cp.enqueue(receiver, n_trees);
             if (n_trees)
             {
@@ -188,7 +189,7 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
     using TripletMergeTree = typename Block::TripletMergeTree;
     using GidSet = typename Block::GidSet;
 
-    bool debug = false;
+    bool debug = false; //b->gid == 23938 or b->gid == 23945;
     if (debug) fmt::print("Called amr_cc_receive for block = {}, round = {}\n", b->gid, b->round_);
 
     //if (debug)
@@ -301,12 +302,12 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
     b->done_ = b->are_all_components_done();
     int undone = 1 - b->done_;
 
-    //if (debug)
-    //    for(const Component& c : b->components_)
-    //    {
-    //        fmt::print("END: Component: {}, #current_neighbors = {}, #processed_neighbors = {}\n",
-    //                c.original_deepest(), c.current_neighbors().size(), c.processed_neighbors().size());
-    //    }
+    if (debug)
+        for(const Component& c : b->components_)
+        {
+            fmt::print("amr_cc_receive END: Component: {}, #current_gids = {}, #processed_gids = {}, must_send_neighbors = {}\n",
+                    c.original_deepest(), c.current_gids().size(), c.processed_gids().size(), c.must_send_neighbors());
+        }
 
     cp.collectives()->clear();
     cp.all_reduce(undone, std::plus<int>());
