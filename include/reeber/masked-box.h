@@ -510,12 +510,6 @@ namespace reeber {
         {
             Position p_mask = mask_position_from_global(p_global);
 
-            if ((mask_(p_mask) != ACTIVE and mask_(p_mask) != LOW) and not is_outer(p_mask))
-            {
-                fmt::print("Error in is_outer_edge_start, p_global = {}, p_mask = {}, this = {}, not outer\n", p_global, p_mask, *this);
-                throw std::runtime_error("Error in is_outer_edge_start");
-            }
-
             if ((mask_(p_mask) == ACTIVE or mask_(p_mask) == LOW) and is_outer(p_mask))
             {
                 fmt::print("Error in is_outer_edge_start, p_global = {}, p_mask = {}, this = {}, is outer\n", p_global, p_mask, *this);
