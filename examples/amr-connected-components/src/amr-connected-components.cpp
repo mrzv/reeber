@@ -357,32 +357,7 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
 
-        if (false) {
-            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-                size_t n_low = b->n_low_;
-                size_t n_active = b->n_active_;
-                size_t n_masked = b->n_masked_;
-                cp.collectives()->clear();
-                cp.all_reduce(n_low, std::plus<size_t>());
-                cp.all_reduce(n_active, std::plus<size_t>());
-                cp.all_reduce(n_masked, std::plus<size_t>());
-            });
 
-            master.exchange();
-
-            world.barrier();
-
-            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
-
-            size_t total_n_low = proxy.get<size_t>();
-            size_t total_n_active = proxy.get<size_t>();
-            size_t total_n_masked = proxy.get<size_t>();
-
-            LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
-                                                                    << total_n_active << ", total_n_masked = " <<  total_n_masked;
-            dlog::flush();
-            timer.restart();
-        }
     }
 
     int global_n_undone = 1;
@@ -455,6 +430,9 @@ int main(int argc, char** argv)
     dlog::flush();
     timer.restart();
 
+#if 1
+    auto time_for_output = timer.elapsed();
+#else
     // save the result
     if (output_filename != "none")
     {
@@ -546,7 +524,7 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
     }
-
+#endif
 //    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
 //        auto sum_n_vertices_pair = b->get_local_stats();
 //        cp.collectives()->clear();
@@ -572,6 +550,33 @@ int main(int argc, char** argv)
                                             time_for_local_computation, time_for_communication, time_for_output);
     LOG_SEV_IF(world.rank() == 0, info) << final_timings;
     dlog::flush();
+
+        if (true) {
+            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+                size_t n_low = b->n_low_;
+                size_t n_active = b->n_active_;
+                size_t n_masked = b->n_masked_;
+                cp.collectives()->clear();
+                cp.all_reduce(n_low, std::plus<size_t>());
+                cp.all_reduce(n_active, std::plus<size_t>());
+                cp.all_reduce(n_masked, std::plus<size_t>());
+            });
+
+            master.exchange();
+
+            world.barrier();
+
+            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+
+            size_t total_n_low = proxy.get<size_t>();
+            size_t total_n_active = proxy.get<size_t>();
+            size_t total_n_masked = proxy.get<size_t>();
+
+            LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
+                                                                    << total_n_active << ", total_n_masked = " <<  total_n_masked;
+            dlog::flush();
+            timer.restart();
+        }
 
     if (read_plotfile)
     {

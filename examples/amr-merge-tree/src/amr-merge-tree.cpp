@@ -589,8 +589,9 @@ int main(int argc, char** argv)
     }
 
 
-
-
+#if 1
+    auto time_for_output = timer.elapsed();
+#else
     // save the result
     if (output_filename != "none")
     {
@@ -701,6 +702,7 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
     }
+#endif
 
     master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
         auto sum_n_vertices_pair = b->get_local_stats();
@@ -734,7 +736,7 @@ int main(int argc, char** argv)
     LOG_SEV_IF(world.rank() == 0, info) << final_timings;
     dlog::flush();
 
-
+#if 0
     // output diagrams componentwise
     if (write_halo_diagrams)
     {
@@ -802,7 +804,7 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
     }
-
+#endif
     if (read_plotfile)
     {
         amrex::Finalize();
