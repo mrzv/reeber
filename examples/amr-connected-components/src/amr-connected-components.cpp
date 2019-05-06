@@ -193,6 +193,11 @@ int main(int argc, char** argv)
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
     std::string var_name;
 
+    std::set<std::string> mt_var_names { "density", "particle_mass_density" };
+
+    std::set<std::string> all_var_names { "density", "particle_mass_density", "zmom" };
+
+
     if (ops >> Present('h', "help", "show help message") or
         not(ops >> PosOption(input_filename)) or
         not(ops >> PosOption(var_name)) or
@@ -252,7 +257,7 @@ int main(int argc, char** argv)
 
     if (read_plotfile)
     {
-        read_amr_plotfile(input_filename, var_name, world, nblocks, master_reader, header, domain);
+        read_amr_plotfile(input_filename, mt_var_names, all_var_names, world, nblocks, master_reader, header, domain);
     } else
     {
         read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);

@@ -162,7 +162,8 @@ void print_box(const Box& b)
 }
 
 void read_amr_plotfile(std::string infile,
-        std::string varName1,
+        std::set<std::string> mt_var_names,
+        std::set<std::string> all_var_names,
         diy::mpi::communicator& world,
         int nblocks,
         diy::Master& master_reader,
@@ -172,7 +173,7 @@ void read_amr_plotfile(std::string infile,
 {
     amrex::Initialize(world);
 
-    bool debug = false;
+    bool debug = true;
 
     // Create the AmrData object from a pltfile on disk
 
@@ -187,14 +188,27 @@ void read_amr_plotfile(std::string infile,
     AmrData& amrData = dataServices.AmrDataRef();
 
 
-    amrex::Vector<string> varNames;
-//    varNames.push_back("density");
-    if (varName1 != "density")
-        varNames.push_back(varName1);
-    if (debug) fmt::print("ACHTUNG! varNames = {}\n", container_to_string(varNames));
+    // names of all fields that will be read
+    amrex::Vector<string> all_var_names_vec;
+
+    // TODO: refactor this!
+    for(string vn : mt_var_names)
+    {
+        all_var_names_vec.push_back(vn);
+    }
+
+    for(string vn : all_var_names)
+    {
+        if (mt_var_names.count(vn) == 0)
+        {
+            all_var_names_vec.push_back(vn);
+        }
+    }
+
+    if (debug) fmt::print("ACHTUNG! all_var_names = {}\n", container_to_string(all_var_names_vec));
 
     // Make a data struct for just the variables needed
-    AMReXDataHierarchy data(amrData, varNames);
+    AMReXDataHierarchy data(amrData, all_var_names_vec);
     const AMReXMeshHierarchy& mesh = data.Mesh();
 
     // TODO: fix wrap
@@ -211,7 +225,6 @@ void read_amr_plotfile(std::string infile,
         domain_diy.max[i] = domain.hiVect()[i];
     }
 
-    // Compute the volume integrals
     const int finestLevel = mesh.FinestLevel();
     const int nLev = finestLevel + 1;
 
@@ -219,7 +232,7 @@ void read_amr_plotfile(std::string infile,
     std::vector<int> refinements = {1};
     for(int lev = 0; lev <= finestLevel; lev++)
     {
-        const MultiFab& mf = data.GetGrids(lev, varNames[0]);
+        const MultiFab& mf = data.GetGrids(lev, all_var_names_vec[0]);
         const BoxArray& ba = mf.boxArray();
 
         if (debug) fmt::print("rank = {}, nblocks = {}, ba.size() = {}\n", world.rank(), nblocks, ba.size());
@@ -257,12 +270,13 @@ void read_amr_plotfile(std::string infile,
     int n_wo_1 = 0;
 
     std::map<int, Real*> gid_to_fab;
+    std::map<int, std::vector<Real*>> gid_to_extra_pointers;
 
     for(int lev = 0; lev < nLev; ++lev)
     {
-        for(int varIdx = 0; varIdx < varNames.size(); ++varIdx)
+        for(int varIdx = 0; varIdx < all_var_names_vec.size(); ++varIdx)
         {
-            auto varName = varNames[varIdx];
+            auto varName = all_var_names_vec[varIdx];
             const BoxArray ba = mesh.boxArray(lev);
 
             // Make boxes that are projection of finer ones (if exist)
@@ -315,9 +329,25 @@ void read_amr_plotfile(std::string infile,
                 long long int fab_size = shape[0] * shape[1] * shape[2];
                 if (varIdx == 0)
                 {
-                    fab_ptr_copy = new Real[fab_size];
+                    // allocate memory for all fields that we store in FabBlock
+                    // actual copying for next fields will happen later
+                    std::vector<Real*> extra_pointers;
+                    std::vector<string> extra_names;
+                    for(int i = 0; i < all_var_names_vec.size(); ++i)
+                    {
+                        extra_names.push_back(all_var_names_vec[i]);
+                        Real* extra_ptr_copy = new Real[fab_size];
+                        if (debug) fmt::print( "amr-plot-reader: gid = {}, size of Real = {}, allocated memory for {}\n", gid, sizeof(Real), all_var_names_vec[varIdx]);
+                        extra_pointers.push_back(extra_ptr_copy);
+                        if (i == 0)
+                            fab_ptr_copy = new Real[fab_size];
+                    }
+
                     gid_to_fab[gid] = fab_ptr_copy;
+                    gid_to_extra_pointers[gid] = extra_pointers;
+
                     memcpy(fab_ptr_copy, fab_ptr, sizeof(Real) * fab_size);
+                    memcpy(extra_pointers[0], fab_ptr, sizeof(Real) * fab_size);
 
                     for(int i = 0; i < fab_size; ++i)
                     {
@@ -338,7 +368,7 @@ void read_amr_plotfile(std::string infile,
                     }
 //                    if (debug) { fmt::print( "rank = {}, gid = {}, sum = {}, fabs_size = {}, avg_in_fab = {}, n_nans = {}, n_infs = {}, n_negs = {}, n_wo = {}, avg_wo = {}\n", world.rank(), gid, total_sum, fab_size, total_sum / fab_size, n_nans, n_infs, n_negs, n_wo, total_sum_wo / n_wo); }
 
-                    master_reader.add(gid, new Block(fab_ptr_copy, shape), link);
+                    master_reader.add(gid, new Block(fab_ptr_copy, extra_names, extra_pointers, shape), link);
 
                     if (debug) { fmt::print("rank = {}, ADDED\n", world.rank()); fmt::print( "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index()); }
 
@@ -414,7 +444,12 @@ void read_amr_plotfile(std::string infile,
                     }
                 } else
                 {
+                    Real* block_extra_ptr = gid_to_extra_pointers.at(gid).at(varIdx);
                     Real* block_fab_ptr = gid_to_fab.at(gid);
+
+                    bool add_to_fab = mt_var_names.count(all_var_names_vec[varIdx]);
+
+
                     if (debug) fmt::print("Adding next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}\n", (void*)block_fab_ptr, (void*) fab_ptr, gid);
                     for(int i = 0; i < fab_size; ++i)
                     {
@@ -427,15 +462,19 @@ void read_amr_plotfile(std::string infile,
                             n_wo_1 += 1;
                         }
 
-                        block_fab_ptr[i] += fab_ptr[i];
+                        if(add_to_fab)
+                            block_fab_ptr[i] += fab_ptr[i];
+                        block_extra_ptr[i] = fab_ptr[i];
                     }
 
                     if (debug) fmt::print("Added next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}, n_nans_1 = {}, n_negs_1 = {}, n_infs_1 = {}, totao_sum_1 = {}\n" , (void*)block_fab_ptr, (void*) fab_ptr, gid, n_nans_1, n_negs_1, n_infs_1, total_sum_1);
 
 
                 }
+
+
             } // loop over tiles
-        } // loop over varNames
+        } // loop over all_var_names
     } // loop over levels
 
     // fill dynamic assigner and fix links

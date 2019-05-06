@@ -7,7 +7,8 @@
 #include <diy/assigner.hpp>
 
 void read_amr_plotfile(std::string infile,
-                       std::string varName,
+                       std::set<std::string> mt_var_names,
+                       std::set<std::string> extra_var_names,
                        diy::mpi::communicator& world,
                        int nblocks,
                        diy::Master& master_reader,

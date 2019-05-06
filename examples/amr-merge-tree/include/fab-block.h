@@ -25,6 +25,16 @@ struct FabBlock
     {
     }
 
+    FabBlock(T* data, const std::vector<std::string>& extra_names, const std::vector<T*>& extra_data, const Shape& shape) :
+            fab(data, shape, /* c_order = */ false),
+            extra_names_(extra_names)
+    {
+        for(T* extra_ptr : extra_data)
+        {
+            extra_fabs_.emplace_back(extra_ptr, shape, false);
+        }
+    }
+
     static void* create()
     {
         return new FabBlock;
@@ -41,6 +51,9 @@ struct FabBlock
 
     diy::Grid<T, D> fab_storage_;        // container, in case we own the data
     diy::GridRef<T, D> fab;
+
+    std::vector<std::string> extra_names_; // vector of names additional components
+    std::vector<diy::GridRef<T, D>> extra_fabs_; // vector of additional components' data
 
 };
 
