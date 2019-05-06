@@ -1,6 +1,53 @@
 
+//template<class Real, unsigned D>
+//FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
+//                                              int _ref,
+//                                              int _level,
+//                                              const diy::DiscreteBounds& _domain,
+//                                              const diy::DiscreteBounds& bounds,
+//                                              const diy::DiscreteBounds& core,
+//                                              int _gid,
+//                                              diy::AMRLink *amr_link,
+//                                              Real rho,                                           // threshold for LOW value
+//                                              bool _negate,
+//                                              bool is_absolute_threshold) :
+//        gid(_gid),
+//        local_(project_point<D>(core.min), project_point<D>(core.max), project_point<D>(bounds.min),
+//               project_point<D>(bounds.max), _ref, _level, gid, fab_grid.c_order()),
+//        fab_(fab_grid.data(), fab_grid.shape(), fab_grid.c_order()),
+//        domain_(_domain),
+//        negate_(_negate),
+//        merge_tree_(negate_)
+//{
+//    bool debug = false;
+//
+//    std::string debug_prefix = "FabComponentBlock ctor, gid = " + std::to_string(gid);
+//
+//    if (debug) fmt::print("{} setting mask\n", debug_prefix);
+//
+//    diy::for_each(local_.mask_shape(), [this, amr_link, rho, is_absolute_threshold](const Vertex& v) {
+//        this->set_mask(v, amr_link, rho, is_absolute_threshold);
+//    });
+//
+//    //        if (debug) fmt::print("gid = {}, checking mask\n", gid);
+//    int max_gid = 0;
+//    for(int i = 0; i < amr_link->size(); ++i)
+//    {
+//        max_gid = std::max(max_gid, amr_link->target(i).gid);
+//    }
+//
+//    //local_.check_mask_validity(max_gid);
+//
+//    if (is_absolute_threshold)
+//    {
+//        init(rho, amr_link);
+//    }
+//}
+
 template<class Real, unsigned D>
 FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
+                                              std::vector<diy::GridRef<Real, D>>& extra_grids,
+                                              std::vector<std::string>& extra_names,
                                               int _ref,
                                               int _level,
                                               const diy::DiscreteBounds& _domain,
@@ -17,7 +64,9 @@ FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
         fab_(fab_grid.data(), fab_grid.shape(), fab_grid.c_order()),
         domain_(_domain),
         negate_(_negate),
-        merge_tree_(negate_)
+        merge_tree_(negate_),
+        extra_grids_(extra_grids),
+        extra_names_(extra_names)
 {
     bool debug = false;
 
@@ -574,7 +623,11 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
         vertices_to_process.push(v);
 
         Real deepest_value = fab_(v);
-        Real integral_val = 0.0;
+        std::map<std::string, Real> extra_integral_values;
+        for(std::string extra_name : extra_names_)
+        {
+            extra_integral_values[extra_name] = 0.0;
+        }
         AmrVertexId deepest = v;
 
         while(!vertices_to_process.empty())
@@ -597,7 +650,12 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
             }
 
             Real u_val = fab_(u);
-            integral_val += u_val;
+
+            for(int i = 0; i < extra_names_.size(); ++i)
+            {
+                extra_integral_values.at(extra_names_.at(i)) += extra_grids_.at(i)(u);
+            }
+
             if (cmp(u_val, deepest_value))
             {
                 deepest_value = u_val;
@@ -615,9 +673,12 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
             vertex_to_deepest_[component_vertex] = deepest;
         }
 
-        integral_val *= scaling_factor();
+        for(int i = 0; i < extra_names_.size(); ++i)
+        {
+            extra_integral_values.at(extra_names_.at(i)) *= scaling_factor();
+        }
 
-        components_.emplace_back(negate_, deepest, deepest_value);
+        components_.emplace_back(negate_, deepest, deepest_value, extra_integral_values);
     }
 
     // copy nodes from local merge tree of block to merge trees of components

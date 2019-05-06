@@ -195,7 +195,7 @@ int main(int argc, char** argv)
 
     std::set<std::string> mt_var_names { "density", "particle_mass_density" };
 
-    std::set<std::string> all_var_names { "density", "particle_mass_density", "zmom" };
+    std::set<std::string> all_var_names { "density", "particle_mass_density", "xmom", "ymom", "zmom" };
 
 
     if (ops >> Present('h', "help", "show help message") or
@@ -288,7 +288,7 @@ int main(int argc, char** argv)
                 int local_lev = l->level();
 
                 master.add(cp.gid(),
-                           new Block(b->fab, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
+                           new Block(b->fab, b->extra_fabs_,  b->extra_names_, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
                                      new_link, rho, negate, absolute),
                            new_link);
 

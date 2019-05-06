@@ -114,6 +114,9 @@ struct FabComponentBlock {
 
     LocalIntegral local_integral_;
 
+    std::vector<diy::GridRef<Real, D>> extra_grids_;
+    std::vector<std::string> extra_names_;
+
     // methods
 
     // simple getters/setters
@@ -127,6 +130,20 @@ struct FabComponentBlock {
     { return local_.level(); }
 
     FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
+                      int _ref,
+                      int _level,
+                      const diy::DiscreteBounds& _domain,
+                      const diy::DiscreteBounds& bounds,
+                      const diy::DiscreteBounds& core,
+                      int _gid,
+                      diy::AMRLink *amr_link,
+                      Real rho,                                           // threshold for LOW value
+                      bool _negate,
+                      bool is_absolute_threshold);
+
+    FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
+                      std::vector<diy::GridRef<Real, D>>& extra_grids,
+                      std::vector<std::string>& extra_names,
                       int _ref,
                       int _level,
                       const diy::DiscreteBounds& _domain,

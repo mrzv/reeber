@@ -38,6 +38,8 @@ public:
     using VertexValueMap = std::unordered_map<AmrVertexId, Real>;
     using UnionFind = DisjointSets<AmrVertexId>;
 
+    using ExtraIntegral = std::map<std::string, Real>;
+
 private:
     // fields
     bool negate_;
@@ -45,21 +47,22 @@ private:
     Real global_deepest_value_;
 
     AmrVertexSet current_neighbors_;
-//    AmrVertexSet received_neighbors_;
 
     GidSet current_gids_;
     GidSet processed_gids_;
 
     AmrEdgeContainer edges_;
-    // pointer to integral values of block, for termination criterion
 
     std::size_t n_prev_current_neighbors_;
+
+    ExtraIntegral extra_integral_values_;
 
 public:
     // methods
     FabConnectedComponent();
 
-    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value);
+//    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value);
+    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value, const ExtraIntegral& extra_integral_values);
 
     // getters
 
