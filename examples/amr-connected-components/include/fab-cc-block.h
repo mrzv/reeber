@@ -72,7 +72,8 @@ struct FabComponentBlock {
     using DiagramPoint = std::pair<Real, Real>;
     using Diagram = std::vector<DiagramPoint>;
 
-    using LocalIntegral = std::unordered_map<AmrVertexId, Real>;
+    using ExtraValues = typename Component::ExtraValues;
+    using LocalIntegral = std::unordered_map<AmrVertexId, ExtraValues>;
     // data
 
     int gid;
@@ -114,8 +115,10 @@ struct FabComponentBlock {
 
     LocalIntegral local_integral_;
 
-    std::vector<diy::GridRef<Real, D>> extra_grids_;
+    // names of additional fields
     std::vector<std::string> extra_names_;
+    // grids of additional fields
+    std::vector<diy::GridRef<Real, D>> extra_grids_;
 
     // methods
 
@@ -142,8 +145,8 @@ struct FabComponentBlock {
                       bool is_absolute_threshold);
 
     FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
-                      std::vector<diy::GridRef<Real, D>>& extra_grids,
                       std::vector<std::string>& extra_names,
+                      std::vector<diy::GridRef<Real, D>>& extra_grids,
                       int _ref,
                       int _level,
                       const diy::DiscreteBounds& _domain,

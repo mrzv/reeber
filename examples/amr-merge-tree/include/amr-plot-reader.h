@@ -7,12 +7,12 @@
 #include <diy/assigner.hpp>
 
 void read_amr_plotfile(std::string infile,
-                       std::set<std::string> mt_var_names,
-                       std::set<std::string> extra_var_names,
+                       std::vector<std::string> all_var_names, // all fields that will be read from plotfile
+                       int n_mt_vars,                          // sum of first n_mt_vars in all_var_names will be stored in fab of FabBlock,
+                                                               // for each variable listed in all_var_names FabBlock will have an extra GridRef
                        diy::mpi::communicator& world,
                        int nblocks,
                        diy::Master& master_reader,
-//                       diy::ContiguousAssigner& assigner,
                        diy::MemoryBuffer& header,
                        diy::DiscreteBounds& domain);
 

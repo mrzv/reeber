@@ -155,6 +155,7 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
             {
                 cp.enqueue(receiver, c.tree_);
                 cp.enqueue(receiver, c.edges());
+                cp.enqueue(receiver, c.extra_values());
             }
 //            if (debug) fmt::print("in amr_cc_send, sent {} to gid = {}, current_neighbors = {}\n", c.original_deepest(), receiver_gid, container_to_string(c.current_neighbors()));
 
@@ -188,6 +189,7 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
     using AmrVertexContainer = typename Block::AmrVertexContainer;
     using TripletMergeTree = typename Block::TripletMergeTree;
     using GidSet = typename Block::GidSet;
+    using ExtraValues = typename Block::ExtraValues;
 
     bool debug = false; //b->gid == 23938 or b->gid == 23945;
     if (debug) fmt::print("Called amr_cc_receive for block = {}, round = {}\n", b->gid, b->round_);
@@ -229,6 +231,7 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             int received_n_trees;
             TripletMergeTree received_tree;
             AmrEdgeContainer received_edges;
+            ExtraValues received_extra_values;
 
             cp.dequeue(sender, received_original_deepest);
             cp.dequeue(sender, received_current_neighbors);
@@ -238,11 +241,16 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             {
                 cp.dequeue(sender, received_tree);
                 cp.dequeue(sender, received_edges);
+                cp.dequeue(sender, received_extra_values);
                 r::merge(b->merge_tree_, received_tree, received_edges, true);
             }
 
             received_deepest_vertices.push_back(received_original_deepest);
             received_root_to_components[received_original_deepest] = received_current_neighbors;
+            if (!b->local_integral_.count(received_original_deepest))
+                b->local_integral_[received_original_deepest] = received_extra_values;
+            else
+                assert(b->local_integral_[received_original_deepest] == received_extra_values);
 
         }
     }

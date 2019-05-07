@@ -191,21 +191,18 @@ int main(int argc, char** argv)
     bool split = ops >> opts::Present("split", "use split IO");
 
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
-    std::string var_name;
 
-    std::set<std::string> mt_var_names { "density", "particle_mass_density" };
 
-    std::set<std::string> all_var_names { "density", "particle_mass_density", "xmom", "ymom", "zmom" };
-
+    std::vector<std::string> all_var_names { "density", "particle_mass_density", "xmom", "ymom", "zmom" };
+    int n_mt_vars = 2;  // use sum of density + particle_mass_density
 
     if (ops >> Present('h', "help", "show help message") or
         not(ops >> PosOption(input_filename)) or
-        not(ops >> PosOption(var_name)) or
         not(ops >> PosOption(output_filename)))
     {
         if (world.rank() == 0)
         {
-            fmt::print("Usage: {} INPUT-PLTFILE FIELD OUTPUT.mt [OUT_DIAGRAMS] [OUT_INTEGRAL] \n", argv[0]);
+            fmt::print("Usage: {} INPUT-PLTFILE OUTPUT.mt [OUT_DIAGRAMS] [OUT_INTEGRAL]\n", argv[0]);
             fmt::print("Compute local-global tree from AMR data\n");
             fmt::print("{}", ops);
         }
@@ -257,7 +254,7 @@ int main(int argc, char** argv)
 
     if (read_plotfile)
     {
-        read_amr_plotfile(input_filename, mt_var_names, all_var_names, world, nblocks, master_reader, header, domain);
+        read_amr_plotfile(input_filename, all_var_names, n_mt_vars, world, nblocks, master_reader, header, domain);
     } else
     {
         read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
@@ -288,7 +285,7 @@ int main(int argc, char** argv)
                 int local_lev = l->level();
 
                 master.add(cp.gid(),
-                           new Block(b->fab, b->extra_fabs_,  b->extra_names_, local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
+                           new Block(b->fab, b->extra_names_, b->extra_fabs_,  local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
                                      new_link, rho, negate, absolute),
                            new_link);
 
@@ -435,7 +432,7 @@ int main(int argc, char** argv)
     dlog::flush();
     timer.restart();
 
-#if 1
+#if 0
     auto time_for_output = timer.elapsed();
 #else
     // save the result
@@ -478,47 +475,54 @@ int main(int argc, char** argv)
 
     if (write_integral)
     {
-        master.foreach([theta](Block* b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([theta](Block* b, const diy::Master::ProxyWithLink& cp)
+        {
             b->compute_final_connected_components();
             b->compute_local_integral(theta);
 
-            AMRLink* l = static_cast<AMRLink*>(cp.link());
-
-            for(const auto& vertex_value_pair : b->local_integral_)
-            {
-                int receiver_gid = vertex_value_pair.first.gid;
-                if (receiver_gid == b->gid)
-                    continue;
-                auto receiver = l->target(l->find(receiver_gid));
-                cp.enqueue(receiver, vertex_value_pair);
-            }
         });
 
-        master.exchange();
+//        diy::io::SharedOutFile integral_file(output_integral_filename, world);
+//        master.foreach([&integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([output_integral_filename, domain](Block* b, const diy::Master::ProxyWithLink& cp) {
 
-        diy::io::SharedOutFile integral_file(output_integral_filename, world);
+            std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
+            std::ofstream ofs(integral_local_fname);
 
-        master.foreach([&integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
-            AMRLink* l = static_cast<AMRLink*>(cp.link());
-            for(auto bid : l->neighbors())
+            diy::Point<int, 3> domain_shape;
+            for(int i = 0 ; i < 3; ++i)
             {
-                while(cp.incoming(bid.gid))
-                {
-                    Block::LocalIntegral::value_type x;
-                    cp.dequeue(bid, x);
-                    assert(x.first.gid == b->gid);
-                    b->local_integral_[x.first] += x.second;
-                }
+                domain_shape[i] = domain.max[i] - domain.min[i] + 1;
             }
 
-            for(const auto& root_value_pair : b->local_integral_)
+            diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
+
+            // local integral already stores number of vertices (set in init)
+            // so we add it here just to print it
+            b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
+
+            for(const auto& root_values_pair : b->local_integral_)
             {
-                AmrVertexId root = root_value_pair.first;
+                AmrVertexId root = root_values_pair.first;
                 if (root.gid != b->gid)
                     continue;
+                auto& values = root_values_pair.second;
+                Real n_vertices = values.at("n_vertices");
 
-//                integral_file << fmt::format("{} {} {}\n", root, b->local_.global_position(root), root_value_pair.second);
-                integral_file << fmt::format("{} {}\n", b->local_.global_position(root), root_value_pair.second);
+                Real vx = values.at("xmom") / n_vertices;
+                Real vy = values.at("ymom") / n_vertices;
+                Real vz = values.at("zmom") / n_vertices;
+
+                Real m_gas = values.at("density");
+                Real m_particles = values.at("particle_mass_density");
+                Real m_total = m_gas + m_particles;
+
+                fmt::print(ofs, "{} {} {} {} {} {} {} {} {}\n",
+                        domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
+                        n_vertices,
+                        b->local_.global_position(root),
+                        vx, vy, vz,
+                        m_gas, m_particles, m_total);
             }
         });
 

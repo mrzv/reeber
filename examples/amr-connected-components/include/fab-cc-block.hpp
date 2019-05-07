@@ -46,8 +46,8 @@
 
 template<class Real, unsigned D>
 FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
-                                              std::vector<diy::GridRef<Real, D>>& extra_grids,
                                               std::vector<std::string>& extra_names,
+                                              std::vector<diy::GridRef<Real, D>>& extra_grids,
                                               int _ref,
                                               int _level,
                                               const diy::DiscreteBounds& _domain,
@@ -65,9 +65,10 @@ FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
         domain_(_domain),
         negate_(_negate),
         merge_tree_(negate_),
-        extra_grids_(extra_grids),
-        extra_names_(extra_names)
+        extra_names_(extra_names),
+        extra_grids_(extra_grids)
 {
+    assert(extra_names.size() == extra_grids.size());
     bool debug = false;
 
     std::string debug_prefix = "FabComponentBlock ctor, gid = " + std::to_string(gid);
@@ -668,14 +669,18 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
             }
         }
 
-        for(auto&& component_vertex : component_vertices)
-        {
-            vertex_to_deepest_[component_vertex] = deepest;
-        }
-
         for(int i = 0; i < extra_names_.size(); ++i)
         {
             extra_integral_values.at(extra_names_.at(i)) *= scaling_factor();
+        }
+
+        extra_integral_values["n_vertices"] =  component_vertices.size();
+
+        local_integral_[deepest] = extra_integral_values;
+
+        for(const auto& component_vertex : component_vertices)
+        {
+            vertex_to_deepest_[component_vertex] = deepest;
         }
 
         components_.emplace_back(negate_, deepest, deepest_value, extra_integral_values);
@@ -705,7 +710,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
     }
 }
 
-
+// fill in vertex_to_deepest_ map with correct values
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_final_connected_components()
 {
@@ -952,36 +957,25 @@ void  FabComponentBlock<Real, D>::compute_local_integral(Real theta)
 
     if (debug) fmt::print("Enter compute_local_integral, gid = {}, theta = {}\n", gid, theta);
 
-    local_integral_.clear();
-
-    Real sf = scaling_factor();
-
-    const auto& const_tree = merge_tree_;
-    const auto& nodes = const_tree.nodes();
-    for(const auto& vertex_node_pair : nodes)
+    for(auto li_iter = local_integral_.begin(); li_iter != local_integral_.end(); )
     {
-        AmrVertexId current_vertex = vertex_node_pair.first;
-
-        assert(current_vertex == vertex_node_pair.second->vertex);
-
-        // save only information about local vertices
-        if (current_vertex.gid != gid)
-            continue;
-
-        Node* current_node = vertex_node_pair.second;
-        AmrVertexId root = vertex_to_deepest_.at(current_vertex);
-
-
-        Real root_value = nodes.at(root)->value;
-
-        if (debug) fmt::print("root = {}, root_value = {}, skip = {}\n", root, root_value, merge_tree_.cmp(root_value, theta));
-
-        if (merge_tree_.cmp(theta, root_value))
-            continue;
-        local_integral_[root] += sf * current_node->value;
-        for(const auto& value_vertex_pair : current_node->vertices) {
-            assert(value_vertex_pair.second.gid == gid);
-            local_integral_[root] += sf * value_vertex_pair.first;
+        AmrVertexId v = li_iter->first;
+        AmrVertexId root = vertex_to_deepest_.at(v);
+        // if deepest vertex belongs to another block, skip it
+        if (root != v)
+        {
+            assert(local_integral_.count(root));
+            if (root.gid == gid)
+            {
+                for(const auto& field_sum : li_iter->second)
+                {
+                    local_integral_.at(root).at(field_sum.first) += field_sum.second;
+                }
+            }
+            li_iter = local_integral_.erase(li_iter);
+        } else
+        {
+            ++li_iter;
         }
     }
 }

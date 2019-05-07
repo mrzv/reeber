@@ -38,7 +38,7 @@ public:
     using VertexValueMap = std::unordered_map<AmrVertexId, Real>;
     using UnionFind = DisjointSets<AmrVertexId>;
 
-    using ExtraIntegral = std::map<std::string, Real>;
+    using ExtraValues = std::map<std::string, Real>;
 
 private:
     // fields
@@ -53,40 +53,29 @@ private:
 
     AmrEdgeContainer edges_;
 
-    std::size_t n_prev_current_neighbors_;
+    std::size_t n_prev_current_neighbors_ { 0 };
 
-    ExtraIntegral extra_integral_values_;
+    ExtraValues extra_integral_values_;
 
 public:
     // methods
+    // ctors
     FabConnectedComponent();
-
-//    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value);
-    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value, const ExtraIntegral& extra_integral_values);
+    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value, const ExtraValues& extra_integral_values);
 
     // getters
-
-    AmrVertexId original_deepest() const { return original_deepest_; }
-
+    AmrVertexId         original_deepest()  const { return original_deepest_; }
     const AmrVertexSet& current_neighbors() const { return current_neighbors_; }
-    const GidSet& current_gids() const { return current_gids_; }
-    const GidSet& processed_gids() const { return processed_gids_; }
+    const GidSet&       current_gids()      const { return current_gids_; }
+    const GidSet&       processed_gids()    const { return processed_gids_; }
+    const ExtraValues&  extra_values()      const { return extra_integral_values_; }
 
-//    const auto& processed_neighbors() const
-//    { return processed_neighbors_; }
-
-    const AmrEdgeContainer edges() const
-    { return edges_; }
+    const AmrEdgeContainer edges()          const { return edges_; }
 
     bool cmp(Real x, Real y) const;
 
-//    int is_done() const;
     bool is_done_sending() const;
 
-
-//    void set_global_deepest(const VertexValue& vv);
-
-//
     void add_current_neighbor(const AmrVertexId& new_current_neighbor);
     void set_current_neighbors(const AmrVertexSet& new_current_neighbors);
 

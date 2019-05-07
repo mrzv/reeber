@@ -162,18 +162,17 @@ void print_box(const Box& b)
 }
 
 void read_amr_plotfile(std::string infile,
-        std::set<std::string> mt_var_names,
-        std::set<std::string> all_var_names,
+        std::vector<std::string> all_var_names,
+        int n_mt_vars,
         diy::mpi::communicator& world,
         int nblocks,
         diy::Master& master_reader,
-//                       diy::ContiguousAssigner& assigner,
         diy::MemoryBuffer& header,
         diy::DiscreteBounds& domain_diy)
 {
     amrex::Initialize(world);
 
-    bool debug = true;
+    bool debug = false;
 
     // Create the AmrData object from a pltfile on disk
 
@@ -189,21 +188,7 @@ void read_amr_plotfile(std::string infile,
 
 
     // names of all fields that will be read
-    amrex::Vector<string> all_var_names_vec;
-
-    // TODO: refactor this!
-    for(string vn : mt_var_names)
-    {
-        all_var_names_vec.push_back(vn);
-    }
-
-    for(string vn : all_var_names)
-    {
-        if (mt_var_names.count(vn) == 0)
-        {
-            all_var_names_vec.push_back(vn);
-        }
-    }
+    amrex::Vector<string> all_var_names_vec(all_var_names.begin(), all_var_names.end());
 
     if (debug) fmt::print("ACHTUNG! all_var_names = {}\n", container_to_string(all_var_names_vec));
 
@@ -274,9 +259,9 @@ void read_amr_plotfile(std::string infile,
 
     for(int lev = 0; lev < nLev; ++lev)
     {
-        for(int varIdx = 0; varIdx < all_var_names_vec.size(); ++varIdx)
+        for(int var_idx = 0; var_idx < all_var_names_vec.size(); ++var_idx)
         {
-            auto varName = all_var_names_vec[varIdx];
+            auto varName = all_var_names_vec[var_idx];
             const BoxArray ba = mesh.boxArray(lev);
 
             // Make boxes that are projection of finer ones (if exist)
@@ -313,9 +298,8 @@ void read_amr_plotfile(std::string infile,
 
                 int gid = gid_offsets[lev] + mfi.index();
 
-//                if (debug) fmt::print( "amr-plot-reader: rank = {}, gid = {}; smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), shape = ({}, {}, {})\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], shape[0], shape[1], shape[2]);
-                if (debug) fmt::print( "amr-plot-reader: ALL SHAPES rank = {}, gid = {}; shape = ({}, {}, {}), valid_shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid, shape[0], shape[1], shape[2], valid_shape[0], valid_shape[1], valid_shape[2], a_shape[0], a_shape[1], a_shape[2] );
-                if (debug) fmt::print( "amr-plot-reader: ALL BOXES rank = {}, gid = {}; TILEBOX smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), VALIDBOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),  ABOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], valid_box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], valid_box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], abox.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], abox.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2] );
+                if (debug) fmt::print( "amr-plot-reader: ALL SHAPES rank = {}, gid = {}; shape = ({}, {}, {}), valid_shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid, shape[0], shape[1], shape[2], valid_shape[0], valid_shape[1], valid_shape[2], a_shape[0], a_shape[1], a_shape[2]);
+                if (debug) fmt::print( "amr-plot-reader: ALL BOXES rank = {}, gid = {}; TILEBOX smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), VALIDBOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),  ABOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], valid_box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], valid_box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], abox.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], abox.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2]);
 //                if (debug) fmt::print( "amr-plot-reader: gid = {}, myFab.contains_inf() = {}, contains_nan = {}, size of Real = {}\n", gid, myFab.contains_inf(), myFab.contains_nan(), sizeof(Real), sizeof(Block::Grid::Value));
 
                 std::vector<std::pair<int, Box>> isects;
@@ -323,21 +307,19 @@ void read_amr_plotfile(std::string infile,
                 diy::AMRLink* link = new diy::AMRLink(3, lev, refinements[lev], bounds(box), bounds(abox));
                 // init fab
                 // TODO: c_order!
-                if (debug) fmt::print( "n_comps = {}, varIdx = {}, smallestPtr = {}, nextPtr = {}, diff = {}, max_ptr = {}\n", myFab.nComp(), varIdx, (void*) myFab.dataPtr(0), (void*) myFab.dataPtr(1), (myFab.dataPtr(1) - myFab.dataPtr(0)), (void*) myFab.dataPtr(myFab.nComp() - 1));
+                if (debug) fmt::print("n_comps = {}, var_idx = {}, smallestPtr = {}, nextPtr = {}, diff = {}, max_ptr = {}\n", myFab.nComp(), var_idx, (void*) myFab.dataPtr(0), (void*) myFab.dataPtr(1), (myFab.dataPtr(1) - myFab.dataPtr(0)), (void*) myFab.dataPtr(myFab.nComp() - 1));
 
                 Real* fab_ptr = const_cast<Real*>(myFab.dataPtr(0));
                 long long int fab_size = shape[0] * shape[1] * shape[2];
-                if (varIdx == 0)
+                if (var_idx == 0)
                 {
                     // allocate memory for all fields that we store in FabBlock
                     // actual copying for next fields will happen later
                     std::vector<Real*> extra_pointers;
-                    std::vector<string> extra_names;
                     for(int i = 0; i < all_var_names_vec.size(); ++i)
                     {
-                        extra_names.push_back(all_var_names_vec[i]);
                         Real* extra_ptr_copy = new Real[fab_size];
-                        if (debug) fmt::print( "amr-plot-reader: gid = {}, size of Real = {}, allocated memory for {}\n", gid, sizeof(Real), all_var_names_vec[varIdx]);
+                        if (debug) fmt::print("amr-plot-reader: gid = {}, size of Real = {}, allocated memory for {}\n", gid, sizeof(Real), all_var_names_vec[var_idx]);
                         extra_pointers.push_back(extra_ptr_copy);
                         if (i == 0)
                             fab_ptr_copy = new Real[fab_size];
@@ -368,9 +350,13 @@ void read_amr_plotfile(std::string infile,
                     }
 //                    if (debug) { fmt::print( "rank = {}, gid = {}, sum = {}, fabs_size = {}, avg_in_fab = {}, n_nans = {}, n_infs = {}, n_negs = {}, n_wo = {}, avg_wo = {}\n", world.rank(), gid, total_sum, fab_size, total_sum / fab_size, n_nans, n_infs, n_negs, n_wo, total_sum_wo / n_wo); }
 
-                    master_reader.add(gid, new Block(fab_ptr_copy, extra_names, extra_pointers, shape), link);
+                    master_reader.add(gid, new Block(fab_ptr_copy, all_var_names, extra_pointers, shape), link);
 
-                    if (debug) { fmt::print("rank = {}, ADDED\n", world.rank()); fmt::print( "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index()); }
+                    if (debug)
+                    {
+                        fmt::print("rank = {}, ADDED\n", world.rank());
+                        fmt::print( "rank = {}, gid = {},  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}), mfi.index - {}\n", world.rank(), gid, box.smallEnd()[0], box.smallEnd()[1], box.smallEnd()[2], box.bigEnd()[0], box.bigEnd()[1], box.bigEnd()[2], mfi.index());
+                    }
 
                     // record wrap
                     for(int dir_x : {-1, 0, 1})
@@ -444,13 +430,13 @@ void read_amr_plotfile(std::string infile,
                     }
                 } else
                 {
-                    Real* block_extra_ptr = gid_to_extra_pointers.at(gid).at(varIdx);
+                    Real* block_extra_ptr = gid_to_extra_pointers.at(gid).at(var_idx);
                     Real* block_fab_ptr = gid_to_fab.at(gid);
 
-                    bool add_to_fab = mt_var_names.count(all_var_names_vec[varIdx]);
+                    bool add_to_fab = var_idx < n_mt_vars;
 
+                    if (debug) fmt::print("Adding next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}\n", (void*) block_fab_ptr, (void*) fab_ptr, gid);
 
-                    if (debug) fmt::print("Adding next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}\n", (void*)block_fab_ptr, (void*) fab_ptr, gid);
                     for(int i = 0; i < fab_size; ++i)
                     {
                         total_sum_1 += fab_ptr[i];
@@ -462,17 +448,15 @@ void read_amr_plotfile(std::string infile,
                             n_wo_1 += 1;
                         }
 
-                        if(add_to_fab)
+                        if (add_to_fab)
+                        {
                             block_fab_ptr[i] += fab_ptr[i];
+                        }
                         block_extra_ptr[i] = fab_ptr[i];
                     }
 
-                    if (debug) fmt::print("Added next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}, n_nans_1 = {}, n_negs_1 = {}, n_infs_1 = {}, totao_sum_1 = {}\n" , (void*)block_fab_ptr, (void*) fab_ptr, gid, n_nans_1, n_negs_1, n_infs_1, total_sum_1);
-
-
+                    if (debug) fmt::print( "Added next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}, n_nans_1 = {}, n_negs_1 = {}, n_infs_1 = {}, totao_sum_1 = {}\n", (void*) block_fab_ptr, (void*) fab_ptr, gid, n_nans_1, n_negs_1, n_infs_1, total_sum_1);
                 }
-
-
             } // loop over tiles
         } // loop over all_var_names
     } // loop over levels
@@ -482,8 +466,9 @@ void read_amr_plotfile(std::string infile,
     diy::fix_links(master_reader, assigner);
 
     master_reader.foreach([debug](Block* b, const diy::Master::ProxyWithLink& cp) {
-        auto* l = static_cast<diy::AMRLink*>(cp.link());
-        auto receivers = link_unique(l, cp.gid());
-        if (debug) { fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n", cp.gid(), l->level(), b->fab.shape(), l->core().min, l->core().max, l->bounds().min, l->bounds().max, container_to_string(receivers)); } }
-        );
+                auto* l = static_cast<diy::AMRLink*>(cp.link());
+                auto receivers = link_unique(l, cp.gid());
+                if (debug) fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n", cp.gid(), l->level(), b->fab.shape(), l->core().min, l->core().max, l->bounds().min, l->bounds().max, container_to_string(receivers));
+            }
+    );
 }
