@@ -167,7 +167,7 @@ int main(int argc, char** argv)
 
     // threshold
     Real rho = 81.66;
-    Real theta = 90.0;
+    int min_cells = 10;
 
     using namespace opts;
 
@@ -178,7 +178,7 @@ int main(int argc, char** argv)
             >> Option('j', "jobs", threads, "threads to use during the computation")
             >> Option('s', "storage", prefix, "storage prefix")
             >> Option('i', "rho", rho, "iso threshold")
-            >> Option('x', "theta", theta, "integral threshold")
+            >> Option('x', "mincells", min_cells, "minimal number of cells to output halo")
             >> Option('p', "profile", profile_path, "path to keep the execution profile")
             >> Option('l', "log", log_level, "log level");
 
@@ -219,14 +219,6 @@ int main(int argc, char** argv)
     if (output_integral_filename == "none")
     {
         write_integral = false;
-    }
-
-    if (write_integral)
-    {
-        if ((negate and theta < rho) or (not negate and theta > rho))
-        {
-            throw std::runtime_error("Bad integral threshold");
-        }
     }
 
     diy::FileStorage storage(prefix);
@@ -321,7 +313,6 @@ int main(int argc, char** argv)
 
         mean = proxy.get<Real>() / proxy.get<Real>();
         rho *= mean;                                            // now rho contains absolute threshold
-        theta *= mean;
 
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
@@ -475,16 +466,16 @@ int main(int argc, char** argv)
 
     if (write_integral)
     {
-        master.foreach([theta](Block* b, const diy::Master::ProxyWithLink& cp)
+        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp)
         {
             b->compute_final_connected_components();
-            b->compute_local_integral(theta);
+            b->compute_local_integral();
 
         });
 
 //        diy::io::SharedOutFile integral_file(output_integral_filename, world);
 //        master.foreach([&integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
-        master.foreach([output_integral_filename, domain](Block* b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([output_integral_filename, domain, min_cells](Block* b, const diy::Master::ProxyWithLink& cp) {
 
             std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
             std::ofstream ofs(integral_local_fname);
@@ -506,8 +497,12 @@ int main(int argc, char** argv)
                 AmrVertexId root = root_values_pair.first;
                 if (root.gid != b->gid)
                     continue;
+
                 auto& values = root_values_pair.second;
                 Real n_vertices = values.at("n_vertices");
+
+                if (n_vertices < min_cells)
+                    continue;
 
                 Real vx = values.at("xmom") / n_vertices;
                 Real vy = values.at("ymom") / n_vertices;

@@ -202,7 +202,7 @@ struct FabComponentBlock {
 
     AmrVertexContainer component_of(AmrVertexId deepest);
 
-    void compute_local_integral(Real theta);
+    void compute_local_integral();
 
     bool check_symmetry(int gid, const std::vector<Component>& received_components);
 

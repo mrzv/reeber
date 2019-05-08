@@ -654,7 +654,17 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
 
             for(int i = 0; i < extra_names_.size(); ++i)
             {
-                extra_integral_values.at(extra_names_.at(i)) += extra_grids_.at(i)(u);
+                if (extra_names_[i] == "xmom" or extra_names_[i] == "ymom" or extra_names_[i] == "zmom")
+                {
+                    // we need velocities - divide momentum by density; assumes density is the first field
+                    assert(extra_names_[0] == "density");
+                    extra_integral_values.at(extra_names_.at(i)) += (extra_grids_.at(i)(u) / extra_grids_[0](u));
+                }
+                else
+                {
+                    extra_integral_values.at(extra_names_.at(i)) += extra_grids_.at(i)(u);
+                }
+
             }
 
             if (cmp(u_val, deepest_value))
@@ -951,11 +961,11 @@ void FabComponentBlock<Real, D>::sanity_check_fin() const
 }
 
 template<class Real, unsigned D>
-void  FabComponentBlock<Real, D>::compute_local_integral(Real theta)
+void  FabComponentBlock<Real, D>::compute_local_integral()
 {
     bool debug = false;
 
-    if (debug) fmt::print("Enter compute_local_integral, gid = {}, theta = {}\n", gid, theta);
+    if (debug) fmt::print("Enter compute_local_integral, gid = {}\n", gid);
 
     for(auto li_iter = local_integral_.begin(); li_iter != local_integral_.end(); )
     {

@@ -34,8 +34,6 @@ struct FabBlock
         {
             extra_fabs_.emplace_back(extra_ptr, shape, false);
         }
-
-        fmt::print("In FabBlock ctor, extra_names_ = {}\n", container_to_string(extra_names));
     }
 
     static void* create()
