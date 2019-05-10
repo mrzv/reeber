@@ -970,15 +970,28 @@ void  FabComponentBlock<Real, D>::compute_local_integral()
     for(auto li_iter = local_integral_.begin(); li_iter != local_integral_.end(); )
     {
         AmrVertexId v = li_iter->first;
+
+        if (vertex_to_deepest_.count(v) == 0) {
+            fmt::print("ERROR HERE, v not found, v= {}, gid = {}\n", v, gid);
+        }
+
         AmrVertexId root = vertex_to_deepest_.at(v);
         // if deepest vertex belongs to another block, skip it
         if (root != v)
         {
+            if (local_integral_.count(root) == 0) {
+                fmt::print("ERROR HERE, root not found, v= {}, root= {}, gid = {}\n", v, root, gid);
+            }
+
             assert(local_integral_.count(root));
             if (root.gid == gid)
             {
                 for(const auto& field_sum : li_iter->second)
                 {
+                    if (local_integral_.at(root).count(field_sum.first) == 0) {
+                        fmt::print("ERROR HERE, field not found, v= {}, root= {}, filed = {}, gid = {}\n", v, root, field_sum.first, gid);
+                    }
+
                     local_integral_.at(root).at(field_sum.first) += field_sum.second;
                 }
             }

@@ -499,6 +499,32 @@ int main(int argc, char** argv)
                     continue;
 
                 auto& values = root_values_pair.second;
+
+                if (values.count("n_vertices") == 0) {
+                    fmt::print("ERROR HERE, no n_vertices, gid = {}\n", b->gid);
+                }
+
+                if (values.count("xmom") == 0) {
+                    fmt::print("ERROR HERE, no xmom gid = {}\n", b->gid);
+                }
+
+                if (values.count("ymom") == 0) {
+                    fmt::print("ERROR HERE, no ymom gid = {}\n", b->gid);
+                }
+
+                if (values.count("zmom") == 0) {
+                    fmt::print("ERROR HERE, no zmom gid = {}\n", b->gid);
+                }
+
+                if (values.count("density") == 0) {
+                    fmt::print("ERROR HERE, no density gid = {}\n", b->gid);
+                }
+
+                if (values.count("particle_mass_density") == 0) {
+                    fmt::print("ERROR HERE, no particle_mass_density gid = {}\n", b->gid);
+                }
+
+
                 Real n_vertices = values.at("n_vertices");
 
                 if (n_vertices < min_cells)
