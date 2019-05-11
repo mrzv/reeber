@@ -973,6 +973,8 @@ void  FabComponentBlock<Real, D>::compute_local_integral()
 
         if (vertex_to_deepest_.count(v) == 0) {
             fmt::print("ERROR HERE, v not found, v= {}, gid = {}\n", v, gid);
+            LOG_SEV_IF(true, info) << "ERROR HERE, v not found, v= " << v << ", gid = " << gid;
+            dlog::flush();
         }
 
         AmrVertexId root = vertex_to_deepest_.at(v);
@@ -981,6 +983,8 @@ void  FabComponentBlock<Real, D>::compute_local_integral()
         {
             if (local_integral_.count(root) == 0) {
                 fmt::print("ERROR HERE, root not found, v= {}, root= {}, gid = {}\n", v, root, gid);
+                LOG_SEV_IF(true, info) << "ERROR HERE, root not found, v= " << v << ", root = " << root << ", gid = " << gid;
+                dlog::flush();
             }
 
             assert(local_integral_.count(root));
@@ -990,6 +994,8 @@ void  FabComponentBlock<Real, D>::compute_local_integral()
                 {
                     if (local_integral_.at(root).count(field_sum.first) == 0) {
                         fmt::print("ERROR HERE, field not found, v= {}, root= {}, filed = {}, gid = {}\n", v, root, field_sum.first, gid);
+                        LOG_SEV_IF(true, info) << "ERROR HERE, field not found, v= " << v << ", root = " << root << ", field = " << field_sum.first << ", gid = " << gid;
+                        dlog::flush();
                     }
 
                     local_integral_.at(root).at(field_sum.first) += field_sum.second;

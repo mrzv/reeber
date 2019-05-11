@@ -17,10 +17,16 @@ if                          (NOT CMAKE_BUILD_TYPE)
 endif                       (NOT CMAKE_BUILD_TYPE)
 
 # Debugging
-if                          (${CMAKE_BUILD_TYPE} STREQUAL "Debug" OR
-                             ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
+if                          (${CMAKE_BUILD_TYPE} STREQUAL "Debug" 
+                             #OR ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo"
+                             )
     add_definitions         (-DDEBUG)
 endif                       ()
+
+if                          (${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
+    add_definitions         (-DNDEBUG)
+endif                       ()
+
 
 # Find everything that's always required
 find_package                (Boost)

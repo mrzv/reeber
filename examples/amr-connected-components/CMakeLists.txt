@@ -14,7 +14,7 @@ endif (NOT CMAKE_BUILD_TYPE)
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb  -D_GLIBCXX_DEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 ")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} -O2 -g -ggdb -pg")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} -O2 -g2 -debug full  -DNDEBUG")
 
 # MPI
 find_package(MPI REQUIRED)
@@ -31,7 +31,7 @@ set(libraries ${libraries} ${CMAKE_THREAD_LIBS_INIT})
 
 
 # src files
-foreach(real   float double)
+foreach(real   float)
 
 # AMR
 if (DEFINED ENV{NERSC_HOST})

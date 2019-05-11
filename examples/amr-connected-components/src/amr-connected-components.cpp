@@ -423,6 +423,35 @@ int main(int argc, char** argv)
     dlog::flush();
     timer.restart();
 
+    if (true)
+    {
+        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+            size_t n_low = b->n_low_;
+            size_t n_active = b->n_active_;
+            size_t n_masked = b->n_masked_;
+            cp.collectives()->clear();
+            cp.all_reduce(n_low, std::plus<size_t>());
+            cp.all_reduce(n_active, std::plus<size_t>());
+            cp.all_reduce(n_masked, std::plus<size_t>());
+        });
+
+        master.exchange();
+
+        world.barrier();
+
+        const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+
+        size_t total_n_low = proxy.get<size_t>();
+        size_t total_n_active = proxy.get<size_t>();
+        size_t total_n_masked = proxy.get<size_t>();
+
+        LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
+                                                                << total_n_active << ", total_n_masked = " <<  total_n_masked;
+        dlog::flush();
+        world.barrier();
+        timer.restart();
+    }
+
 #if 0
     auto time_for_output = timer.elapsed();
 #else
@@ -473,8 +502,10 @@ int main(int argc, char** argv)
 
         });
 
-//        diy::io::SharedOutFile integral_file(output_integral_filename, world);
-//        master.foreach([&integral_file](Block* b, const diy::Master::ProxyWithLink& cp) {
+        LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed";
+        dlog::flush();
+        world.barrier();
+
         master.foreach([output_integral_filename, domain, min_cells](Block* b, const diy::Master::ProxyWithLink& cp) {
 
             std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
@@ -545,6 +576,7 @@ int main(int argc, char** argv)
                         vx, vy, vz,
                         m_gas, m_particles, m_total);
             }
+            ofs.close();
         });
 
         world.barrier();
@@ -576,37 +608,41 @@ int main(int argc, char** argv)
 //                                                            << ", mean = " << mean;
     dlog::flush();
 
+    world.barrier();
+
     std::string final_timings = fmt::format("read: {} local: {} exchange: {} output: {}\n", time_to_read_data,
                                             time_for_local_computation, time_for_communication, time_for_output);
     LOG_SEV_IF(world.rank() == 0, info) << final_timings;
+
     dlog::flush();
 
-        if (true) {
-            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-                size_t n_low = b->n_low_;
-                size_t n_active = b->n_active_;
-                size_t n_masked = b->n_masked_;
-                cp.collectives()->clear();
-                cp.all_reduce(n_low, std::plus<size_t>());
-                cp.all_reduce(n_active, std::plus<size_t>());
-                cp.all_reduce(n_masked, std::plus<size_t>());
-            });
+    if (false)
+    {
+        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+            size_t n_low = b->n_low_;
+            size_t n_active = b->n_active_;
+            size_t n_masked = b->n_masked_;
+            cp.collectives()->clear();
+            cp.all_reduce(n_low, std::plus<size_t>());
+            cp.all_reduce(n_active, std::plus<size_t>());
+            cp.all_reduce(n_masked, std::plus<size_t>());
+        });
 
-            master.exchange();
+        master.exchange();
 
-            world.barrier();
+        world.barrier();
 
-            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+        const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
 
-            size_t total_n_low = proxy.get<size_t>();
-            size_t total_n_active = proxy.get<size_t>();
-            size_t total_n_masked = proxy.get<size_t>();
+        size_t total_n_low = proxy.get<size_t>();
+        size_t total_n_active = proxy.get<size_t>();
+        size_t total_n_masked = proxy.get<size_t>();
 
-            LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
-                                                                    << total_n_active << ", total_n_masked = " <<  total_n_masked;
-            dlog::flush();
-            timer.restart();
-        }
+        LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
+                                                                << total_n_active << ", total_n_masked = " <<  total_n_masked;
+        dlog::flush();
+        timer.restart();
+    }
 
     if (read_plotfile)
     {
