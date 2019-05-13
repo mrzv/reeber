@@ -193,8 +193,11 @@ int main(int argc, char** argv)
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
 
 
-    std::vector<std::string> all_var_names { "density", "particle_mass_density", "xmom", "ymom", "zmom" };
-    int n_mt_vars = 2;  // use sum of density + particle_mass_density
+    //std::vector<std::string> all_var_names { "density", "particle_mass_density", "xmom", "ymom", "zmom" };
+    //int n_mt_vars = 2;  // use sum of density + particle_mass_density
+    std::vector<std::string> all_var_names { "particle_mass_density" };
+    int n_mt_vars = 1;  // use sum of density + particle_mass_density
+
 
     if (ops >> Present('h', "help", "show help message") or
         not(ops >> PosOption(input_filename)) or
@@ -234,6 +237,8 @@ int main(int argc, char** argv)
             << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level()
             << dlog::color_post() >> dlog::flush();
 
+    LOG_SEV_IF(true, info) << "sizes[" << world.rank() << "] = " << master_reader.size();
+    dlog::flush();
     world.barrier();
     dlog::Timer timer;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
