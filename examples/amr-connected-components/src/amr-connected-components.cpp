@@ -196,8 +196,7 @@ int main(int argc, char** argv)
     //std::vector<std::string> all_var_names { "density", "particle_mass_density", "xmom", "ymom", "zmom" };
     //int n_mt_vars = 2;  // use sum of density + particle_mass_density
     std::vector<std::string> all_var_names { "particle_mass_density" };
-    int n_mt_vars = 1;  // use sum of density + particle_mass_density
-
+    int n_mt_vars = 1;  // use particle_mass_density only
 
     if (ops >> Present('h', "help", "show help message") or
         not(ops >> PosOption(input_filename)) or
