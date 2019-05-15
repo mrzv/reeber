@@ -108,8 +108,6 @@ struct FabComponentBlock {
     bool negate_;
 
     TripletMergeTree merge_tree_;
-//    TripletMergeTree original_tree_;
-    // tracking how connected components merge - disjoint sets data structure
 
     int round_{0};
 

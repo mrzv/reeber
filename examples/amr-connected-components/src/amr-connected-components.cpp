@@ -169,6 +169,9 @@ int main(int argc, char** argv)
     Real rho = 81.66;
     int min_cells = 10;
 
+    int nfields_total = 1;
+    int nfields_in_tree = 1;
+
     using namespace opts;
 
     opts::Options ops(argc, argv);
@@ -179,6 +182,8 @@ int main(int argc, char** argv)
             >> Option('s', "storage", prefix, "storage prefix")
             >> Option('i', "rho", rho, "iso threshold")
             >> Option('x', "mincells", min_cells, "minimal number of cells to output halo")
+            >> Option('f', "fields", nfields_total, "number of fields to read")
+            >> Option('t', "treefields", nfields_in_tree, "number of fields to use in tree")
             >> Option('p', "profile", profile_path, "path to keep the execution profile")
             >> Option('l', "log", log_level, "log level");
 
@@ -192,11 +197,19 @@ int main(int argc, char** argv)
 
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
 
+    std::vector<std::string> all_var_names { "particle_mass_density", "density", "xmom", "ymom", "zmom" };
+    if (nfields_in_tree > nfields_total or nfields_total < all_var_names.size())
+    {
+        if (world.rank() == 0)
+        {
+            fmt::print("{}", ops);
+            fmt::print("t must be at most f, f must be at most {}, got {} and {}", all_var_names.size(), nfields_in_tree, nfields_total);
+        }
+        return 1;
+    }
 
-    //std::vector<std::string> all_var_names { "density", "particle_mass_density", "xmom", "ymom", "zmom" };
-    //int n_mt_vars = 2;  // use sum of density + particle_mass_density
-    std::vector<std::string> all_var_names { "particle_mass_density" };
-    int n_mt_vars = 1;  // use particle_mass_density only
+    all_var_names.resize(nfields_total);
+    int n_mt_vars = nfields_in_tree;
 
     if (ops >> Present('h', "help", "show help message") or
         not(ops >> PosOption(input_filename)) or
@@ -236,9 +249,6 @@ int main(int argc, char** argv)
             << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level()
             << dlog::color_post() >> dlog::flush();
 
-    LOG_SEV_IF(true, info) << "sizes[" << world.rank() << "] = " << master_reader.size();
-    dlog::flush();
-    world.barrier();
     dlog::Timer timer;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
                                                                                      << nblocks
@@ -259,12 +269,20 @@ int main(int argc, char** argv)
     world.barrier();
 
     auto time_to_read_data = timer.elapsed();
+    LOG_SEV_IF(world.rank() == 0, info) << "sizes = [ 0 for i in range(24000) ]";
+    dlog::flush();
+    world.barrier();
+    LOG_SEV_IF(true, info) << "sizes[" << world.rank() << "] = " << master_reader.size();
+    dlog::flush();
+    world.barrier();
+
     LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master.size();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
     dlog::flush();
-    timer.restart();
 
     world.barrier();
+
+    timer.restart();
 
     // copy FabBlocks to FabComponentBlocks
     // in FabTmtConstructor mask will be set and local trees will be computed
@@ -427,7 +445,7 @@ int main(int argc, char** argv)
     dlog::flush();
     timer.restart();
 
-    if (true)
+    if (false)
     {
         master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
             size_t n_low = b->n_low_;
@@ -620,7 +638,27 @@ int main(int argc, char** argv)
 
     dlog::flush();
 
-    if (false)
+    //LOG_SEV_IF(world.rank() == 0, info) << "max_n_gids = [ 0 for i in range(20000) ]";
+    //LOG_SEV_IF(world.rank() == 0, info) << "total_n_gids = [ 0 for i in range(20000) ]";
+
+    world.barrier();
+    std::size_t max_n_gids = 0;
+    std::set<int> gids;
+    master.foreach([&max_n_gids, &gids](Block* b, const diy::Master::ProxyWithLink& cp) {
+            std::set<int> block_gids;
+            for(const Component& c : b->components_)
+            {
+                gids.insert(c.current_neighbors().begin(), c.current_neighbors().end());
+                block_gids.insert(c.current_neighbors().begin(), c.current_neighbors().end());
+            }
+            max_n_gids = std::max(max_n_gids, static_cast<decltype(max_n_gids)>(block_gids.size()));
+        });
+
+    LOG_SEV_IF( max_n_gids > 0, info) << "max_n_gids[" << world.rank() << "] = " << max_n_gids;
+    LOG_SEV_IF( max_n_gids > 0, info) << "total_n_gids[" << world.rank() << "] = " << gids.size();
+    dlog::flush();
+
+    if (true)
     {
         master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
             size_t n_low = b->n_low_;

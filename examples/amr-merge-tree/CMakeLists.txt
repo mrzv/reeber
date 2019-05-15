@@ -14,9 +14,9 @@ if (NOT CMAKE_BUILD_TYPE)
 endif (NOT CMAKE_BUILD_TYPE)
 
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb  -D_GLIBCXX_DEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -D_GLIBCXX_DEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 ")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} -O2 -g -ggdb -pg")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} -O2 -g -pg")
 
 # MPI
 find_package(MPI REQUIRED)
@@ -36,7 +36,8 @@ set(libraries ${libraries} ${CMAKE_THREAD_LIBS_INIT})
 #file(GLOB AMT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 
 
-foreach(real   float double)
+#foreach(real   float double)
+foreach(real   float)
 
 
 # AMR
@@ -47,8 +48,10 @@ if (DEFINED ENV{NERSC_HOST})
         message(STATUS "Linking with Edison version of AMReX")
         find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_edison_gnu_${real}")
     else()
-        message(STATUS "Linking with Cori (non-Edison) version of AMReX, intel")
-        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_cori_knl_intel_${real}")
+        #message(STATUS "Linking with Cori (non-Edison) version of AMReX, intel")
+        #find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_cori_knl_intel_${real}")
+        message(STATUS "Linking with Cori (non-Edison) version of AMReX, GNU")
+        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_cori_knl_gnu_${real}")
     endif()
 else()
     set(AMREX_HOME "/home/narn/code/berkeley-2018/amrex")
