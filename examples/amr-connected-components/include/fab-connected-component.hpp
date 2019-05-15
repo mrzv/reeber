@@ -12,8 +12,8 @@ FabConnectedComponent<Real>::FabConnectedComponent(bool negate, const AmrVertexI
         current_gids_({deepest.gid}),
         processed_gids_({deepest.gid}),
         n_prev_current_neighbors_(1),
-        tree_(negate),
-        extra_integral_values_(extra_integral_values)
+        extra_integral_values_(extra_integral_values),
+        tree_(negate)
 {
     bool debug = false;
     if (debug)

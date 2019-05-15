@@ -275,7 +275,7 @@ void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
     bool debug = false;
     std::string debug_prefix = "In FabComponentBlock::init, gid = " + std::to_string(gid);
 
-    diy::for_each(local_.mask_shape(), [this, absolute_rho](const Vertex& v) {
+    diy::for_each(local_.bounds_shape(), [this, absolute_rho](const Vertex& v) {
         this->set_low(v, absolute_rho);
     });
 
@@ -652,7 +652,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
 
             Real u_val = fab_(u);
 
-            for(int i = 0; i < extra_names_.size(); ++i)
+            for(size_t i = 0; i < extra_names_.size(); ++i)
             {
                 if (extra_names_[i] == "xmom" or extra_names_[i] == "ymom" or extra_names_[i] == "zmom")
                 {
@@ -679,7 +679,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
             }
         }
 
-        for(int i = 0; i < extra_names_.size(); ++i)
+        for(size_t i = 0; i < extra_names_.size(); ++i)
         {
             extra_integral_values.at(extra_names_.at(i)) *= scaling_factor();
         }
