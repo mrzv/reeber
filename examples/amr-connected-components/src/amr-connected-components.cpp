@@ -198,7 +198,7 @@ int main(int argc, char** argv)
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
 
     std::vector<std::string> all_var_names { "particle_mass_density", "density", "xmom", "ymom", "zmom" };
-    if (nfields_in_tree > nfields_total or nfields_total < all_var_names.size())
+    if (nfields_in_tree > nfields_total or nfields_total > (int)all_var_names.size())
     {
         if (world.rank() == 0)
         {
