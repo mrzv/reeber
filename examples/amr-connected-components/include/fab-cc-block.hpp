@@ -46,21 +46,22 @@
 
 template<class Real, unsigned D>
 FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
-                                              std::vector<std::string>& extra_names,
-                                              std::vector<diy::GridRef<Real, D>>& extra_grids,
-                                              int _ref,
-                                              int _level,
-                                              const diy::DiscreteBounds& _domain,
-                                              const diy::DiscreteBounds& bounds,
-                                              const diy::DiscreteBounds& core,
-                                              int _gid,
-                                              diy::AMRLink *amr_link,
-                                              Real rho,                                           // threshold for LOW value
-                                              bool _negate,
-                                              bool is_absolute_threshold) :
+        std::vector<std::string>& extra_names,
+        std::vector<diy::GridRef<Real, D>>& extra_grids,
+        int _ref,
+        int _level,
+        const diy::DiscreteBounds& _domain,
+        const diy::DiscreteBounds& bounds,
+        const diy::DiscreteBounds& core,
+        int _gid,
+        diy::AMRLink* amr_link,
+        Real rho,                                           // threshold for LOW value
+        bool _negate,
+        bool is_absolute_threshold)
+        :
         gid(_gid),
         local_(project_point<D>(core.min), project_point<D>(core.max), project_point<D>(bounds.min),
-               project_point<D>(bounds.max), _ref, _level, gid, fab_grid.c_order()),
+                project_point<D>(bounds.max), _ref, _level, gid, fab_grid.c_order()),
         fab_(fab_grid.data(), fab_grid.shape(), fab_grid.c_order()),
         domain_(_domain),
         negate_(_negate),
@@ -108,9 +109,9 @@ bool FabComponentBlock<Real, D>::cmp(Real a, Real b) const
 
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
-                                    diy::AMRLink *l,
-                                    const Real& rho,
-                                    bool is_absolute_threshold)
+        diy::AMRLink* l,
+        const Real& rho,
+        bool is_absolute_threshold)
 {
     using Position = diy::Point<int, D>;
 
@@ -124,7 +125,7 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     bool is_low = false;
     if (is_absolute_threshold)
         is_low = not is_ghost and
-                 cmp(rho, fab_(v_mask));   //(negate_ ? fab_(v_mask) < rho : fab_(v_mask) > rho);
+                cmp(rho, fab_(v_mask));   //(negate_ ? fab_(v_mask) < rho : fab_(v_mask) > rho);
 
     r::AmrVertexId v_idx;
     // does not matter here
@@ -133,15 +134,16 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     if (debug)
     {
         fmt::print("gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}\n", debug_gid, v_mask,
-                   v_idx,
-                   fab_(v_mask), is_ghost);
+                v_idx,
+                fab_(v_mask), is_ghost);
     }
 
 
     // initialization, actual mask to be set later
     if (is_ghost)
     {
-        if (debug) { fmt::print("in set_mask, gid = {}, v_mask = {}, GHOST detected\n", debug_gid, v_mask); }
+        if (debug)
+        { fmt::print("in set_mask, gid = {}, v_mask = {}, GHOST detected\n", debug_gid, v_mask); }
         local_.set_mask(v_mask, MaskedBox::GHOST);
     } else
     {
@@ -155,21 +157,22 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
     if (debug)
     {
-        fmt::print("in set_mask, gid = {}, unwrapped v_glob = {}, wrapped = {}, v_idx = {}, domain = [{} - {}], local = {}\n", local_.gid(),
-                   v_mask + local_.mask_from(), v_glob, v_idx, domain_.min, domain_.max, local_);
+        fmt::print(
+                "in set_mask, gid = {}, unwrapped v_glob = {}, wrapped = {}, v_idx = {}, domain = [{} - {}], local = {}\n",
+                local_.gid(),
+                v_mask + local_.mask_from(), v_glob, v_idx, domain_.min, domain_.max, local_);
     }
 
-
-    bool mask_set { false };
+    bool mask_set{false};
 
     // loop over neighbouring blocks one level above
-    for (int i = 0; i < l->size(); ++i)
+    for(int i = 0; i < l->size(); ++i)
         if (l->level(i) == v_level + 1 && neighbor_contains<D>(i, l, v_glob, v_ref))
         {
             if (debug)
             {
                 fmt::print("Is masked ABOVE {} , is_ghost = {}, gid = {}, v_idx = {}\n", local_.gid(), is_ghost,
-                           l->target(i).gid, v_idx);
+                        l->target(i).gid, v_idx);
             }
             mask_set = true;
             local_.set_mask(v_mask, l->target(i).gid);
@@ -182,14 +185,14 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     if (not mask_set and is_ghost)
     {
         // loop over neighbours on the same level
-        for (int i = 0; i < l->size(); ++i)
+        for(int i = 0; i < l->size(); ++i)
         {
             if (l->level(i) == v_level && neighbor_contains<D>(i, l, v_glob, v_ref))
             {
                 if (debug)
                 {
                     fmt::print("Is masked SAME {} , is_ghost = {}, gid = {}, v_idx = {}\n", l->target(i).gid, is_ghost,
-                               local_.gid(), v_idx);
+                            local_.gid(), v_idx);
                 }
                 mask_set = true;
                 local_.set_mask(v_mask, l->target(i).gid);
@@ -202,14 +205,14 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     // but we save this info in ghost cells to get outgoing edges.
     if (not mask_set and is_ghost)
     {
-        for (int i = 0; i < l->size(); ++i)
+        for(int i = 0; i < l->size(); ++i)
         {
             if (l->level(i) == v_level - 1 && neighbor_contains<D>(i, l, v_glob, v_ref))
             {
                 if (debug)
                 {
                     fmt::print("Is masked SAME {} , is_ghost = {}, gid = {}, v_idx = {}\n", l->target(i).gid, is_ghost,
-                               local_.gid(), v_idx);
+                            local_.gid(), v_idx);
                 }
                 mask_set = true;
                 local_.set_mask(v_mask, l->target(i).gid);
@@ -233,11 +236,10 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 //        fmt::print("FAB INFO gid = {}, sum = {}, v_mask = {}, f(v) = {}, index(v) = {} ,stride = {}, shape = {}, data = {}, size = {}\n", gid,  sum_, v_mask, fab_(v_mask), fab_.index(v_mask), fab_.stride_, fab_.shape(), (void*)fab_.data(), sizeof(fab_.data()[fab_.index(v_mask)]));
     }
 
-
     if (debug)
     {
         fmt::print("in set_mask, is_ghost = {}, final mask = {}, {}, gid = {}, v_mask = {},  v_idx = {}\n",
-                   is_ghost, local_.pretty_mask_value(v_mask), local_.mask(v_mask), local_.gid(), v_mask, v_idx);
+                is_ghost, local_.pretty_mask_value(v_mask), local_.mask(v_mask), local_.gid(), v_mask, v_idx);
     }
 
     if (is_ghost and local_.mask(v_mask) == gid)
@@ -251,18 +253,18 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
-                                   const Real& absolute_threshold)
+        const Real& absolute_threshold)
 {
     auto v_mask = local_.mask_position_from_local(v_bounds);
     if (local_.mask(v_mask) != MaskedBox::ACTIVE)
         return;
-    bool is_low = cmp(absolute_threshold, fab_(v_bounds)); //   negate_ ? fab_(v_bounds) < absolute_threshold : fab_(v_bounds) > absolute_threshold;
+    bool is_low = cmp(absolute_threshold,
+            fab_(v_bounds)); //   negate_ ? fab_(v_bounds) < absolute_threshold : fab_(v_bounds) > absolute_threshold;
     if (is_low)
     {
-        n_low_ ++;
+        n_low_++;
         local_.set_mask(v_mask, MaskedBox::LOW);
-    }
-    else
+    } else
     {
         n_active_++;
 //        if (gid == 0) fmt::print("HERE ACTIVE: {}\n", local_.global_position_from_local(v_bounds));
@@ -270,7 +272,7 @@ void FabComponentBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
 }
 
 template<class Real, unsigned D>
-void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
+void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink* amr_link)
 {
     bool debug = false;
     std::string debug_prefix = "In FabComponentBlock::init, gid = " + std::to_string(gid);
@@ -286,28 +288,43 @@ void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
     compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
     compute_original_connected_components(vertex_to_outgoing_edges);
 
+//    sparsify_prune_original_tree(vertex_to_outgoing_edges);
+
     if (debug)
     {
         fmt::print("{}, constructed, refinement = {}, level = {}, local = {}, domain.max = {}, #components = {}\n",
-                   debug_prefix, refinement(), level(), local_, domain().max, components_.size());
+                debug_prefix, refinement(), level(), local_, domain().max, components_.size());
     }
 
     if (debug)
     {
         int n_edges = 0;
-        for(auto& gid_edges : vertex_to_outgoing_edges) { n_edges += gid_edges.second.size(); }
-        fmt::print("{},  constructed, tree.size = {}, n_edges = {}, n_active = {}, n_low = {}, n_masked = {}, n_unmasked = {}, total_core_size = {}, diff_check = {}, diff_check_1 = {}\n",
+        for(auto& gid_edges : vertex_to_outgoing_edges)
+        { n_edges += gid_edges.second.size(); }
+        fmt::print(
+                "{},  constructed, tree.size = {}, n_edges = {}, n_active = {}, n_low = {}, n_masked = {}, n_unmasked = {}, total_core_size = {}, diff_check = {}, diff_check_1 = {}\n",
                 debug_prefix, merge_tree_.size(), n_edges, n_active_, n_low_, n_masked_, n_unmasked_,
                 local_.core_shape()[0] * local_.core_shape()[1] * local_.core_shape()[2],
-                n_low_ + n_active_ - n_unmasked_, n_low_ + n_active_ + n_masked_ - local_.core_shape()[0] * local_.core_shape()[1] * local_.core_shape()[2]);
+                n_low_ + n_active_ - n_unmasked_, n_low_ + n_active_ + n_masked_
+                        - local_.core_shape()[0] * local_.core_shape()[1] * local_.core_shape()[2]);
     }
 
 
 }
+
+template<class Real, unsigned D>
+void FabComponentBlock<Real, D>::sparsify_prune_original_tree(const VertexEdgesMap& vertex_to_outgoing_edges)
+{
+    r::sparsify(merge_tree_,
+            [&vertex_to_outgoing_edges](AmrVertexId u) {
+                return vertex_to_outgoing_edges.find(u) != vertex_to_outgoing_edges.end();
+            });
+}
+
 template<unsigned D>
 r::AmrEdgeContainer
-get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& local, diy::AMRLink *l,
-                 const diy::DiscreteBounds& domain)
+get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& local, diy::AMRLink* l,
+        const diy::DiscreteBounds& domain)
 {
     using Position = diy::Point<int, D>;
 
@@ -320,16 +337,15 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
 
     r::AmrEdgeContainer result;
 
-    for (const Position& neighb_v_glob : local.outer_edge_link(v_glob))
+    for(const Position& neighb_v_glob : local.outer_edge_link(v_glob))
     {
 
         Position neighb_v_bounds = neighb_v_glob - local.bounds_from();
 
-
         if (debug)
         {
             fmt::print("In get_vertex_edges, v_glob = {}, gid = {}, neighb_v_bounds = {}, neighb_v_glob = {}\n", v_glob,
-                       local.gid(), neighb_v_bounds, neighb_v_glob);
+                    local.gid(), neighb_v_bounds, neighb_v_glob);
         }
 
         Position wrapped_neighb_vert_glob = wrap_point(neighb_v_glob, domain, local.refinement());
@@ -339,7 +355,7 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
 
         size_t link_idx = 0;
         bool link_idx_found = false;
-        for (; link_idx < (size_t) l->size(); ++link_idx)
+        for(; link_idx < (size_t) l->size(); ++link_idx)
         {
             if (l->target(link_idx).gid == masking_gid)
             {
@@ -376,57 +392,61 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
             // neighbour is on the same level or below me, neighbouring vertex corresponds
             // to the unique vertex in a neighbouring block
             size_t neighb_vertex_idx = get_vertex_id(wrapped_neighb_vert_glob, local.refinement(), link_idx, l,
-                                                     local.mask_grid().c_order());
+                    local.mask_grid().c_order());
 
-            result.emplace_back(v_glob_idx, reeber::AmrVertexId { masking_gid, neighb_vertex_idx });
+            result.emplace_back(v_glob_idx, reeber::AmrVertexId{masking_gid, neighb_vertex_idx});
 
             if (debug)
             {
-                fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, Added edge to idx = {}\n", v_glob, local.gid(),
-                           neighb_vertex_idx);
+                fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, Added edge to idx = {}\n", v_glob,
+                        local.gid(),
+                        neighb_vertex_idx);
             }
 
         } else if (nb_level > local.level())
         {
             Position masking_box_from, masking_box_to;
             std::tie(masking_box_from, masking_box_to) = refine_vertex(neighb_v_glob, local.refinement(),
-                                                                       nb_refinement);
+                    nb_refinement);
             if (debug)
-                fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, masking_box_from = {}, masking_box_to = {}\n",
-                           v_glob, local.gid(), masking_box_from, masking_box_to);
+                fmt::print(
+                        "In get_vertex_edges, v_glob = {}, masking_gid = {}, masking_box_from = {}, masking_box_to = {}\n",
+                        v_glob, local.gid(), masking_box_from, masking_box_to);
 
             reeber::Box<D> masking_box(masking_box_from, masking_box_to);
             reeber::Box<D> covering_box(masking_box_from - Position::one(), masking_box_to + Position::one());
 
-            for (const Position& masking_position : masking_box.positions())
+            for(const Position& masking_position : masking_box.positions())
             {
-                for (Position covering_position_glob : covering_box.position_link(masking_position))
+                for(Position covering_position_glob : covering_box.position_link(masking_position))
                 {
                     Position covering_position_coarsened = wrap_point(
                             coarsen_point(covering_position_glob, nb_refinement,
-                                          local.refinement()),
+                                    local.refinement()),
                             domain, local.refinement());
                     if (debug)
                     {
-                        fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, cov_vert = {}, cov_vert_loc = {}\n",
-                                   v_glob, local.gid(), covering_position_glob,
-                                   covering_position_coarsened);
+                        fmt::print(
+                                "In get_vertex_edges, v_glob = {}, masking_gid = {}, cov_vert = {}, cov_vert_loc = {}\n",
+                                v_glob, local.gid(), covering_position_glob,
+                                covering_position_coarsened);
                     }
 
                     if (covering_position_coarsened == v_glob)
                     {
 
                         Position masking_position_global = wrap_point(masking_position, domain, nb_refinement);
-                        r::AmrVertexId masking_vertex_idx { masking_gid, get_vertex_id(masking_position_global, nb_refinement,
-                                                                               link_idx, l,
-                                                                               local.mask_grid().c_order()) };
+                        r::AmrVertexId masking_vertex_idx{masking_gid,
+                                                          get_vertex_id(masking_position_global, nb_refinement,
+                                                                  link_idx, l,
+                                                                  local.mask_grid().c_order())};
 
                         if (debug)
                         {
                             fmt::print(
                                     "IN get_vertex_edges, v_glob = {}, masking_gid = {}, masking_position = {}, nb_from = {}, nb_to = {}, adding edge {}\n",
                                     v_glob, local.gid(), masking_position, nb_from, nb_to,
-                                    r::AmrEdge { v_glob_idx, masking_vertex_idx });
+                                    r::AmrEdge{v_glob_idx, masking_vertex_idx});
                         }
 
                         result.emplace_back(v_glob_idx, masking_vertex_idx);
@@ -438,9 +458,8 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
     return result;
 }
 
-
 template<class Real, unsigned D>
-void FabComponentBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMap& vertex_to_outgoing_edges)
+void FabComponentBlock<Real, D>::compute_outgoing_edges(diy::AMRLink* l, VertexEdgesMap& vertex_to_outgoing_edges)
 {
     bool debug = false;
     for(const Vertex& v_glob : local_.active_global_positions())
@@ -466,7 +485,7 @@ void FabComponentBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexE
 // subtract them from the edges we keep in gid_to_outgoing_edges_
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContainer& edges_from_sender,
-                                                  const VertexVertexMap& received_vertex_to_deepest)
+        const VertexVertexMap& received_vertex_to_deepest)
 {
     bool debug = false;
 
@@ -477,14 +496,14 @@ void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContain
         if (debug)
         {
             fmt::print("In delete_low_edges in block with gid = {}, sender = {}, no edges from this block, exiting\n",
-                       gid, sender_gid);
+                    gid, sender_gid);
         }
         return;  // we don't expect any edges from gid
     }
 
     // edges from neighbor come reversed, correct that
     std::transform(edges_from_sender.begin(), edges_from_sender.end(), edges_from_sender.begin(),
-                   &reeber::reverse_amr_edge);
+            &reeber::reverse_amr_edge);
 
     if (debug) fmt::print("in FabComponentBlock::delete_low_edges, transform OK\n");
 
@@ -499,7 +518,7 @@ void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContain
     if (debug) fmt::print("In delete_low_edges in block with gid = {}, sender = {}, clear OK\n", gid, sender_gid);
 
     std::set_intersection(my_edges.begin(), my_edges.end(), neighbor_edges.begin(), neighbor_edges.end(),
-                          std::back_inserter(iter->second));
+            std::back_inserter(iter->second));
 
     int new_n_edges = iter->second.size();
     assert(old_n_edges >= new_n_edges);
@@ -532,7 +551,7 @@ void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContain
         if (debug)
         {
             fmt::print("gid = {}, added to current_neighbors of  my_deepest = {} and other_deeepest= {}\n", gid,
-                       my_deepest, other_deepest);
+                    my_deepest, other_deepest);
         }
     }
 }
@@ -636,7 +655,6 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
             AmrVertexId u = vertices_to_process.top();
             vertices_to_process.pop();
 
-
             if (global_processed_vertices.count(u))
             {
                 continue;
@@ -647,7 +665,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
             if (vertex_to_outgoing_edges.count(u))
             {
                 std::copy(vertex_to_outgoing_edges.at(u).begin(), vertex_to_outgoing_edges.at(u).end(),
-                          std::back_inserter(component_edges));
+                        std::back_inserter(component_edges));
             }
 
             Real u_val = fab_(u);
@@ -659,8 +677,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
                     // we need velocities - divide momentum by density; assumes density is the first field
                     assert(extra_names_[0] == "density");
                     extra_integral_values.at(extra_names_.at(i)) += (extra_grids_.at(i)(u) / extra_grids_[0](u));
-                }
-                else
+                } else
                 {
                     extra_integral_values.at(extra_names_.at(i)) += extra_grids_.at(i)(u);
                 }
@@ -684,7 +701,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
             extra_integral_values.at(extra_names_.at(i)) *= scaling_factor();
         }
 
-        extra_integral_values["n_vertices"] =  component_vertices.size();
+        extra_integral_values["n_vertices"] = component_vertices.size();
 
         local_integral_[deepest] = extra_integral_values;
 
@@ -717,7 +734,17 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
         n_s = mt.find_or_add(s, 0);
         n_v = mt.find_or_add(v, 0);
         mt.link(n_u, n_s, n_v);
-    }
+
+   }
+
+    for(Component& c : components_)
+    {
+        r::sparsify(c.tree_,
+            [&vertex_to_outgoing_edges](AmrVertexId u) {
+                return vertex_to_outgoing_edges.find(u) != vertex_to_outgoing_edges.end();
+            });
+
+     }
 }
 
 // fill in vertex_to_deepest_ map with correct values
@@ -732,17 +759,20 @@ void FabComponentBlock<Real, D>::compute_final_connected_components()
 
     if (debug) fmt::print("compute_final_connected_components called\n");
 
-    for (const auto& vert_neighb_pair : const_tree.nodes())
+    for(const auto& vert_neighb_pair : const_tree.nodes())
     {
 //        debug = (vert_neighb_pair.second->vertex == reeber::AmrVertexId { 1, 32005});
 
-        if (debug) fmt::print("in compute_final_connected_component, gid = {} processing vertex = {}\n", gid, vert_neighb_pair.first);
+        if (debug)
+            fmt::print("in compute_final_connected_component, gid = {} processing vertex = {}\n", gid,
+                    vert_neighb_pair.first);
 
         Neighbor u = vert_neighb_pair.second;
 
         if (!is_deepest_computed(u->vertex))
         {
-            if (debug) fmt::print("in compute_final_connected_compponent, gid = {}, deepest not computed, traversing\n", gid);
+            if (debug)
+                fmt::print("in compute_final_connected_compponent, gid = {}, deepest not computed, traversing\n", gid);
             // nodes we traverse while going down,
             // they all should get deepest node
             std::vector<AmrVertexId> visited_neighbors;
@@ -754,7 +784,7 @@ void FabComponentBlock<Real, D>::compute_final_connected_components()
             visited_neighbors.push_back(v->vertex);
             visited_neighbors.push_back(s->vertex);
 
-            while (u_ != v and not is_deepest_computed(v->vertex))
+            while(u_ != v and not is_deepest_computed(v->vertex))
             {
 
                 // nodes we traverse while going down,
@@ -772,18 +802,24 @@ void FabComponentBlock<Real, D>::compute_final_connected_components()
 
             }
 
-            AmrVertexId deepest_vertex = (is_deepest_computed(v->vertex)) ? vertex_to_deepest_.at(v->vertex) : v->vertex;
+            AmrVertexId deepest_vertex = (is_deepest_computed(v->vertex)) ? vertex_to_deepest_.at(v->vertex)
+                                                                          : v->vertex;
 
-            if (debug) fmt::print("in compute_final_connected_compponent, v = {}, deepest vertex = {}\n", v->vertex, deepest_vertex);
+            if (debug)
+                fmt::print("in compute_final_connected_compponent, v = {}, deepest vertex = {}\n", v->vertex,
+                        deepest_vertex);
 
             if (not is_deepest_computed(v->vertex))
             {
                 vertex_to_deepest_[deepest_vertex] = deepest_vertex;
             }
 
-            for (const AmrVertexId& v : visited_neighbors)
+            for(const AmrVertexId& v : visited_neighbors)
             {
-                if (debug) fmt::print( "in compute_final_connected_compponent, gid = {}, deepest = {}, setting to visited neighbor {}\n", gid, deepest_vertex, v);
+                if (debug)
+                    fmt::print(
+                            "in compute_final_connected_compponent, gid = {}, deepest = {}, setting to visited neighbor {}\n",
+                            gid, deepest_vertex, v);
                 vertex_to_deepest_[v] = deepest_vertex;
             }
         }
@@ -809,19 +845,17 @@ void FabComponentBlock<Real, D>::update_connectivity(const AmrVertexContainer& d
     for(const Component& c : components_)
     {
         auto original_deepest = c.original_deepest();
-        auto current_deepest =  merge_tree_.find_deepest(merge_tree_[original_deepest])->vertex;
+        auto current_deepest = merge_tree_.find_deepest(merge_tree_[original_deepest])->vertex;
         vertex_to_deepest_[original_deepest] = current_deepest;
     }
 
     for(AmrVertexId v : deepest)
     {
         if (debug) fmt::print("in update_connectivity, gid = {}, v = {}\n", gid, v);
-        auto current_deepest =  merge_tree_.find_deepest(merge_tree_[v])->vertex;
+        auto current_deepest = merge_tree_.find_deepest(merge_tree_[v])->vertex;
         vertex_to_deepest_[v] = current_deepest;
     }
 }
-
-
 
 template<class Real, unsigned D>
 Real FabComponentBlock<Real, D>::scaling_factor() const
@@ -888,7 +922,7 @@ int FabComponentBlock<Real, D>::are_all_components_done() const
 //TODO: fix
 template<class Real, unsigned D>
 bool FabComponentBlock<Real, D>::check_symmetry(int other_gid,
-                                                const std::vector<FabComponentBlock::Component>& received_components)
+        const std::vector<FabComponentBlock::Component>& received_components)
 {
 //    bool debug = false;
     // check that all edges (outer_vertex -> my_vertex) have corresponding (my_vertex->outer_vertex) edge
@@ -939,7 +973,6 @@ bool FabComponentBlock<Real, D>::check_symmetry(int other_gid,
     return true;
 }
 
-
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::sanity_check_fin() const
 {
@@ -961,17 +994,18 @@ void FabComponentBlock<Real, D>::sanity_check_fin() const
 }
 
 template<class Real, unsigned D>
-void  FabComponentBlock<Real, D>::compute_local_integral()
+void FabComponentBlock<Real, D>::compute_local_integral()
 {
     bool debug = false;
 
     if (debug) fmt::print("Enter compute_local_integral, gid = {}\n", gid);
 
-    for(auto li_iter = local_integral_.begin(); li_iter != local_integral_.end(); )
+    for(auto li_iter = local_integral_.begin(); li_iter != local_integral_.end();)
     {
         AmrVertexId v = li_iter->first;
 
-        if (vertex_to_deepest_.count(v) == 0) {
+        if (vertex_to_deepest_.count(v) == 0)
+        {
             fmt::print("ERROR HERE, v not found, v= {}, gid = {}\n", v, gid);
             LOG_SEV_IF(true, info) << "ERROR HERE, v not found, v= " << v << ", gid = " << gid;
             dlog::flush();
@@ -981,9 +1015,11 @@ void  FabComponentBlock<Real, D>::compute_local_integral()
         // if deepest vertex belongs to another block, skip it
         if (root != v)
         {
-            if (local_integral_.count(root) == 0) {
+            if (local_integral_.count(root) == 0)
+            {
                 fmt::print("ERROR HERE, root not found, v= {}, root= {}, gid = {}\n", v, root, gid);
-                LOG_SEV_IF(true, info) << "ERROR HERE, root not found, v= " << v << ", root = " << root << ", gid = " << gid;
+                LOG_SEV_IF(true, info) << "ERROR HERE, root not found, v= " << v << ", root = " << root << ", gid = "
+                                                                            << gid;
                 dlog::flush();
             }
 
@@ -992,9 +1028,13 @@ void  FabComponentBlock<Real, D>::compute_local_integral()
             {
                 for(const auto& field_sum : li_iter->second)
                 {
-                    if (local_integral_.at(root).count(field_sum.first) == 0) {
-                        fmt::print("ERROR HERE, field not found, v= {}, root= {}, filed = {}, gid = {}\n", v, root, field_sum.first, gid);
-                        LOG_SEV_IF(true, info) << "ERROR HERE, field not found, v= " << v << ", root = " << root << ", field = " << field_sum.first << ", gid = " << gid;
+                    if (local_integral_.at(root).count(field_sum.first) == 0)
+                    {
+                        fmt::print("ERROR HERE, field not found, v= {}, root= {}, filed = {}, gid = {}\n", v, root,
+                                field_sum.first, gid);
+                        LOG_SEV_IF(true, info) << "ERROR HERE, field not found, v= " << v << ", root = " << root
+                                                                                     << ", field = " << field_sum.first
+                                                                                     << ", gid = " << gid;
                         dlog::flush();
                     }
 
@@ -1041,9 +1081,9 @@ void  FabComponentBlock<Real, D>::compute_local_integral()
 
 
 template<class Real, unsigned D>
-void FabComponentBlock<Real, D>::save(const void *b, diy::BinaryBuffer& bb)
+void FabComponentBlock<Real, D>::save(const void* b, diy::BinaryBuffer& bb)
 {
-    const FabComponentBlock *block = static_cast<const FabComponentBlock *>(b);
+    const FabComponentBlock* block = static_cast<const FabComponentBlock*>(b);
 
     diy::save(bb, block->gid);
     diy::save(bb, block->domain_);
@@ -1056,9 +1096,9 @@ void FabComponentBlock<Real, D>::save(const void *b, diy::BinaryBuffer& bb)
 }
 
 template<class Real, unsigned D>
-void FabComponentBlock<Real, D>::load(void *b, diy::BinaryBuffer& bb)
+void FabComponentBlock<Real, D>::load(void* b, diy::BinaryBuffer& bb)
 {
-    FabComponentBlock *block = static_cast<FabComponentBlock *>(b);
+    FabComponentBlock* block = static_cast<FabComponentBlock*>(b);
 
     diy::load(bb, block->gid);
     diy::load(bb, block->domain_);

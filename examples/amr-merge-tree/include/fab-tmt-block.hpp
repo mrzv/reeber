@@ -256,6 +256,7 @@ void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
     compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
 
     compute_original_connected_components(vertex_to_outgoing_edges);
+    sparsify_prune_original_tree();
 
     // TODO: delete this? we are going to overwrite this in adjust_outgoing_edges anyway
     for (int i = 0; i < amr_link->size(); ++i)

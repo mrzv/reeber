@@ -183,7 +183,9 @@ struct FabComponentBlock {
 //
     void adjust_outgoing_edges();
 
-    void sparsify_prune_original_tree() {}
+    void sparsify_prune_original_tree(const VertexEdgesMap& vertex_to_outgoing_edges);
+
+    void sparsify_local_tree() {}
 
     int get_n_components_for_gid(int gid) const;
 

@@ -246,10 +246,14 @@ int main(int argc, char** argv)
 
     // threshold
     Real rho = 81.66;
-    Real theta = 90.0;
+    int min_cells = 10;
+
+    int nfields_total = 1;
+    int nfields_in_tree = 1;
 
     using namespace opts;
 
+   //-----------
     opts::Options ops(argc, argv);
     ops
             >> Option('b', "blocks", nblocks, "number of blocks to use")
@@ -257,7 +261,9 @@ int main(int argc, char** argv)
             >> Option('j', "jobs", threads, "threads to use during the computation")
             >> Option('s', "storage", prefix, "storage prefix")
             >> Option('i', "rho", rho, "iso threshold")
-            >> Option('x', "theta", theta, "integral threshold")
+            >> Option('x', "mincells", min_cells, "minimal number of cells to output halo")
+            >> Option('f', "fields", nfields_total, "number of fields to read")
+            >> Option('t', "treefields", nfields_in_tree, "number of fields to use in tree")
             >> Option('p', "profile", profile_path, "path to keep the execution profile")
             >> Option('l', "log", log_level, "log level");
 
@@ -268,24 +274,38 @@ int main(int argc, char** argv)
     // ignored for now, wrap is always assumed
     bool wrap = ops >> opts::Present('w', "wrap", "wrap");
     bool split = ops >> opts::Present("split", "use split IO");
-    bool write_halo_diagrams = ops >> opts::Present("write-halo-diagrams", "Write diagrams of each halo");
 
+    bool print_stats = ops >> opts::Present("stats", "print statistics");
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
-    std::string var_name;
 
-    if (ops >> Present('h', "help", "show help message") or
-            not(ops >> PosOption(input_filename)) or
-            not(ops >> PosOption(var_name)) or
-            not(ops >> PosOption(output_filename)))
+    std::vector<std::string> all_var_names { "particle_mass_density", "density", "xmom", "ymom", "zmom" };
+    if (nfields_in_tree > nfields_total or nfields_total > (int)all_var_names.size())
     {
         if (world.rank() == 0)
         {
-            fmt::print("Usage: {} INPUT.AMR OUTPUT \n", argv[0]);
+            fmt::print("{}", ops);
+            fmt::print("t must be at most f, f must be at most {}, got {} and {}", all_var_names.size(), nfields_in_tree, nfields_total);
+        }
+        return 1;
+    }
+
+    all_var_names.resize(nfields_total);
+    int n_mt_vars = nfields_in_tree;
+
+    if (ops >> Present('h', "help", "show help message") or
+        not(ops >> PosOption(input_filename)) or
+        not(ops >> PosOption(output_filename)))
+    {
+        if (world.rank() == 0)
+        {
+            fmt::print("Usage: {} INPUT-PLTFILE OUTPUT.mt [OUT_DIAGRAMS] [OUT_INTEGRAL]\n", argv[0]);
             fmt::print("Compute local-global tree from AMR data\n");
             fmt::print("{}", ops);
         }
         return 1;
     }
+
+   //-----------
 
     bool write_diag = (ops >> PosOption(output_diagrams_filename));
     if (output_diagrams_filename == "none")
@@ -294,12 +314,6 @@ int main(int argc, char** argv)
     bool write_integral = (ops >> PosOption(output_integral_filename));
     if (output_integral_filename == "none")
         write_integral = false;
-
-    if (write_integral)
-    {
-        if ((negate and theta < rho) or (not negate and theta > rho))
-            throw std::runtime_error("Bad integral threshold");
-    }
 
     diy::FileStorage storage(prefix);
 
@@ -319,14 +333,14 @@ int main(int argc, char** argv)
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
                                                                                      << nblocks
                                                                                      << ", rho = " << rho
-                                                                                     << ", reading component: "
-                                                                                     << var_name;
+                                                                                     << ", summing first " << n_mt_vars
+                                                                                     << " of " << container_to_string(all_var_names);
     dlog::flush();
     world.barrier();
 
     if (read_plotfile)
     {
-        read_amr_plotfile(input_filename, var_name, world, nblocks, master_reader, header, domain);
+        read_amr_plotfile(input_filename, all_var_names, n_mt_vars, world, nblocks, master_reader, header, domain);
     } else
     {
         read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
@@ -411,7 +425,6 @@ int main(int argc, char** argv)
 
         mean = proxy.get<Real>() / proxy.get<Real>();
         rho *= mean;                                            // now rho contains absolute threshold
-        theta *= mean;
 
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho

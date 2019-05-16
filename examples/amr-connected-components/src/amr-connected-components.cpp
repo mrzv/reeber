@@ -63,12 +63,13 @@ template<class Real, class LocalFunctor>
 struct ComponentDiagramsFunctor
 {
 
-    ComponentDiagramsFunctor(Block* b, const LocalFunctor& lf) :
+    ComponentDiagramsFunctor(Block* b, const LocalFunctor& lf)
+            :
             block_(b),
             negate_(b->get_merge_tree().negate()),
             ignore_zero_persistence_(true),
             test_local(lf)
-    {}
+    { }
 
     void operator()(Neighbor from, Neighbor through, Neighbor to) const
     {
@@ -99,7 +100,6 @@ struct ComponentDiagramsFunctor
 
 using OutputPairsR = OutputPairs<Block, IsAmrVertexLocal>;
 
-
 inline bool file_exists(const std::string& s)
 {
     std::ifstream ifs(s);
@@ -117,13 +117,13 @@ inline bool ends_with(const std::string& s, const std::string& suffix)
 }
 
 void read_from_file(std::string infn,
-                    diy::mpi::communicator& world,
-                    diy::Master& master_reader,
-                    diy::ContiguousAssigner& assigner,
-                    diy::MemoryBuffer& header,
-                    diy::DiscreteBounds& domain,
-                    bool split,
-                    int nblocks)
+        diy::mpi::communicator& world,
+        diy::Master& master_reader,
+        diy::ContiguousAssigner& assigner,
+        diy::MemoryBuffer& header,
+        diy::DiscreteBounds& domain,
+        bool split,
+        int nblocks)
 {
     if (not file_exists(infn))
     {
@@ -145,7 +145,6 @@ void read_from_file(std::string infn,
         diy::load(header, domain);
     }
 }
-
 
 int main(int argc, char** argv)
 {
@@ -195,25 +194,32 @@ int main(int argc, char** argv)
     bool wrap = ops >> opts::Present('w', "wrap", "wrap");
     bool split = ops >> opts::Present("split", "use split IO");
 
+    bool print_stats = ops >> opts::Present("stats", "print statistics");
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
 
-    std::vector<std::string> all_var_names { "particle_mass_density", "density", "xmom", "ymom", "zmom" };
-    if (nfields_in_tree > nfields_total or nfields_total > (int)all_var_names.size())
+    std::vector<std::string> all_var_names{"particle_mass_density", "density", "xmom", "ymom", "zmom"};
+    if (nfields_in_tree > nfields_total or nfields_total > (int) all_var_names.size())
     {
         if (world.rank() == 0)
         {
             fmt::print("{}", ops);
-            fmt::print("t must be at most f, f must be at most {}, got {} and {}", all_var_names.size(), nfields_in_tree, nfields_total);
+            fmt::print("t must be at most f, f must be at most {}, got {} and {}", all_var_names.size(),
+                    nfields_in_tree, nfields_total);
         }
         return 1;
     }
 
     all_var_names.resize(nfields_total);
-    int n_mt_vars = nfields_in_tree;
+    const int n_mt_vars = nfields_in_tree;
+
+    const bool has_density = std::find(all_var_names.begin(), all_var_names.end(), "density") != all_var_names.end();
+    const bool has_xmom = std::find(all_var_names.begin(), all_var_names.end(), "xmom") != all_var_names.end();
+    const bool has_ymom = std::find(all_var_names.begin(), all_var_names.end(), "ymom") != all_var_names.end();
+    const bool has_zmom = std::find(all_var_names.begin(), all_var_names.end(), "zmom") != all_var_names.end();
 
     if (ops >> Present('h', "help", "show help message") or
-        not(ops >> PosOption(input_filename)) or
-        not(ops >> PosOption(output_filename)))
+            not(ops >> PosOption(input_filename)) or
+            not(ops >> PosOption(output_filename)))
     {
         if (world.rank() == 0)
         {
@@ -240,7 +246,7 @@ int main(int argc, char** argv)
 
     diy::Master master_reader(world, 1, in_memory, &FabBlockR::create, &FabBlockR::destroy);
     diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
-                       &Block::load);
+            &Block::load);
     diy::ContiguousAssigner assigner(world.size(), nblocks);
     diy::MemoryBuffer header;
     diy::DiscreteBounds domain(DIM);
@@ -269,12 +275,24 @@ int main(int argc, char** argv)
     world.barrier();
 
     auto time_to_read_data = timer.elapsed();
-    LOG_SEV_IF(world.rank() == 0, info) << "sizes = [ 0 for i in range(24000) ]";
     dlog::flush();
     world.barrier();
-    LOG_SEV_IF(true, info) << "sizes[" << world.rank() << "] = " << master_reader.size();
-    dlog::flush();
-    world.barrier();
+    if (print_stats)
+    {
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT #!/usr/bin/env python";
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT import numpy as np";
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT import matplotlib.pyplot as plt";
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT n_cores = " << world.size();
+
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT sizes = [ 0 for i in range(n_cores) ]";
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT max_n_gids = [ 0 for i in range(n_cores) ]";
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT total_n_gids = [ 0 for i in range(n_cores) ]";
+        dlog::flush();
+        world.barrier();
+        LOG_SEV_IF(true, info) << "STAT sizes[" << world.rank() << "] = " << master_reader.size();
+        dlog::flush();
+        world.barrier();
+    }
 
     LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master.size();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
@@ -299,12 +317,12 @@ int main(int argc, char** argv)
                 int local_lev = l->level();
 
                 master.add(cp.gid(),
-                           new Block(b->fab, b->extra_names_, b->extra_fabs_,  local_ref, local_lev, domain, l->bounds(), l->core(), cp.gid(),
-                                     new_link, rho, negate, absolute),
-                           new_link);
+                        new Block(b->fab, b->extra_names_, b->extra_fabs_, local_ref, local_lev, domain, l->bounds(),
+                                l->core(), cp.gid(),
+                                new_link, rho, negate, absolute),
+                        new_link);
 
             });
-
 
     auto time_for_local_computation = timer.elapsed();
 
@@ -349,20 +367,15 @@ int main(int argc, char** argv)
             return 1;
         }
 
-
-
-
         time_for_local_computation += timer.elapsed();
         dlog::flush();
         timer.restart();
-
 
         master.foreach([rho](Block* b, const diy::Master::ProxyWithLink& cp) {
             AMRLink* l = static_cast<AMRLink*>(cp.link());
             b->init(rho, l);
             cp.collectives()->clear();
         });
-
 
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) <<
@@ -389,31 +402,31 @@ int main(int argc, char** argv)
 
 
     // debug: check symmetry
-    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-        auto* l = static_cast<AMRLink*>(cp.link());
-
-        for(const diy::BlockID& receiver : link_unique(l, b->gid))
-        {
-            cp.enqueue(receiver, b->components_);
-        }
-    });
-
-    master.exchange();
-
-    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-        auto* l = static_cast<AMRLink*>(cp.link());
-        for(const diy::BlockID& sender : link_unique(l, b->gid))
-        {
-            std::vector<Component> received_components;
-            cp.dequeue(sender, received_components);
-            b->check_symmetry(sender.gid, received_components);
-        }
-    });
-
-    LOG_SEV_IF(world.rank() == 0, info)  << "Symmetry checked in " << dlog::clock_to_string(timer.elapsed());
-    time_for_communication += timer.elapsed();
-    dlog::flush();
-    timer.restart();
+//    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+//        auto* l = static_cast<AMRLink*>(cp.link());
+//
+//        for(const diy::BlockID& receiver : link_unique(l, b->gid))
+//        {
+//            cp.enqueue(receiver, b->components_);
+//        }
+//    });
+//
+//    master.exchange();
+//
+//    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+//        auto* l = static_cast<AMRLink*>(cp.link());
+//        for(const diy::BlockID& sender : link_unique(l, b->gid))
+//        {
+//            std::vector<Component> received_components;
+//            cp.dequeue(sender, received_components);
+//            b->check_symmetry(sender.gid, received_components);
+//        }
+//    });
+//
+//    LOG_SEV_IF(world.rank() == 0, info)  << "Symmetry checked in " << dlog::clock_to_string(timer.elapsed());
+//    time_for_communication += timer.elapsed();
+//    dlog::flush();
+//    timer.restart();
     // end symmetry checking
 
     int rounds = 0;
@@ -468,7 +481,8 @@ int main(int argc, char** argv)
         size_t total_n_masked = proxy.get<size_t>();
 
         LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
-                                                                << total_n_active << ", total_n_masked = " <<  total_n_masked;
+                                                                << total_n_active << ", total_n_masked = "
+                                                                << total_n_masked;
         dlog::flush();
         world.barrier();
         timer.restart();
@@ -517,8 +531,7 @@ int main(int argc, char** argv)
 
     if (write_integral)
     {
-        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp)
-        {
+        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
             b->compute_final_connected_components();
             b->compute_local_integral();
 
@@ -528,78 +541,85 @@ int main(int argc, char** argv)
         dlog::flush();
         world.barrier();
 
-        master.foreach([output_integral_filename, domain, min_cells](Block* b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach(
+                [output_integral_filename, domain, min_cells, has_density, has_xmom, has_ymom, has_zmom](Block* b,
+                        const diy::Master::ProxyWithLink& cp) {
 
-            std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
-            std::ofstream ofs(integral_local_fname);
+                    std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
+                    std::ofstream ofs(integral_local_fname);
 
-            diy::Point<int, 3> domain_shape;
-            for(int i = 0 ; i < 3; ++i)
-            {
-                domain_shape[i] = domain.max[i] - domain.min[i] + 1;
-            }
+                    diy::Point<int, 3> domain_shape;
+                    for(int i = 0; i < 3; ++i)
+                    {
+                        domain_shape[i] = domain.max[i] - domain.min[i] + 1;
+                    }
 
-            diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
+                    diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
 
-            // local integral already stores number of vertices (set in init)
-            // so we add it here just to print it
-            b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
+                    // local integral already stores number of vertices (set in init)
+                    // so we add it here just to print it
+                    b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
 
-            for(const auto& root_values_pair : b->local_integral_)
-            {
-                AmrVertexId root = root_values_pair.first;
-                if (root.gid != b->gid)
-                    continue;
+                    for(const auto& root_values_pair : b->local_integral_)
+                    {
+                        AmrVertexId root = root_values_pair.first;
+                        if (root.gid != b->gid)
+                            continue;
 
-                auto& values = root_values_pair.second;
+                        auto& values = root_values_pair.second;
 
-                if (values.count("n_vertices") == 0) {
-                    fmt::print("ERROR HERE, no n_vertices, gid = {}\n", b->gid);
-                }
+                        if (values.count("n_vertices") == 0)
+                        {
+                            fmt::print("ERROR HERE, no n_vertices, gid = {}\n", b->gid);
+                        }
 
-                if (values.count("xmom") == 0) {
-                    fmt::print("ERROR HERE, no xmom gid = {}\n", b->gid);
-                }
+                        if (has_xmom and values.count("xmom") == 0)
+                        {
+                            fmt::print("ERROR HERE, no xmom gid = {}\n", b->gid);
+                        }
 
-                if (values.count("ymom") == 0) {
-                    fmt::print("ERROR HERE, no ymom gid = {}\n", b->gid);
-                }
+                        if (has_ymom and values.count("ymom") == 0)
+                        {
+                            fmt::print("ERROR HERE, no ymom gid = {}\n", b->gid);
+                        }
 
-                if (values.count("zmom") == 0) {
-                    fmt::print("ERROR HERE, no zmom gid = {}\n", b->gid);
-                }
+                        if (has_zmom and values.count("zmom") == 0)
+                        {
+                            fmt::print("ERROR HERE, no zmom gid = {}\n", b->gid);
+                        }
 
-                if (values.count("density") == 0) {
-                    fmt::print("ERROR HERE, no density gid = {}\n", b->gid);
-                }
+                        if (has_density and values.count("density") == 0)
+                        {
+                            fmt::print("ERROR HERE, no density gid = {}\n", b->gid);
+                        }
 
-                if (values.count("particle_mass_density") == 0) {
-                    fmt::print("ERROR HERE, no particle_mass_density gid = {}\n", b->gid);
-                }
+                        if (values.count("particle_mass_density") == 0)
+                        {
+                            fmt::print("ERROR HERE, no particle_mass_density gid = {}\n", b->gid);
+                        }
 
+                        Real n_vertices = values.at("n_vertices");
 
-                Real n_vertices = values.at("n_vertices");
+                        if (n_vertices < min_cells)
+                            continue;
 
-                if (n_vertices < min_cells)
-                    continue;
+                        Real vx = has_xmom ? values.at("xmom") / n_vertices : 0;
+                        Real vy = has_ymom ? values.at("ymom") / n_vertices : 0;
+                        Real vz = has_zmom ? values.at("zmom") / n_vertices : 0;
 
-                Real vx = values.at("xmom") / n_vertices;
-                Real vy = values.at("ymom") / n_vertices;
-                Real vz = values.at("zmom") / n_vertices;
+                        Real m_gas = has_density ? values.at("density") : 0;
+                        Real m_particles = values.at("particle_mass_density");
+                        Real m_total = m_gas + m_particles;
 
-                Real m_gas = values.at("density");
-                Real m_particles = values.at("particle_mass_density");
-                Real m_total = m_gas + m_particles;
-
-                fmt::print(ofs, "{} {} {} {} {} {} {} {} {}\n",
-                        domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
-                        n_vertices,
-                        b->local_.global_position(root),
-                        vx, vy, vz,
-                        m_gas, m_particles, m_total);
-            }
-            ofs.close();
-        });
+                        fmt::print(ofs, "{} {} {} {} {} {} {} {} {}\n",
+                                domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
+                                n_vertices,
+                                b->local_.global_position(root),
+                                vx, vy, vz,
+                                m_gas, m_particles, m_total);
+                    }
+                    ofs.close();
+                });
 
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
@@ -633,7 +653,7 @@ int main(int argc, char** argv)
     world.barrier();
 
     std::string final_timings = fmt::format("read: {} local: {} exchange: {} output: {}\n", time_to_read_data,
-                                            time_for_local_computation, time_for_communication, time_for_output);
+            time_for_local_computation, time_for_communication, time_for_output);
     LOG_SEV_IF(world.rank() == 0, info) << final_timings;
 
     dlog::flush();
@@ -642,9 +662,11 @@ int main(int argc, char** argv)
     //LOG_SEV_IF(world.rank() == 0, info) << "total_n_gids = [ 0 for i in range(20000) ]";
 
     world.barrier();
-    std::size_t max_n_gids = 0;
-    std::set<int> gids;
-    master.foreach([&max_n_gids, &gids](Block* b, const diy::Master::ProxyWithLink& cp) {
+    if (print_stats)
+    {
+        std::size_t max_n_gids = 0;
+        std::set<int> gids;
+        master.foreach([&max_n_gids, &gids](Block* b, const diy::Master::ProxyWithLink& cp) {
             std::set<int> block_gids;
             for(const Component& c : b->components_)
             {
@@ -654,9 +676,19 @@ int main(int argc, char** argv)
             max_n_gids = std::max(max_n_gids, static_cast<decltype(max_n_gids)>(block_gids.size()));
         });
 
-    LOG_SEV_IF( max_n_gids > 0, info) << "max_n_gids[" << world.rank() << "] = " << max_n_gids;
-    LOG_SEV_IF( max_n_gids > 0, info) << "total_n_gids[" << world.rank() << "] = " << gids.size();
-    dlog::flush();
+        LOG_SEV_IF(max_n_gids > 0, info) << "STAT max_n_gids[" << world.rank() << "] = " << max_n_gids;
+        LOG_SEV_IF(max_n_gids > 0, info) << "STAT total_n_gids[" << world.rank() << "] = " << gids.size();
+        dlog::flush();
+        world.barrier();
+
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT sizes = np.array(sizes)";
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT max_n_gids = np.array(max_n_gids)";
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT total_n_gids = np.array(total_n_gids)";
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT hist_array = sizes";
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT plt.hist(hist_array, bins = 'auto')";
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT plt.title('{} cores'.format(n_cores))";
+        LOG_SEV_IF(world.rank() == 0, info) << "STAT plt.show()";
+    }
 
     if (true)
     {
@@ -681,7 +713,8 @@ int main(int argc, char** argv)
         size_t total_n_masked = proxy.get<size_t>();
 
         LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
-                                                                << total_n_active << ", total_n_masked = " <<  total_n_masked;
+                                                                << total_n_active << ", total_n_masked = "
+                                                                << total_n_masked;
         dlog::flush();
         timer.restart();
     }

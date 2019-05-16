@@ -45,7 +45,7 @@ void delete_low_edges_cc(FabComponentBlock<R, D>* b, const diy::Master::ProxyWit
     }
 
     b->adjust_outgoing_edges();
-    b->sparsify_prune_original_tree();
+//    b->sparsify_prune_original_tree();
 }
 
 template<class Real, unsigned D>
