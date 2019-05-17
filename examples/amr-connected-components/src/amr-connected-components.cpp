@@ -168,8 +168,7 @@ int main(int argc, char** argv)
     Real rho = 81.66;
     int min_cells = 10;
 
-    int nfields_total = 1;
-    int nfields_in_tree = 1;
+    std::string fields_to_read;
 
     using namespace opts;
 
@@ -181,8 +180,7 @@ int main(int argc, char** argv)
             >> Option('s', "storage", prefix, "storage prefix")
             >> Option('i', "rho", rho, "iso threshold")
             >> Option('x', "mincells", min_cells, "minimal number of cells to output halo")
-            >> Option('f', "fields", nfields_total, "number of fields to read")
-            >> Option('t', "treefields", nfields_in_tree, "number of fields to use in tree")
+            >> Option('f', "fields", fields_to_read, "fields to read separated with ; ")
             >> Option('p', "profile", profile_path, "path to keep the execution profile")
             >> Option('l', "log", log_level, "log level");
 
@@ -197,25 +195,19 @@ int main(int argc, char** argv)
     bool print_stats = ops >> opts::Present("stats", "print statistics");
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
 
-    std::vector<std::string> all_var_names{"particle_mass_density", "density", "xmom", "ymom", "zmom"};
-    if (nfields_in_tree > nfields_total or nfields_total > (int) all_var_names.size())
-    {
-        if (world.rank() == 0)
-        {
-            fmt::print("{}", ops);
-            fmt::print("t must be at most f, f must be at most {}, got {} and {}", all_var_names.size(),
-                    nfields_in_tree, nfields_total);
-        }
-        return 1;
-    }
+    std::vector<std::string> all_var_names = split_by_delim(fields_to_read,
+            ',');  //{"particle_mass_density", "density", "xmom", "ymom", "zmom"};
 
-    all_var_names.resize(nfields_total);
-    const int n_mt_vars = nfields_in_tree;
+    std::cout << "Reading fields: " << fields_to_read << ", vector = " << container_to_string(all_var_names)
+              << std::endl;
+    const int n_mt_vars = all_var_names.size();
 
+#ifdef ZARIJA
     const bool has_density = std::find(all_var_names.begin(), all_var_names.end(), "density") != all_var_names.end();
     const bool has_xmom = std::find(all_var_names.begin(), all_var_names.end(), "xmom") != all_var_names.end();
     const bool has_ymom = std::find(all_var_names.begin(), all_var_names.end(), "ymom") != all_var_names.end();
     const bool has_zmom = std::find(all_var_names.begin(), all_var_names.end(), "zmom") != all_var_names.end();
+#endif
 
     if (ops >> Present('h', "help", "show help message") or
             not(ops >> PosOption(input_filename)) or
@@ -442,11 +434,25 @@ int main(int argc, char** argv)
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", get OK";
         dlog::flush();
         master.exchange();
+        global_n_undone = master.proxy(master.loaded_block()).read<int>();
         //LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", collectives exchange OK";
         // to compute total number of undone blocks
-        global_n_undone = master.proxy(master.loaded_block()).read<int>();
+
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", global_n_undone = " << global_n_undone;
+
+        if (print_stats)
+        {
+            int local_n_undone = 0;
+            master.foreach(
+                    [&local_n_undone](Block* b, const diy::Master::ProxyWithLink& cp) {
+                        local_n_undone += (b->done_ != 1);
+                    });
+
+            LOG_SEV(info) << "STAT MASTER round " << rounds << ", rank = " << world.rank() << ", local_n_undone = "
+                                             << local_n_undone;
+        }
         dlog::flush();
+        world.barrier();
     }
 
     world.barrier();
@@ -540,7 +546,7 @@ int main(int argc, char** argv)
         LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed";
         dlog::flush();
         world.barrier();
-
+#ifdef ZARIJA
         master.foreach(
                 [output_integral_filename, domain, min_cells, has_density, has_xmom, has_ymom, has_zmom](Block* b,
                         const diy::Master::ProxyWithLink& cp) {
@@ -620,6 +626,52 @@ int main(int argc, char** argv)
                     }
                     ofs.close();
                 });
+#else
+        master.foreach(
+                [output_integral_filename, domain, min_cells](Block* b, const diy::Master::ProxyWithLink& cp) {
+
+                    std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
+                    std::ofstream ofs(integral_local_fname);
+
+                    diy::Point<int, 3> domain_shape;
+                    for(int i = 0; i < 3; ++i)
+                    {
+                        domain_shape[i] = domain.max[i] - domain.min[i] + 1;
+                    }
+
+                    diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
+
+                    // local integral already stores number of vertices (set in init)
+                    // so we add it here just to print it
+                    b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
+
+                    for(const auto& root_values_pair : b->local_integral_)
+                    {
+                        AmrVertexId root = root_values_pair.first;
+                        if (root.gid != b->gid)
+                            continue;
+
+                        auto& values = root_values_pair.second;
+
+                        if (values.count("n_vertices") == 0)
+                        {
+                            fmt::print("ERROR HERE, no n_vertices, gid = {}\n", b->gid);
+                        }
+
+                        Real n_vertices = values.at("n_vertices");
+
+                        if (n_vertices < min_cells)
+                            continue;
+
+                        fmt::print(ofs, "{} {} {} {}\n",
+                                domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
+                                n_vertices,
+                                b->local_.global_position(root),
+                                values.at(b->extra_names_.back()));
+                    }
+                    ofs.close();
+                });
+#endif
 
         world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "

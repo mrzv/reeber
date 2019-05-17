@@ -96,7 +96,8 @@ void output_persistence(Block* b, const diy::Master::ProxyWithLink& cp,
                         typename Block::RealType threshold,
                         bool  _ignore_zero_persistence)
 {
-    LOG_SEV(debug) << "Output persistence, block:   " << cp.gid();
+    LOG_SEV(info) << "Output persistence, block:   " << cp.gid();
     if (b->get_merge_tree().size())
         reeber::traverse_persistence(b->get_merge_tree(), OutputPairs<Block, LocalFunctor>(*b, extra, test_local, threshold, _ignore_zero_persistence));
+    LOG_SEV(info) << "Done output persistence, block:   " << cp.gid();
 }

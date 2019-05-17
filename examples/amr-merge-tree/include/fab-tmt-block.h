@@ -383,7 +383,7 @@ struct FabTmtBlock
 
     int is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check);
 
-    void compute_local_integral(Real rho_min, Real rho_max);
+    void compute_local_integral();
 
     Real scaling_factor() const;
 

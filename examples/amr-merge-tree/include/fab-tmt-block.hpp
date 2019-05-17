@@ -973,7 +973,7 @@ std::pair<Real, size_t> FabTmtBlock<Real, D>::get_local_stats() const
 }
 
 template<class Real, unsigned D>
-void  FabTmtBlock<Real, D>::compute_local_integral(Real rho_min, Real rho_max)
+void  FabTmtBlock<Real, D>::compute_local_integral()
 {
     local_integral_.clear();
 
@@ -995,8 +995,6 @@ void  FabTmtBlock<Real, D>::compute_local_integral(Real rho_min, Real rho_max)
         AmrVertexId root = final_vertex_to_deepest_[current_vertex];
 
         Real root_value = nodes.at(root)->value;
-        if ((negate and root_value < rho_max) or (not negate and root_value > rho_min))
-            continue;
         local_integral_[root] += sf * current_node->value;
         for(const auto& value_vertex_pair : current_node->vertices) {
             assert(value_vertex_pair.second.gid == gid);

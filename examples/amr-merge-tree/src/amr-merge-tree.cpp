@@ -248,8 +248,7 @@ int main(int argc, char** argv)
     Real rho = 81.66;
     int min_cells = 10;
 
-    int nfields_total = 1;
-    int nfields_in_tree = 1;
+    std::string fields_to_read;
 
     using namespace opts;
 
@@ -262,13 +261,11 @@ int main(int argc, char** argv)
             >> Option('s', "storage", prefix, "storage prefix")
             >> Option('i', "rho", rho, "iso threshold")
             >> Option('x', "mincells", min_cells, "minimal number of cells to output halo")
-            >> Option('f', "fields", nfields_total, "number of fields to read")
-            >> Option('t', "treefields", nfields_in_tree, "number of fields to use in tree")
+            >> Option('f', "fields", fields_to_read, "comma-separated list of fields to read")
             >> Option('p', "profile", profile_path, "path to keep the execution profile")
             >> Option('l', "log", log_level, "log level");
 
-    bool absolute =
-            ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
+    bool absolute = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
     bool read_plotfile = ops >> Present("plotfile", "read AMR plotfiles");
     bool negate = ops >> opts::Present('n', "negate", "sweep superlevel sets");
     // ignored for now, wrap is always assumed
@@ -278,21 +275,12 @@ int main(int argc, char** argv)
     bool print_stats = ops >> opts::Present("stats", "print statistics");
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
 
-    std::vector<std::string> all_var_names { "particle_mass_density", "density", "xmom", "ymom", "zmom" };
-    if (nfields_in_tree > nfields_total or nfields_total > (int)all_var_names.size())
-    {
-        if (world.rank() == 0)
-        {
-            fmt::print("{}", ops);
-            fmt::print("t must be at most f, f must be at most {}, got {} and {}", all_var_names.size(), nfields_in_tree, nfields_total);
-        }
-        return 1;
-    }
+    std::vector<std::string> all_var_names = split_by_delim(fields_to_read, ',');  //{"particle_mass_density", "density", "xmom", "ymom", "zmom"};
 
-    all_var_names.resize(nfields_total);
-    int n_mt_vars = nfields_in_tree;
+    int n_mt_vars = all_var_names.size();
 
-    if (ops >> Present('h', "help", "show help message") or
+    if (all_var_names.empty() or
+        ops >> Present('h', "help", "show help message") or
         not(ops >> PosOption(input_filename)) or
         not(ops >> PosOption(output_filename)))
     {
@@ -536,6 +524,20 @@ int main(int argc, char** argv)
         // to compute total number of undone blocks
         global_n_undone = master.proxy(master.loaded_block()).read<int>();
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", global_n_undone = " << global_n_undone;
+
+        if (print_stats)
+        {
+            int local_n_undone = 0;
+            master.foreach(
+                    [&local_n_undone](Block* b, const diy::Master::ProxyWithLink& cp) {
+                        local_n_undone += (b->done_ != 1);
+                    });
+
+            LOG_SEV(info) << "STAT MASTER round " << rounds << ", rank = " << world.rank() << ", local_n_undone = "
+                                             << local_n_undone;
+        }
+
+
         dlog::flush();
     }
 
@@ -602,7 +604,7 @@ int main(int argc, char** argv)
     }
 
 
-#if 1
+#if 0
     auto time_for_output = timer.elapsed();
 #else
     // save the result
@@ -641,18 +643,7 @@ int main(int argc, char** argv)
 
     if (write_integral)
     {
-        Real rho_min, rho_max;
-        if (negate)
-        {
-            rho_min = rho;
-            rho_max = theta;
-        } else
-        {
-            rho_min = theta;
-            rho_max = rho;
-        }
-
-        master.foreach([rho_min, rho_max](Block* b, const diy::Master::ProxyWithLink& cp) {
+        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
 
             bool debug = false;
 
@@ -660,7 +651,7 @@ int main(int argc, char** argv)
             b->compute_final_connected_components();
             if (debug) fmt::print("PI gid = {}, final_cc done\n", b->gid);
 
-            b->compute_local_integral(rho_min, rho_max);
+            b->compute_local_integral();
             if (debug) fmt::print("PI gid = {}, compute_local_integral done\n", b->gid);
 
             AMRLink* l = static_cast<AMRLink*>(cp.link());
