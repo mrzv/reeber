@@ -751,14 +751,13 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_final_connected_components()
 {
-    bool debug = true;
+    bool debug = false;
 
     vertex_to_deepest_.clear();
 
     const auto& const_tree = merge_tree_;
 
     if (debug) fmt::print("compute_final_connected_components called, gid = {}\n", gid);
-    debug = false;
 
     for(const auto& vert_neighb_pair : const_tree.nodes())
     {
@@ -825,7 +824,6 @@ void FabComponentBlock<Real, D>::compute_final_connected_components()
             }
         }
     }
-    debug = true;
     if (debug) fmt::print("Exit compute_final_connected_components called, gid = {}\n", gid);
 }
 
