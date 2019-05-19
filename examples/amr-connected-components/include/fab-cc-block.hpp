@@ -288,7 +288,9 @@ void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink* amr_link)
     compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
     compute_original_connected_components(vertex_to_outgoing_edges);
 
+#ifndef ZARIJA
     sparsify_prune_original_tree(vertex_to_outgoing_edges);
+#endif
 
     if (debug)
     {
@@ -308,8 +310,6 @@ void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink* amr_link)
                 n_low_ + n_active_ - n_unmasked_, n_low_ + n_active_ + n_masked_
                         - local_.core_shape()[0] * local_.core_shape()[1] * local_.core_shape()[2]);
     }
-
-
 }
 
 template<class Real, unsigned D>

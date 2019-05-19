@@ -1,4 +1,6 @@
 //#define SEND_COMPONENTS
+#define ZARIJA
+
 
 #define ZARIJA
 #include "reeber-real.h"
@@ -199,14 +201,17 @@ int main(int argc, char** argv)
     std::vector<std::string> all_var_names = split_by_delim(fields_to_read,
             ',');  //{"particle_mass_density", "density", "xmom", "ymom", "zmom"};
 
+    LOG_SEV_IF(world.rank() == 0, info) << "Reading fields: " << fields_to_read << ", vector = " << container_to_string(all_var_names);
+
     int n_mt_vars = all_var_names.size();
 
 #ifdef ZARIJA
-    n_mt_vars = 2;
+    n_mt_vars = std::min((int)all_var_names.size(), 2);
     const bool has_density = std::find(all_var_names.begin(), all_var_names.end(), "density") != all_var_names.end();
     const bool has_xmom = std::find(all_var_names.begin(), all_var_names.end(), "xmom") != all_var_names.end();
     const bool has_ymom = std::find(all_var_names.begin(), all_var_names.end(), "ymom") != all_var_names.end();
     const bool has_zmom = std::find(all_var_names.begin(), all_var_names.end(), "zmom") != all_var_names.end();
+    n_mt_vars = has_density ? 2 : 1;
 #endif
 
     if (ops >> Present('h', "help", "show help message") or
@@ -430,7 +435,6 @@ int main(int argc, char** argv)
         master.exchange();
         master.foreach(&amr_cc_receive<Real, DIM>);
 
-        world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", get OK";
         dlog::flush();
         master.exchange();
@@ -452,7 +456,6 @@ int main(int argc, char** argv)
                                              << local_n_undone;
         }
         dlog::flush();
-        world.barrier();
     }
 
     world.barrier();
