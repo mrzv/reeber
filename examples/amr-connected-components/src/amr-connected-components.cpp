@@ -1,5 +1,6 @@
 //#define SEND_COMPONENTS
 
+#define ZARIJA
 #include "reeber-real.h"
 
 // to print nice backtrace on segfault signal
@@ -198,11 +199,10 @@ int main(int argc, char** argv)
     std::vector<std::string> all_var_names = split_by_delim(fields_to_read,
             ',');  //{"particle_mass_density", "density", "xmom", "ymom", "zmom"};
 
-    std::cout << "Reading fields: " << fields_to_read << ", vector = " << container_to_string(all_var_names)
-              << std::endl;
-    const int n_mt_vars = all_var_names.size();
+    int n_mt_vars = all_var_names.size();
 
 #ifdef ZARIJA
+    n_mt_vars = 2;
     const bool has_density = std::find(all_var_names.begin(), all_var_names.end(), "density") != all_var_names.end();
     const bool has_xmom = std::find(all_var_names.begin(), all_var_names.end(), "xmom") != all_var_names.end();
     const bool has_ymom = std::find(all_var_names.begin(), all_var_names.end(), "ymom") != all_var_names.end();

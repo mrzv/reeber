@@ -288,7 +288,7 @@ void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink* amr_link)
     compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
     compute_original_connected_components(vertex_to_outgoing_edges);
 
-//    sparsify_prune_original_tree(vertex_to_outgoing_edges);
+    sparsify_prune_original_tree(vertex_to_outgoing_edges);
 
     if (debug)
     {
@@ -846,15 +846,21 @@ void FabComponentBlock<Real, D>::update_connectivity(const AmrVertexContainer& d
     for(const Component& c : components_)
     {
         auto original_deepest = c.original_deepest();
-        auto current_deepest = merge_tree_.find_deepest(merge_tree_[original_deepest])->vertex;
-        vertex_to_deepest_[original_deepest] = current_deepest;
+        if (merge_tree_.contains(original_deepest))
+        {
+            auto current_deepest = merge_tree_.find_deepest(merge_tree_[original_deepest])->vertex;
+            vertex_to_deepest_[original_deepest] = current_deepest;
+        }
     }
 
     for(AmrVertexId v : deepest)
     {
         if (debug) fmt::print("in update_connectivity, gid = {}, v = {}\n", gid, v);
-        auto current_deepest = merge_tree_.find_deepest(merge_tree_[v])->vertex;
-        vertex_to_deepest_[v] = current_deepest;
+        if (merge_tree_.contains(v))
+        {
+            auto current_deepest = merge_tree_.find_deepest(merge_tree_[v])->vertex;
+            vertex_to_deepest_[v] = current_deepest;
+        }
     }
 }
 
