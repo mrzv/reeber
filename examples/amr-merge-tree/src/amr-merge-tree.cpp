@@ -558,6 +558,13 @@ int main(int argc, char** argv)
             timer.restart();
         }
 
+#ifdef DO_DETAILED_TIMING
+    tmt_exchange_2_time  = 0;
+    tmt_exchange_1_time  = 0;
+    tmt_receive_time = 0;
+    tmt_send_time = 0;
+#endif
+
         int rounds = 0;
         while(global_n_undone)
         {
