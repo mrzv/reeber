@@ -1,8 +1,7 @@
 //#define SEND_COMPONENTS
 #define ZARIJA
+#define DO_DETAILED_TIMING
 
-
-#define ZARIJA
 #include "reeber-real.h"
 
 // to print nice backtrace on segfault signal
@@ -173,6 +172,8 @@ int main(int argc, char** argv)
 
     std::string fields_to_read;
 
+    int n_runs = 1;
+
     using namespace opts;
 
     opts::Options ops(argc, argv);
@@ -184,6 +185,7 @@ int main(int argc, char** argv)
             >> Option('i', "rho", rho, "iso threshold")
             >> Option('x', "mincells", min_cells, "minimal number of cells to output halo")
             >> Option('f', "fields", fields_to_read, "fields to read separated with ; ")
+            >> Option('r', "runs", n_runs, "number of runs")
             >> Option('p', "profile", profile_path, "path to keep the execution profile")
             >> Option('l', "log", log_level, "log level");
 
@@ -214,6 +216,7 @@ int main(int argc, char** argv)
     n_mt_vars = has_density ? 2 : 1;
 #endif
 
+
     if (ops >> Present('h', "help", "show help message") or
             not(ops >> PosOption(input_filename)) or
             not(ops >> PosOption(output_filename)))
@@ -242,8 +245,6 @@ int main(int argc, char** argv)
     diy::FileStorage storage(prefix);
 
     diy::Master master_reader(world, 1, in_memory, &FabBlockR::create, &FabBlockR::destroy);
-    diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
-            &Block::load);
     diy::ContiguousAssigner assigner(world.size(), nblocks);
     diy::MemoryBuffer header;
     diy::DiscreteBounds domain(DIM);
@@ -258,6 +259,24 @@ int main(int argc, char** argv)
                                                                                      << ", rho = " << rho;
     dlog::flush();
     world.barrier();
+
+#ifdef DO_DETAILED_TIMING
+    // detailed timings
+    using DurationType = decltype(timer.elapsed());
+
+    dlog::Timer timer_send;
+    dlog::Timer timer_receieve;
+    dlog::Timer timer_cc_exchange;
+
+    DurationType time_to_construct_blocks;
+    DurationType time_to_init_blocks;
+    DurationType time_to_get_average;
+    DurationType cc_send_time = 0;
+    DurationType cc_receive_time = 0;
+    DurationType cc_exchange_1_time = 0;
+    DurationType cc_exchange_2_time = 0;
+    DurationType time_to_delete_low_edges;
+#endif
 
     read_plotfile = true;
 
@@ -291,7 +310,7 @@ int main(int argc, char** argv)
         world.barrier();
     }
 
-    LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master.size();
+    LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master_reader.size();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
     dlog::flush();
 
@@ -302,103 +321,120 @@ int main(int argc, char** argv)
     // copy FabBlocks to FabComponentBlocks
     // in FabTmtConstructor mask will be set and local trees will be computed
     // FabBlock can be safely discarded afterwards
+    for(int n_run = 0; n_run < n_runs; ++n_run)
+    {
 
-    master_reader.foreach(
-            [&master, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
-                auto* l = static_cast<AMRLink*>(cp.link());
-                AMRLink* new_link = new AMRLink(*l);
+        diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
+                &Block::load);
+         master_reader.foreach(
+                [&master, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
+                    auto* l = static_cast<AMRLink*>(cp.link());
+                    AMRLink* new_link = new AMRLink(*l);
 
-                // prepare neighbor box info to save in MaskedBox
-                // TODO: refinment vector
-                int local_ref = l->refinement()[0];
-                int local_lev = l->level();
+                    // prepare neighbor box info to save in MaskedBox
+                    // TODO: refinment vector
+                    int local_ref = l->refinement()[0];
+                    int local_lev = l->level();
 
-                master.add(cp.gid(),
-                        new Block(b->fab, b->extra_names_, b->extra_fabs_, local_ref, local_lev, domain, l->bounds(),
-                                l->core(), cp.gid(),
-                                new_link, rho, negate, absolute),
-                        new_link);
+                    master.add(cp.gid(),
+                            new Block(b->fab, b->extra_names_, b->extra_fabs_, local_ref, local_lev, domain,
+                                    l->bounds(),
+                                    l->core(), cp.gid(),
+                                    new_link, rho, negate, absolute),
+                            new_link);
 
+                });
+
+        auto time_for_local_computation = timer.elapsed();
+
+#ifdef DO_DETAILED_TIMING
+        time_to_construct_blocks = timer.elapsed();
+#endif
+
+        Real mean = std::numeric_limits<Real>::min();
+
+        if (absolute)
+        {
+            LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  "
+                    << dlog::clock_to_string(timer.elapsed());
+        } else
+        {
+            LOG_SEV_IF(world.rank() == 0, info) << "Time to construct FabComponentBlocks: "
+                    << dlog::clock_to_string(timer.elapsed());
+            dlog::flush();
+            timer.restart();
+
+            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+                cp.collectives()->clear();
+                cp.all_reduce(b->sum_, std::plus<Real>());
+                cp.all_reduce(static_cast<Real>(b->n_unmasked_) * b->scaling_factor(), std::plus<Real>());
             });
 
-    auto time_for_local_computation = timer.elapsed();
+            master.exchange();
 
-    Real mean = std::numeric_limits<Real>::min();
+            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
 
-    if (absolute)
-    {
-        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  "
-                << dlog::clock_to_string(timer.elapsed());
-        dlog::flush();
-        timer.restart();
-    } else
-    {
-        LOG_SEV_IF(world.rank() == 0, info) << "Time to construct FabComponentBlocks: "
-                << dlog::clock_to_string(timer.elapsed());
-        dlog::flush();
-        timer.restart();
+            mean = proxy.get<Real>() / proxy.get<Real>();
+            rho *= mean;                                            // now rho contains absolute threshold
+#ifdef DO_DETAILED_TIMING
+            time_to_get_average = timer.elapsed();
+#endif
 
-        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-            cp.collectives()->clear();
-            cp.all_reduce(b->sum_, std::plus<Real>());
-            cp.all_reduce(static_cast<Real>(b->n_unmasked_) * b->scaling_factor(), std::plus<Real>());
-        });
+            world.barrier();
+            LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
+                                                                << ", time to compute average: "
+                                                                << dlog::clock_to_string(timer.elapsed());
 
-        master.exchange();
+            if (mean < 0 or std::isnan(mean) or std::isinf(mean) or mean > 1e+40)
+            {
+                LOG_SEV_IF(world.rank() == 0, error) << "Bad average = " << mean << ", do not proceed";
+                if (read_plotfile)
+                    amrex::Finalize();
+                return 1;
+            }
 
-        const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+            time_for_local_computation += timer.elapsed();
+            dlog::flush();
+            timer.restart();
 
-        mean = proxy.get<Real>() / proxy.get<Real>();
-        rho *= mean;                                            // now rho contains absolute threshold
+            master.foreach([rho](Block* b, const diy::Master::ProxyWithLink& cp) {
+                AMRLink* l = static_cast<AMRLink*>(cp.link());
+                b->init(rho, l);
+                cp.collectives()->clear();
+            });
 
-        world.barrier();
-        LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
-                                                            << ", time to compute average: "
-                                                            << dlog::clock_to_string(timer.elapsed());
+#ifdef DO_DETAILED_TIMING
+            time_to_init_blocks = timer.elapsed();
+#endif
 
-        if (mean < 0 or std::isnan(mean) or std::isinf(mean) or mean > 1e+40)
-        {
-            LOG_SEV_IF(world.rank() == 0, error) << "Bad average = " << mean << ", do not proceed";
-            if (read_plotfile)
-                amrex::Finalize();
-            return 1;
+            world.barrier();
+            LOG_SEV_IF(world.rank() == 0, info) <<
+            "Time to initialize FabComponentBlocks (low vertices, local trees, components, outgoing edges): "
+                    << timer.elapsed();
+            time_for_local_computation += timer.elapsed();
         }
 
-        time_for_local_computation += timer.elapsed();
         dlog::flush();
         timer.restart();
 
-        master.foreach([rho](Block* b, const diy::Master::ProxyWithLink& cp) {
-            AMRLink* l = static_cast<AMRLink*>(cp.link());
-            b->init(rho, l);
-            cp.collectives()->clear();
-        });
+        int global_n_undone = 1;
+
+        master.foreach(&send_edges_to_neighbors_cc<Real, DIM>);
+        master.exchange();
+        master.foreach(&delete_low_edges_cc<Real, DIM>);
+
+#ifdef DO_DETAILED_TIMING
+        time_to_delete_low_edges = timer.elapsed();
+#endif
 
         world.barrier();
-        LOG_SEV_IF(world.rank() == 0, info) <<
-        "Time to initialize FabComponentBlocks (low vertices, local trees, components, outgoing edges): "
-                << timer.elapsed();
-        time_for_local_computation += timer.elapsed();
+        LOG_SEV_IF(world.rank() == 0, info)  << "edges symmetrized, time elapsed " << timer.elapsed();
+        auto time_for_communication = timer.elapsed();
         dlog::flush();
         timer.restart();
 
 
-    }
-
-    int global_n_undone = 1;
-
-    master.foreach(&send_edges_to_neighbors_cc<Real, DIM>);
-    master.exchange();
-    master.foreach(&delete_low_edges_cc<Real, DIM>);
-
-    world.barrier();
-    LOG_SEV_IF(world.rank() == 0, info)  << "edges symmetrized, time elapsed " << timer.elapsed();
-    auto time_for_communication = timer.elapsed();
-    dlog::flush();
-    timer.restart();
-
-
-    // debug: check symmetry
+        // debug: check symmetry
 //    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
 //        auto* l = static_cast<AMRLink*>(cp.link());
 //
@@ -424,265 +460,303 @@ int main(int argc, char** argv)
 //    time_for_communication += timer.elapsed();
 //    dlog::flush();
 //    timer.restart();
-    // end symmetry checking
+        // end symmetry checking
 
-    int rounds = 0;
-    while(global_n_undone)
-    {
-        rounds++;
-
-        master.foreach(&amr_cc_send<Real, DIM>);
-        master.exchange();
-        master.foreach(&amr_cc_receive<Real, DIM>);
-
-        LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", get OK";
-        dlog::flush();
-        master.exchange();
-        global_n_undone = master.proxy(master.loaded_block()).read<int>();
-        //LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", collectives exchange OK";
-        // to compute total number of undone blocks
-
-        LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", global_n_undone = " << global_n_undone;
-
-        if (print_stats)
-        {
-            int local_n_undone = 0;
-            master.foreach(
-                    [&local_n_undone](Block* b, const diy::Master::ProxyWithLink& cp) {
-                        local_n_undone += (b->done_ != 1);
-                    });
-
-            LOG_SEV(info) << "STAT MASTER round " << rounds << ", rank = " << world.rank() << ", local_n_undone = "
-                                             << local_n_undone;
-        }
-        dlog::flush();
-    }
-
-    world.barrier();
-
-    //    fmt::print("world.rank = {}, time for exchange = {}\n", world.rank(), dlog::clock_to_string(timer.elapsed()));
-
-    LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
-    time_for_communication += timer.elapsed();
-    dlog::flush();
-    timer.restart();
-
-    if (false)
-    {
-        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-            size_t n_low = b->n_low_;
-            size_t n_active = b->n_active_;
-            size_t n_masked = b->n_masked_;
-            cp.collectives()->clear();
-            cp.all_reduce(n_low, std::plus<size_t>());
-            cp.all_reduce(n_active, std::plus<size_t>());
-            cp.all_reduce(n_masked, std::plus<size_t>());
-        });
-
-        master.exchange();
-
-        world.barrier();
-
-        const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
-
-        size_t total_n_low = proxy.get<size_t>();
-        size_t total_n_active = proxy.get<size_t>();
-        size_t total_n_masked = proxy.get<size_t>();
-
-        LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
-                                                                << total_n_active << ", total_n_masked = "
-                                                                << total_n_masked;
-        dlog::flush();
-        world.barrier();
-        timer.restart();
-    }
-
-#if 0
-    auto time_for_output = timer.elapsed();
-#else
-    // save the result
-    if (output_filename != "none")
-    {
-        if (!split)
-        {
-            diy::io::write_blocks(output_filename, world, master);
-        } else
-        {
-            diy::io::split::write_blocks(output_filename, world, master);
-        }
-    }
-
-    world.barrier();
-    LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
-    auto time_for_output = timer.elapsed();
-    dlog::flush();
-    timer.restart();
-
-    bool verbose = false;
-
-    if (write_diag)
-    {
-        bool ignore_zero_persistence = true;
-        OutputPairsR::ExtraInfo extra(output_diagrams_filename, verbose, world);
-        IsAmrVertexLocal test_local;
-        master.foreach(
-                [&extra, &test_local, ignore_zero_persistence, rho](Block* b, const diy::Master::ProxyWithLink& cp) {
-                    b->compute_final_connected_components();
-                    output_persistence(b, cp, extra, test_local, rho, ignore_zero_persistence);
-                });
-    }
-
-    world.barrier();
-    LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
-    time_for_output += timer.elapsed();
-    dlog::flush();
-    timer.restart();
-
-    if (write_integral)
-    {
-        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-            b->compute_final_connected_components();
-            b->compute_local_integral();
-
-        });
-
-        LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed";
-        dlog::flush();
-        world.barrier();
-#ifdef ZARIJA
-        master.foreach(
-                [output_integral_filename, domain, min_cells, has_density, has_xmom, has_ymom, has_zmom](Block* b,
-                        const diy::Master::ProxyWithLink& cp) {
-
-                    std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
-                    std::ofstream ofs(integral_local_fname);
-
-                    diy::Point<int, 3> domain_shape;
-                    for(int i = 0; i < 3; ++i)
-                    {
-                        domain_shape[i] = domain.max[i] - domain.min[i] + 1;
-                    }
-
-                    diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
-
-                    // local integral already stores number of vertices (set in init)
-                    // so we add it here just to print it
-                    b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
-
-                    for(const auto& root_values_pair : b->local_integral_)
-                    {
-                        AmrVertexId root = root_values_pair.first;
-                        if (root.gid != b->gid)
-                            continue;
-
-                        auto& values = root_values_pair.second;
-
-                        if (values.count("n_vertices") == 0)
-                        {
-                            fmt::print("ERROR HERE, no n_vertices, gid = {}\n", b->gid);
-                        }
-
-                        if (has_xmom and values.count("xmom") == 0)
-                        {
-                            fmt::print("ERROR HERE, no xmom gid = {}\n", b->gid);
-                        }
-
-                        if (has_ymom and values.count("ymom") == 0)
-                        {
-                            fmt::print("ERROR HERE, no ymom gid = {}\n", b->gid);
-                        }
-
-                        if (has_zmom and values.count("zmom") == 0)
-                        {
-                            fmt::print("ERROR HERE, no zmom gid = {}\n", b->gid);
-                        }
-
-                        if (has_density and values.count("density") == 0)
-                        {
-                            fmt::print("ERROR HERE, no density gid = {}\n", b->gid);
-                        }
-
-                        if (values.count("particle_mass_density") == 0)
-                        {
-                            fmt::print("ERROR HERE, no particle_mass_density gid = {}\n", b->gid);
-                        }
-
-                        Real n_vertices = values.at("n_vertices");
-
-                        if (n_vertices < min_cells)
-                            continue;
-
-                        Real vx = has_xmom ? values.at("xmom") / n_vertices : 0;
-                        Real vy = has_ymom ? values.at("ymom") / n_vertices : 0;
-                        Real vz = has_zmom ? values.at("zmom") / n_vertices : 0;
-
-                        Real m_gas = has_density ? values.at("density") : 0;
-                        Real m_particles = values.at("particle_mass_density");
-                        Real m_total = m_gas + m_particles;
-
-                        fmt::print(ofs, "{} {} {} {} {} {} {} {} {}\n",
-                                domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
-                                n_vertices,
-                                b->local_.global_position(root),
-                                vx, vy, vz,
-                                m_gas, m_particles, m_total);
-                    }
-                    ofs.close();
-                });
-#else
-        master.foreach(
-                [output_integral_filename, domain, min_cells](Block* b, const diy::Master::ProxyWithLink& cp) {
-
-                    std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
-                    std::ofstream ofs(integral_local_fname);
-
-                    diy::Point<int, 3> domain_shape;
-                    for(int i = 0; i < 3; ++i)
-                    {
-                        domain_shape[i] = domain.max[i] - domain.min[i] + 1;
-                    }
-
-                    diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
-
-                    // local integral already stores number of vertices (set in init)
-                    // so we add it here just to print it
-                    b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
-
-                    for(const auto& root_values_pair : b->local_integral_)
-                    {
-                        AmrVertexId root = root_values_pair.first;
-                        if (root.gid != b->gid)
-                            continue;
-
-                        auto& values = root_values_pair.second;
-
-                        if (values.count("n_vertices") == 0)
-                        {
-                            fmt::print("ERROR HERE, no n_vertices, gid = {}\n", b->gid);
-                        }
-
-                        Real n_vertices = values.at("n_vertices");
-
-                        if (n_vertices < min_cells)
-                            continue;
-
-                        fmt::print(ofs, "{} {} {} {}\n",
-                                domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
-                                n_vertices,
-                                b->local_.global_position(root),
-                                values.at(b->extra_names_.back()));
-                    }
-                    ofs.close();
-                });
+#ifdef DO_DETAILED_TIMING
+        cc_exchange_2_time = 0;
+        cc_exchange_1_time = 0;
+        cc_receive_time = 0;
+        cc_send_time = 0;
 #endif
 
+        int rounds = 0;
+        while(global_n_undone)
+        {
+            rounds++;
+
+#ifdef DO_DETAILED_TIMING
+            timer_send.restart();
+#endif
+
+            master.foreach(&amr_cc_send<Real, DIM>);
+
+#ifdef DO_DETAILED_TIMING
+            cc_send_time += timer_send.elapsed();
+            timer_cc_exchange.restart();
+#endif
+
+            master.exchange();
+
+#ifdef DO_DETAILED_TIMING
+            cc_exchange_1_time += timer_cc_exchange.elapsed();
+            timer_receieve.restart();
+#endif
+
+            master.foreach(&amr_cc_receive<Real, DIM>);
+
+#ifdef DO_DETAILED_TIMING
+            cc_receive_time += timer_receieve.elapsed();
+#endif
+
+            LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", get OK";
+            dlog::flush();
+
+#ifdef DO_DETAILED_TIMING
+            timer_cc_exchange.restart();
+#endif
+            master.exchange();
+#ifdef DO_DETAILED_TIMING
+            cc_exchange_2_time += timer_cc_exchange.elapsed();
+#endif
+
+            global_n_undone = master.proxy(master.loaded_block()).read<int>();
+
+            //LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", collectives exchange OK";
+            // to compute total number of undone blocks
+
+            LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", global_n_undone = "
+                                                                   << global_n_undone;
+
+            if (print_stats)
+            {
+                int local_n_undone = 0;
+                master.foreach(
+                        [&local_n_undone](Block* b, const diy::Master::ProxyWithLink& cp) {
+                            local_n_undone += (b->done_ != 1);
+                        });
+
+                LOG_SEV(info) << "STAT MASTER round " << rounds << ", rank = " << world.rank() << ", local_n_undone = "
+                                                      << local_n_undone;
+            }
+            dlog::flush();
+        }
+
         world.barrier();
-        LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
-                << dlog::clock_to_string(timer.elapsed());
+
+        //    fmt::print("world.rank = {}, time for exchange = {}\n", world.rank(), dlog::clock_to_string(timer.elapsed()));
+
+        LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
+        time_for_communication += timer.elapsed();
+        dlog::flush();
+        timer.restart();
+
+        if (false)
+        {
+            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+                size_t n_low = b->n_low_;
+                size_t n_active = b->n_active_;
+                size_t n_masked = b->n_masked_;
+                cp.collectives()->clear();
+                cp.all_reduce(n_low, std::plus<size_t>());
+                cp.all_reduce(n_active, std::plus<size_t>());
+                cp.all_reduce(n_masked, std::plus<size_t>());
+            });
+
+            master.exchange();
+
+            world.barrier();
+
+            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+
+            size_t total_n_low = proxy.get<size_t>();
+            size_t total_n_active = proxy.get<size_t>();
+            size_t total_n_masked = proxy.get<size_t>();
+
+            LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
+                                                                    << total_n_active << ", total_n_masked = "
+                                                                    << total_n_masked;
+            dlog::flush();
+            world.barrier();
+            timer.restart();
+        }
+
+#if 0
+        auto time_for_output = timer.elapsed();
+#else
+        // save the result
+        if (output_filename != "none")
+        {
+            if (!split)
+            {
+                diy::io::write_blocks(output_filename, world, master);
+            } else
+            {
+                diy::io::split::write_blocks(output_filename, world, master);
+            }
+        }
+
+        world.barrier();
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
+        auto time_for_output = timer.elapsed();
+        dlog::flush();
+        timer.restart();
+
+        bool verbose = false;
+
+        if (write_diag)
+        {
+            bool ignore_zero_persistence = true;
+            OutputPairsR::ExtraInfo extra(output_diagrams_filename, verbose, world);
+            IsAmrVertexLocal test_local;
+            master.foreach(
+                    [&extra, &test_local, ignore_zero_persistence, rho](Block* b,
+                            const diy::Master::ProxyWithLink& cp) {
+                        b->compute_final_connected_components();
+                        output_persistence(b, cp, extra, test_local, rho, ignore_zero_persistence);
+                    });
+        }
+
+        world.barrier();
+        LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
         time_for_output += timer.elapsed();
         dlog::flush();
         timer.restart();
-    }
+
+        if (write_integral)
+        {
+            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+                b->compute_final_connected_components();
+                b->compute_local_integral();
+
+            });
+
+            LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed";
+            dlog::flush();
+            world.barrier();
+#ifdef ZARIJA
+            master.foreach(
+                    [output_integral_filename, domain, min_cells, has_density, has_xmom, has_ymom, has_zmom](Block* b,
+                            const diy::Master::ProxyWithLink& cp) {
+
+                        std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
+                        std::ofstream ofs(integral_local_fname);
+
+                        diy::Point<int, 3> domain_shape;
+                        for(int i = 0; i < 3; ++i)
+                        {
+                            domain_shape[i] = domain.max[i] - domain.min[i] + 1;
+                        }
+
+                        diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
+
+                        // local integral already stores number of vertices (set in init)
+                        // so we add it here just to print it
+                        b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
+
+                        for(const auto& root_values_pair : b->local_integral_)
+                        {
+                            AmrVertexId root = root_values_pair.first;
+                            if (root.gid != b->gid)
+                                continue;
+
+                            auto& values = root_values_pair.second;
+
+                            if (values.count("n_vertices") == 0)
+                            {
+                                fmt::print("ERROR HERE, no n_vertices, gid = {}\n", b->gid);
+                            }
+
+                            if (has_xmom and values.count("xmom") == 0)
+                            {
+                                fmt::print("ERROR HERE, no xmom gid = {}\n", b->gid);
+                            }
+
+                            if (has_ymom and values.count("ymom") == 0)
+                            {
+                                fmt::print("ERROR HERE, no ymom gid = {}\n", b->gid);
+                            }
+
+                            if (has_zmom and values.count("zmom") == 0)
+                            {
+                                fmt::print("ERROR HERE, no zmom gid = {}\n", b->gid);
+                            }
+
+                            if (has_density and values.count("density") == 0)
+                            {
+                                fmt::print("ERROR HERE, no density gid = {}\n", b->gid);
+                            }
+
+                            if (values.count("particle_mass_density") == 0)
+                            {
+                                fmt::print("ERROR HERE, no particle_mass_density gid = {}\n", b->gid);
+                            }
+
+                            Real n_vertices = values.at("n_vertices");
+
+                            if (n_vertices < min_cells)
+                                continue;
+
+                            Real vx = has_xmom ? values.at("xmom") / n_vertices : 0;
+                            Real vy = has_ymom ? values.at("ymom") / n_vertices : 0;
+                            Real vz = has_zmom ? values.at("zmom") / n_vertices : 0;
+
+                            Real m_gas = has_density ? values.at("density") : 0;
+                            Real m_particles = values.at("particle_mass_density");
+                            Real m_total = m_gas + m_particles;
+
+                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {}\n",
+                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
+                                    n_vertices,
+                                    b->local_.global_position(root),
+                                    vx, vy, vz,
+                                    m_gas, m_particles, m_total);
+                        }
+                        ofs.close();
+                    });
+#else
+            master.foreach(
+                    [output_integral_filename, domain, min_cells](Block* b, const diy::Master::ProxyWithLink& cp) {
+
+                        std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
+                        std::ofstream ofs(integral_local_fname);
+
+                        diy::Point<int, 3> domain_shape;
+                        for(int i = 0; i < 3; ++i)
+                        {
+                            domain_shape[i] = domain.max[i] - domain.min[i] + 1;
+                        }
+
+                        diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
+
+                        // local integral already stores number of vertices (set in init)
+                        // so we add it here just to print it
+                        b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
+
+                        for(const auto& root_values_pair : b->local_integral_)
+                        {
+                            AmrVertexId root = root_values_pair.first;
+                            if (root.gid != b->gid)
+                                continue;
+
+                            auto& values = root_values_pair.second;
+
+                            if (values.count("n_vertices") == 0)
+                            {
+                                fmt::print("ERROR HERE, no n_vertices, gid = {}\n", b->gid);
+                            }
+
+                            Real n_vertices = values.at("n_vertices");
+
+                            if (n_vertices < min_cells)
+                                continue;
+
+                            fmt::print(ofs, "{} {} {} {}\n",
+                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
+                                    n_vertices,
+                                    b->local_.global_position(root),
+                                    values.at(b->extra_names_.back()));
+                        }
+                        ofs.close();
+                    });
+#endif
+
+            world.barrier();
+            LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
+                    << dlog::clock_to_string(timer.elapsed());
+            time_for_output += timer.elapsed();
+            dlog::flush();
+            timer.restart();
+        }
 #endif
 //    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
 //        auto sum_n_vertices_pair = b->get_local_stats();
@@ -703,75 +777,82 @@ int main(int argc, char** argv)
 //
 //    LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = " << total_vertices
 //                                                            << ", mean = " << mean;
-    dlog::flush();
-
-    world.barrier();
-
-    std::string final_timings = fmt::format("read: {} local: {} exchange: {} output: {}\n", time_to_read_data,
-            time_for_local_computation, time_for_communication, time_for_output);
-    LOG_SEV_IF(world.rank() == 0, info) << final_timings;
-
-    dlog::flush();
-
-    //LOG_SEV_IF(world.rank() == 0, info) << "max_n_gids = [ 0 for i in range(20000) ]";
-    //LOG_SEV_IF(world.rank() == 0, info) << "total_n_gids = [ 0 for i in range(20000) ]";
-
-    world.barrier();
-    if (print_stats)
-    {
-        std::size_t max_n_gids = 0;
-        std::set<int> gids;
-        master.foreach([&max_n_gids, &gids](Block* b, const diy::Master::ProxyWithLink& cp) {
-            std::set<int> block_gids;
-            for(const Component& c : b->components_)
-            {
-                gids.insert(c.current_neighbors().begin(), c.current_neighbors().end());
-                block_gids.insert(c.current_neighbors().begin(), c.current_neighbors().end());
-            }
-            max_n_gids = std::max(max_n_gids, static_cast<decltype(max_n_gids)>(block_gids.size()));
-        });
-
-        LOG_SEV_IF(max_n_gids > 0, info) << "STAT max_n_gids[" << world.rank() << "] = " << max_n_gids;
-        LOG_SEV_IF(max_n_gids > 0, info) << "STAT total_n_gids[" << world.rank() << "] = " << gids.size();
         dlog::flush();
-        world.barrier();
-
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT sizes = np.array(sizes)";
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT max_n_gids = np.array(max_n_gids)";
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT total_n_gids = np.array(total_n_gids)";
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT hist_array = sizes";
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT plt.hist(hist_array, bins = 'auto')";
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT plt.title('{} cores'.format(n_cores))";
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT plt.show()";
-    }
-
-    if (true)
-    {
-        master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-            size_t n_low = b->n_low_;
-            size_t n_active = b->n_active_;
-            size_t n_masked = b->n_masked_;
-            cp.collectives()->clear();
-            cp.all_reduce(n_low, std::plus<size_t>());
-            cp.all_reduce(n_active, std::plus<size_t>());
-            cp.all_reduce(n_masked, std::plus<size_t>());
-        });
-
-        master.exchange();
 
         world.barrier();
 
-        const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+        std::string final_timings = fmt::format("read: {} local: {} exchange: {} output: {}\n", time_to_read_data,
+                time_for_local_computation, time_for_communication, time_for_output);
+        LOG_SEV_IF(world.rank() == 0, info) << final_timings;
 
-        size_t total_n_low = proxy.get<size_t>();
-        size_t total_n_active = proxy.get<size_t>();
-        size_t total_n_masked = proxy.get<size_t>();
-
-        LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
-                                                                << total_n_active << ", total_n_masked = "
-                                                                << total_n_masked;
         dlog::flush();
-        timer.restart();
+        dlog::flush();
+        std::string final_detailed_timings = fmt::format(
+                "run: {} construct_blocks = {} init_blocks = {} average = {} delete_low_edges = {} cc_send = {} cc_receive = {} cc_exchange_1 = {} cc_exchange_2 = {}\n",
+                n_run, time_to_construct_blocks, time_to_init_blocks, time_to_get_average, time_to_delete_low_edges,
+                cc_send_time, cc_receive_time, cc_exchange_1_time, cc_exchange_2_time);
+        LOG_SEV_IF(world.rank() == 0, info) << final_detailed_timings;
+
+        //LOG_SEV_IF(world.rank() == 0, info) << "max_n_gids = [ 0 for i in range(20000) ]";
+        //LOG_SEV_IF(world.rank() == 0, info) << "total_n_gids = [ 0 for i in range(20000) ]";
+
+        world.barrier();
+        if (print_stats)
+        {
+            std::size_t max_n_gids = 0;
+            std::set<int> gids;
+            master.foreach([&max_n_gids, &gids](Block* b, const diy::Master::ProxyWithLink& cp) {
+                std::set<int> block_gids;
+                for(const Component& c : b->components_)
+                {
+                    gids.insert(c.current_neighbors().begin(), c.current_neighbors().end());
+                    block_gids.insert(c.current_neighbors().begin(), c.current_neighbors().end());
+                }
+                max_n_gids = std::max(max_n_gids, static_cast<decltype(max_n_gids)>(block_gids.size()));
+            });
+
+            LOG_SEV_IF(max_n_gids > 0, info) << "STAT max_n_gids[" << world.rank() << "] = " << max_n_gids;
+            LOG_SEV_IF(max_n_gids > 0, info) << "STAT total_n_gids[" << world.rank() << "] = " << gids.size();
+            dlog::flush();
+            world.barrier();
+
+            LOG_SEV_IF(world.rank() == 0, info) << "STAT sizes = np.array(sizes)";
+            LOG_SEV_IF(world.rank() == 0, info) << "STAT max_n_gids = np.array(max_n_gids)";
+            LOG_SEV_IF(world.rank() == 0, info) << "STAT total_n_gids = np.array(total_n_gids)";
+            LOG_SEV_IF(world.rank() == 0, info) << "STAT hist_array = sizes";
+            LOG_SEV_IF(world.rank() == 0, info) << "STAT plt.hist(hist_array, bins = 'auto')";
+            LOG_SEV_IF(world.rank() == 0, info) << "STAT plt.title('{} cores'.format(n_cores))";
+            LOG_SEV_IF(world.rank() == 0, info) << "STAT plt.show()";
+        }
+
+        if (true)
+        {
+            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+                size_t n_low = b->n_low_;
+                size_t n_active = b->n_active_;
+                size_t n_masked = b->n_masked_;
+                cp.collectives()->clear();
+                cp.all_reduce(n_low, std::plus<size_t>());
+                cp.all_reduce(n_active, std::plus<size_t>());
+                cp.all_reduce(n_masked, std::plus<size_t>());
+            });
+
+            master.exchange();
+
+            world.barrier();
+
+            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+
+            size_t total_n_low = proxy.get<size_t>();
+            size_t total_n_active = proxy.get<size_t>();
+            size_t total_n_masked = proxy.get<size_t>();
+
+            LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
+                                                                    << total_n_active << ", total_n_masked = "
+                                                                    << total_n_masked;
+            dlog::flush();
+            timer.restart();
+        }
     }
 
     if (read_plotfile)
