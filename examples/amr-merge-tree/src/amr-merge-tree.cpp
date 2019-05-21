@@ -247,6 +247,7 @@ int main(int argc, char** argv)
 
     // threshold
     Real rho = 81.66;
+    Real absolute_rho;
     int min_cells = 10;
     int n_runs = 1;
 
@@ -422,6 +423,7 @@ int main(int argc, char** argv)
 
         if (absolute)
         {
+            absolute_rho = rho;
             LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  "
                     << dlog::clock_to_string(timer.elapsed());
         } else
@@ -445,10 +447,11 @@ int main(int argc, char** argv)
             const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
 
             mean = proxy.get<Real>() / proxy.get<Real>();
-            rho *= mean;                                            // now rho contains absolute threshold
+            absolute_rho = rho * mean;                                            // now rho contains absolute threshold
 
             world.barrier();
             LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
+                                                                << ", absolute_rho =  " << absolute_rho
                                                                 << ", time to compute average: "
                                                                 << dlog::clock_to_string(timer.elapsed());
 #ifdef DO_DETAILED_TIMING
@@ -467,9 +470,9 @@ int main(int argc, char** argv)
             }
 
             timer.restart();
-            master.foreach([rho](Block* b, const diy::Master::ProxyWithLink& cp) {
+            master.foreach([absolute_rho](Block* b, const diy::Master::ProxyWithLink& cp) {
                 AMRLink* l = static_cast<AMRLink*>(cp.link());
-                b->init(rho, l);
+                b->init(absolute_rho, l);
                 cp.collectives()->clear();
             });
 
@@ -683,9 +686,9 @@ int main(int argc, char** argv)
             OutputPairsR::ExtraInfo extra(output_diagrams_filename, verbose, world);
             IsAmrVertexLocal test_local;
             master.foreach(
-                    [&extra, &test_local, ignore_zero_persistence, rho](Block* b,
+                    [&extra, &test_local, ignore_zero_persistence, absolute_rho](Block* b,
                             const diy::Master::ProxyWithLink& cp) {
-                        output_persistence(b, cp, extra, test_local, rho, ignore_zero_persistence);
+                        output_persistence(b, cp, extra, test_local, absolute_rho, ignore_zero_persistence);
                     });
         }
 
@@ -791,8 +794,8 @@ int main(int argc, char** argv)
                                                                 << total_n_active;
         dlog::flush();
 
-        std::string final_timings = fmt::format("run: {} read: {} local: {} exchange: {} output: {}\n", time_to_read_data,
-                n_run, time_for_local_computation, time_for_communication, time_for_output);
+        std::string final_timings = fmt::format("run: {} read: {} local: {} exchange: {} output: {}\n",
+                time_to_read_data, n_run, time_for_local_computation, time_for_communication, time_for_output);
         LOG_SEV_IF(world.rank() == 0, info) << final_timings;
         dlog::flush();
         std::string final_detailed_timings = fmt::format("run: {} construct_blocks = {} init_blocks = {} average = {} delete_low_edges = {} tmt_send = {} tmt_receive = {} tmt_exchange_1 = {} tmt_exchange_2 = {}\n",
