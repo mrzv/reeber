@@ -259,7 +259,6 @@ int main(int argc, char** argv)
                                                                                      << nblocks
                                                                                      << ", rho = " << rho;
     dlog::flush();
-    world.barrier();
 
 #ifdef DO_DETAILED_TIMING
     // detailed timings
@@ -277,6 +276,26 @@ int main(int argc, char** argv)
     DurationType cc_exchange_1_time = 0;
     DurationType cc_exchange_2_time = 0;
     DurationType time_to_delete_low_edges;
+
+
+    DurationType min_time_to_construct_blocks;
+    DurationType min_time_to_init_blocks;
+    DurationType min_time_to_get_average;
+    DurationType min_cc_send_time;
+    DurationType min_cc_receive_time;
+    DurationType min_cc_exchange_1_time;
+    DurationType min_cc_exchange_2_time;
+    DurationType min_time_to_delete_low_edges;
+
+    DurationType max_time_to_construct_blocks;
+    DurationType max_time_to_init_blocks;
+    DurationType max_time_to_get_average;
+    DurationType max_cc_send_time;
+    DurationType max_cc_receive_time;
+    DurationType max_cc_exchange_1_time;
+    DurationType max_cc_exchange_2_time;
+    DurationType max_time_to_delete_low_edges;
+
 #endif
 
     read_plotfile = true;
@@ -293,7 +312,7 @@ int main(int argc, char** argv)
 
     auto time_to_read_data = timer.elapsed();
     dlog::flush();
-    world.barrier();
+
     if (print_stats)
     {
         LOG_SEV_IF(world.rank() == 0, info) << "STAT #!/usr/bin/env python";
@@ -314,8 +333,6 @@ int main(int argc, char** argv)
     LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master_reader.size();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
     dlog::flush();
-
-    world.barrier();
 
     timer.restart();
 
@@ -383,7 +400,6 @@ int main(int argc, char** argv)
             time_to_get_average = timer.elapsed();
 #endif
 
-            world.barrier();
             LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
                                                                 << ", absolute_rho = " << absolute_rho
                                                                 << ", time to compute average: "
@@ -411,7 +427,6 @@ int main(int argc, char** argv)
             time_to_init_blocks = timer.elapsed();
 #endif
 
-            world.barrier();
             LOG_SEV_IF(world.rank() == 0, info) <<
             "Time to initialize FabComponentBlocks (low vertices, local trees, components, outgoing edges): "
                     << timer.elapsed();
@@ -431,7 +446,6 @@ int main(int argc, char** argv)
         time_to_delete_low_edges = timer.elapsed();
 #endif
 
-        world.barrier();
         LOG_SEV_IF(world.rank() == 0, info)  << "edges symmetrized, time elapsed " << timer.elapsed();
         auto time_for_communication = timer.elapsed();
         dlog::flush();
@@ -535,8 +549,6 @@ int main(int argc, char** argv)
             dlog::flush();
         }
 
-        world.barrier();
-
         //    fmt::print("world.rank = {}, time for exchange = {}\n", world.rank(), dlog::clock_to_string(timer.elapsed()));
 
         LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
@@ -589,7 +601,6 @@ int main(int argc, char** argv)
             }
         }
 
-        world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
         auto time_for_output = timer.elapsed();
         dlog::flush();
@@ -610,7 +621,6 @@ int main(int argc, char** argv)
                     });
         }
 
-        world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
         time_for_output += timer.elapsed();
         dlog::flush();
@@ -626,7 +636,6 @@ int main(int argc, char** argv)
 
             LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed";
             dlog::flush();
-            world.barrier();
 #ifdef ZARIJA
             master.foreach(
                     [output_integral_filename, domain, min_cells, has_density, has_xmom, has_ymom, has_zmom](Block* b,
@@ -754,7 +763,6 @@ int main(int argc, char** argv)
                     });
 #endif
 
-            world.barrier();
             LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
                     << dlog::clock_to_string(timer.elapsed());
             time_for_output += timer.elapsed();
@@ -857,6 +865,87 @@ int main(int argc, char** argv)
             dlog::flush();
             timer.restart();
         }
+
+
+         if (n_run == n_runs - 1 or n_run == 0)
+        {
+
+            master.foreach(
+                    [time_to_construct_blocks, time_to_init_blocks, time_to_get_average, cc_send_time, cc_exchange_1_time, cc_receive_time, cc_exchange_2_time](
+                            Block* b, const diy::Master::ProxyWithLink& cp) {
+                        cp.collectives()->clear();
+
+                        cp.all_reduce(time_to_construct_blocks, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(time_to_init_blocks, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(time_to_get_average, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(cc_send_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(cc_exchange_1_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(cc_receive_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(cc_exchange_2_time, diy::mpi::maximum<DurationType>());
+
+                        cp.all_reduce(time_to_construct_blocks, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(time_to_init_blocks, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(time_to_get_average, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(cc_send_time, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(cc_exchange_1_time, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(cc_receive_time, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(cc_exchange_2_time, diy::mpi::minimum<DurationType>());
+
+                    });
+
+            master.exchange();
+
+            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+
+            max_time_to_construct_blocks = proxy.get<DurationType>();
+            max_time_to_init_blocks = proxy.get<DurationType>();
+            max_time_to_get_average = proxy.get<DurationType>();
+            max_cc_send_time = proxy.get<DurationType>();
+            max_cc_exchange_1_time = proxy.get<DurationType>();
+            max_cc_receive_time = proxy.get<DurationType>();
+            max_cc_exchange_2_time = proxy.get<DurationType>();
+
+            min_time_to_construct_blocks = proxy.get<DurationType>();
+            min_time_to_init_blocks = proxy.get<DurationType>();
+            min_time_to_get_average = proxy.get<DurationType>();
+            min_cc_send_time = proxy.get<DurationType>();
+            min_cc_exchange_1_time = proxy.get<DurationType>();
+            min_cc_receive_time = proxy.get<DurationType>();
+            min_cc_exchange_2_time = proxy.get<DurationType>();
+
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_construct_blocks = " << max_time_to_construct_blocks;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_time_to_construct_blocks = " << min_time_to_construct_blocks;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_init_blocks = " << max_time_to_init_blocks;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_time_to_init_blocks = " << min_time_to_init_blocks;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_get_average = " << max_time_to_get_average;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_time_to_get_average = " << min_time_to_get_average;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_cc_send_time = " << max_cc_send_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_cc_send_time = " << min_cc_send_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_cc_exchange_1_time = " << max_cc_exchange_1_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_cc_exchange_1_time = " << min_cc_exchange_1_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_cc_receive_time = " << max_cc_receive_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_cc_receive_time = " << min_cc_receive_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_cc_exchange_2_time = " << max_cc_exchange_2_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_cc_exchange_2_time = " << min_cc_exchange_2_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+        }
+
     }
 
     if (read_plotfile)

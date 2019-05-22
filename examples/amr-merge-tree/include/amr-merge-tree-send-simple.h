@@ -290,6 +290,9 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
     b->done_ = b->is_done_simple(vertices_to_check);
     int n_undone = 1 - b->done_;
 
+    expand_link(b, cp, l, received_links, received_original_gids);
+
+    if (debug) fmt::print("Exit receive_simple for block = {}, expand_link OK\n", b->gid);
     cp.all_reduce(n_undone, std::plus<int>());
 
     if (debug)
@@ -301,7 +304,5 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
     if (debug) fmt::print( "In receive_simple for block = {}, b->done_ = {}, old link size = {}, old link size_unqie = {}\n", b->gid, b->done_, old_size, old_size_unique);
 
-    expand_link(b, cp, l, received_links, received_original_gids);
 
-    if (debug) fmt::print("Exit receive_simple for block = {}, expand_link OK\n", b->gid);
 }

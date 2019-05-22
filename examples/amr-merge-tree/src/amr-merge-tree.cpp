@@ -347,6 +347,25 @@ int main(int argc, char** argv)
     DurationType tmt_exchange_1_time = timer_receieve.elapsed();
     DurationType tmt_exchange_2_time = timer_receieve.elapsed();
     DurationType time_to_delete_low_edges;
+
+    DurationType min_time_to_construct_blocks;
+    DurationType min_time_to_init_blocks;
+    DurationType min_time_to_get_average;
+    DurationType min_tmt_send_time;
+    DurationType min_tmt_receive_time;
+    DurationType min_tmt_exchange_1_time;
+    DurationType min_tmt_exchange_2_time;
+    DurationType min_time_to_delete_low_edges;
+
+    DurationType max_time_to_construct_blocks;
+    DurationType max_time_to_init_blocks;
+    DurationType max_time_to_get_average;
+    DurationType max_tmt_send_time;
+    DurationType max_tmt_receive_time;
+    DurationType max_tmt_exchange_1_time;
+    DurationType max_tmt_exchange_2_time;
+    DurationType max_time_to_delete_low_edges;
+
 #endif
 
     if (read_plotfile)
@@ -398,7 +417,6 @@ int main(int argc, char** argv)
 #ifdef DO_DETAILED_TIMING
         time_to_construct_blocks = timer.elapsed();
 #endif
-
 
         Real mean = std::numeric_limits<Real>::min();
 
@@ -562,10 +580,10 @@ int main(int argc, char** argv)
         }
 
 #ifdef DO_DETAILED_TIMING
-    tmt_exchange_2_time  = 0;
-    tmt_exchange_1_time  = 0;
-    tmt_receive_time = 0;
-    tmt_send_time = 0;
+        tmt_exchange_2_time = 0;
+        tmt_exchange_1_time = 0;
+        tmt_receive_time = 0;
+        tmt_send_time = 0;
 #endif
 
         int rounds = 0;
@@ -795,11 +813,13 @@ int main(int argc, char** argv)
         dlog::flush();
 
         std::string final_timings = fmt::format("run: {} read: {} local: {} exchange: {} output: {}\n",
-                time_to_read_data, n_run, time_for_local_computation, time_for_communication, time_for_output);
+                n_run, time_to_read_data, time_for_local_computation, time_for_communication, time_for_output);
         LOG_SEV_IF(world.rank() == 0, info) << final_timings;
         dlog::flush();
-        std::string final_detailed_timings = fmt::format("run: {} construct_blocks = {} init_blocks = {} average = {} delete_low_edges = {} tmt_send = {} tmt_receive = {} tmt_exchange_1 = {} tmt_exchange_2 = {}\n",
-            n_run, time_to_construct_blocks, time_to_init_blocks, time_to_get_average, time_to_delete_low_edges, tmt_send_time, tmt_receive_time, tmt_exchange_1_time, tmt_exchange_2_time);
+        std::string final_detailed_timings = fmt::format(
+                "run: {} construct_blocks = {} init_blocks = {} average = {} delete_low_edges = {} tmt_send = {} tmt_receive = {} tmt_exchange_1 = {} tmt_exchange_2 = {}\n",
+                n_run, time_to_construct_blocks, time_to_init_blocks, time_to_get_average, time_to_delete_low_edges,
+                tmt_send_time, tmt_receive_time, tmt_exchange_1_time, tmt_exchange_2_time);
         LOG_SEV_IF(world.rank() == 0, info) << final_detailed_timings;
 
 #if 0
@@ -876,6 +896,84 @@ int main(int argc, char** argv)
 //        {
 //            master.destroy(i);
 //        }
+
+        if (n_run == n_runs - 1 or n_run == 0)
+        {
+
+            master.foreach(
+                    [time_to_construct_blocks, time_to_init_blocks, time_to_get_average, tmt_send_time, tmt_exchange_1_time, tmt_receive_time, tmt_exchange_2_time](
+                            Block* b, const diy::Master::ProxyWithLink& cp) {
+                        cp.collectives()->clear();
+
+                        cp.all_reduce(time_to_construct_blocks, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(time_to_init_blocks, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(time_to_get_average, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(tmt_send_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(tmt_exchange_1_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(tmt_receive_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(tmt_exchange_2_time, diy::mpi::maximum<DurationType>());
+
+                        cp.all_reduce(time_to_construct_blocks, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(time_to_init_blocks, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(time_to_get_average, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(tmt_send_time, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(tmt_exchange_1_time, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(tmt_receive_time, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(tmt_exchange_2_time, diy::mpi::minimum<DurationType>());
+
+                    });
+
+            master.exchange();
+
+            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+
+            max_time_to_construct_blocks = proxy.get<DurationType>();
+            max_time_to_init_blocks = proxy.get<DurationType>();
+            max_time_to_get_average = proxy.get<DurationType>();
+            max_tmt_send_time = proxy.get<DurationType>();
+            max_tmt_exchange_1_time = proxy.get<DurationType>();
+            max_tmt_receive_time = proxy.get<DurationType>();
+            max_tmt_exchange_2_time = proxy.get<DurationType>();
+
+            min_time_to_construct_blocks = proxy.get<DurationType>();
+            min_time_to_init_blocks = proxy.get<DurationType>();
+            min_time_to_get_average = proxy.get<DurationType>();
+            min_tmt_send_time = proxy.get<DurationType>();
+            min_tmt_exchange_1_time = proxy.get<DurationType>();
+            min_tmt_receive_time = proxy.get<DurationType>();
+            min_tmt_exchange_2_time = proxy.get<DurationType>();
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_construct_blocks = " << max_time_to_construct_blocks;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_time_to_construct_blocks = " << min_time_to_construct_blocks;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_init_blocks = " << max_time_to_init_blocks;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_time_to_init_blocks = " << min_time_to_init_blocks;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_get_average = " << max_time_to_get_average;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_time_to_get_average = " << min_time_to_get_average;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_tmt_send_time = " << max_tmt_send_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_tmt_send_time = " << min_tmt_send_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_tmt_exchange_1_time = " << max_tmt_exchange_1_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_tmt_exchange_1_time = " << min_tmt_exchange_1_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_tmt_receive_time = " << max_tmt_receive_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_tmt_receive_time = " << min_tmt_receive_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_tmt_exchange_2_time = " << max_tmt_exchange_2_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_tmt_exchange_2_time = " << min_tmt_exchange_2_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+        }
 
     }
 
