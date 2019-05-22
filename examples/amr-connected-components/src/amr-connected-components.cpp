@@ -298,8 +298,6 @@ int main(int argc, char** argv)
 
 #endif
 
-    read_plotfile = true;
-
     if (read_plotfile)
     {
         read_amr_plotfile(input_filename, all_var_names, n_mt_vars, world, nblocks, master_reader, header, domain);
