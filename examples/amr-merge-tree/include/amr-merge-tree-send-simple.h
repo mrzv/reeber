@@ -137,7 +137,6 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
     auto* l = static_cast<AMRLink*>(cp.link());
 
-    cp.collectives()->clear();
 
     std::vector<AmrTripletMergeTree> received_trees;
     std::vector<VertexVertexMap> received_vertex_to_deepest;
@@ -287,12 +286,14 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
     if (debug) fmt::print("In receive_simple for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->get_merge_tree().size());
 
-    b->done_ = b->is_done_simple(vertices_to_check);
-    int n_undone = 1 - b->done_;
-
     expand_link(b, cp, l, received_links, received_original_gids);
 
     if (debug) fmt::print("Exit receive_simple for block = {}, expand_link OK\n", b->gid);
+
+    b->done_ = b->is_done_simple(vertices_to_check);
+    int n_undone = 1 - b->done_;
+
+    cp.collectives()->clear();
     cp.all_reduce(n_undone, std::plus<int>());
 
     if (debug)
@@ -303,6 +304,5 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
     int old_size = l->size();
 
     if (debug) fmt::print( "In receive_simple for block = {}, b->done_ = {}, old link size = {}, old link size_unqie = {}\n", b->gid, b->done_, old_size, old_size_unique);
-
 
 }
