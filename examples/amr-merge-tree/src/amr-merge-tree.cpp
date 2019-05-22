@@ -649,8 +649,12 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
 
+        size_t local_n_active = 0;
+        size_t local_n_components = 0;
+        size_t local_n_blocks = 0;
+
         {
-            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+            master.foreach([&local_n_active, &local_n_blocks, &local_n_components](Block* b, const diy::Master::ProxyWithLink& cp) {
 //            fmt::print("PRINT ADF gid = {}, mt.size = {}\n", b->gid, b->current_merge_tree_.size());
                 auto sum_n_vertices_pair = b->get_local_stats();
                 int n_low = b->n_low_;
@@ -660,6 +664,10 @@ int main(int argc, char** argv)
                 cp.all_reduce(sum_n_vertices_pair.second, std::plus<size_t>());
                 cp.all_reduce(n_low, std::plus<size_t>());
                 cp.all_reduce(n_active, std::plus<size_t>());
+
+                local_n_active += n_active;
+                local_n_blocks += 1;
+                local_n_components += b->original_deepest_.size();
 
             });
 
@@ -973,7 +981,18 @@ int main(int argc, char** argv)
             LOG_SEV_IF(world.rank() == 0, info) << "min_tmt_exchange_2_time = " << min_tmt_exchange_2_time;
             LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
 
+            if (tmt_exchange_2_time == max_tmt_exchange_2_time or
+                tmt_exchange_2_time == min_tmt_exchange_1_time or
+                tmt_receive_time == max_tmt_receive_time or
+                tmt_receive_time == min_tmt_receive_time)
+            {
+                LOG_SEV(info) << "Rank = " << world.rank() << ", tmt_exchange_2_time = " << tmt_exchange_2_time << ", receive_time = "
+                              << tmt_receive_time << ", local_blocks = " << local_n_blocks
+                              << ", local_n_active = " << local_n_active
+                              << ", local_n_components = " << local_n_components;
+            }
         }
+
 
     }
 

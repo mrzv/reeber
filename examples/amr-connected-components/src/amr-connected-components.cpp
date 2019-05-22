@@ -298,8 +298,6 @@ int main(int argc, char** argv)
 
 #endif
 
-    read_plotfile = true;
-
     if (read_plotfile)
     {
         read_amr_plotfile(input_filename, all_var_names, n_mt_vars, world, nblocks, master_reader, header, domain);
@@ -837,6 +835,10 @@ int main(int argc, char** argv)
             LOG_SEV_IF(world.rank() == 0, info) << "STAT plt.show()";
         }
 
+        size_t local_n_active = 0;
+        size_t local_n_components = 0;
+        size_t local_n_blocks = 0;
+
         if (true)
         {
             master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
@@ -859,6 +861,13 @@ int main(int argc, char** argv)
             size_t total_n_active = proxy.get<size_t>();
             size_t total_n_masked = proxy.get<size_t>();
 
+
+            master.foreach([&local_n_active, &local_n_components, &local_n_blocks](Block* b, const diy::Master::ProxyWithLink& cp) {
+                local_n_active += b->n_active_;
+                local_n_components += b->components_.size();
+                local_n_blocks += 1;
+            });
+
             LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
                                                                     << total_n_active << ", total_n_masked = "
                                                                     << total_n_masked;
@@ -867,7 +876,7 @@ int main(int argc, char** argv)
         }
 
 
-         if (n_run == n_runs - 1 or n_run == 0)
+        if (n_run == n_runs - 1 or n_run == 0)
         {
 
             master.foreach(
@@ -944,6 +953,17 @@ int main(int argc, char** argv)
             LOG_SEV_IF(world.rank() == 0, info) << "min_cc_exchange_2_time = " << min_cc_exchange_2_time;
             LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
 
+
+            if (cc_exchange_2_time == max_cc_exchange_2_time or
+                cc_exchange_2_time == min_cc_exchange_1_time or
+                cc_receive_time == max_cc_receive_time or
+                cc_receive_time == min_cc_receive_time)
+            {
+                LOG_SEV(info) << "Rank = " << world.rank() << ", cc_exchange_2_time = " << cc_exchange_2_time << ", receive_time = "
+                              << cc_receive_time << ", local_blocks = " << local_n_blocks
+                              << ", local_n_active = " << local_n_active
+                              << ", local_n_components = " << local_n_components;
+            }
         }
 
     }
