@@ -65,9 +65,11 @@ FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
         fab_(fab_grid.data(), fab_grid.shape(), fab_grid.c_order()),
         domain_(_domain),
         negate_(_negate),
-        merge_tree_(negate_),
-        extra_names_(extra_names),
+        merge_tree_(negate_)
+#ifdef EXTRA_INTEGRAL
+        , extra_names_(extra_names),
         extra_grids_(extra_grids)
+#endif
 {
     assert(extra_names.size() == extra_grids.size());
     bool debug = false;
@@ -643,11 +645,16 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
         vertices_to_process.push(v);
 
         Real deepest_value = fab_(v);
+
         std::map<std::string, Real> extra_integral_values;
+#ifdef EXTRA_INTEGRAL
+
         for(std::string extra_name : extra_names_)
         {
             extra_integral_values[extra_name] = 0.0;
         }
+#endif
+
         AmrVertexId deepest = v;
 
         while(!vertices_to_process.empty())
@@ -670,6 +677,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
 
             Real u_val = fab_(u);
 
+#ifdef EXTRA_INTEGRAL
             for(size_t i = 0; i < extra_names_.size(); ++i)
             {
                 if (extra_names_[i] == "xmom" or extra_names_[i] == "ymom" or extra_names_[i] == "zmom")
@@ -683,6 +691,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
                 }
 
             }
+#endif
 
             if (cmp(u_val, deepest_value))
             {
@@ -696,14 +705,15 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
             }
         }
 
+#ifdef EXTRA_INTEGRAL
         for(size_t i = 0; i < extra_names_.size(); ++i)
         {
             extra_integral_values.at(extra_names_.at(i)) *= scaling_factor();
         }
 
         extra_integral_values["n_vertices"] = component_vertices.size();
-
         local_integral_[deepest] = extra_integral_values;
+#endif
 
         for(const auto& component_vertex : component_vertices)
         {
@@ -711,6 +721,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
         }
 
         components_.emplace_back(negate_, deepest, deepest_value, extra_integral_values);
+
     }
 
     // copy nodes from local merge tree of block to merge trees of components
@@ -1003,6 +1014,7 @@ void FabComponentBlock<Real, D>::sanity_check_fin() const
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_local_integral()
 {
+#ifdef EXTRA_INTEGRAL
     bool debug = false;
 
     if (debug) fmt::print("Enter compute_local_integral, gid = {}\n", gid);
@@ -1054,6 +1066,7 @@ void FabComponentBlock<Real, D>::compute_local_integral()
             ++li_iter;
         }
     }
+#endif
 }
 
 //template<class Real, unsigned D>

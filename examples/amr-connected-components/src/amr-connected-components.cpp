@@ -1,6 +1,6 @@
-//#define SEND_COMPONENTS
 #define ZARIJA
 #define DO_DETAILED_TIMING
+//#define EXTRA_INTEGRAL
 
 #include "reeber-real.h"
 
@@ -415,11 +415,17 @@ int main(int argc, char** argv)
             dlog::flush();
             timer.restart();
 
-            master.foreach([absolute_rho](Block* b, const diy::Master::ProxyWithLink& cp) {
+            long int local_active = 0;
+            master.foreach([absolute_rho,&local_active](Block* b, const diy::Master::ProxyWithLink& cp) {
                 AMRLink* l = static_cast<AMRLink*>(cp.link());
                 b->init(absolute_rho, l);
                 cp.collectives()->clear();
+                local_active += b->n_active_;
             });
+
+            LOG_SEV(info) << "rank = " << world.rank() << ", local active = " << local_active;
+            dlog::flush();
+
 
 #ifdef DO_DETAILED_TIMING
             time_to_init_blocks = timer.elapsed();
@@ -634,6 +640,8 @@ int main(int argc, char** argv)
 
             LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed";
             dlog::flush();
+
+#ifdef EXTRA_INTEGRAL
 #ifdef ZARIJA
             master.foreach(
                     [output_integral_filename, domain, min_cells, has_density, has_xmom, has_ymom, has_zmom](Block* b,
@@ -760,6 +768,7 @@ int main(int argc, char** argv)
                         ofs.close();
                     });
 #endif
+#endif
 
             LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
                     << dlog::clock_to_string(timer.elapsed());
@@ -796,12 +805,13 @@ int main(int argc, char** argv)
         LOG_SEV_IF(world.rank() == 0, info) << final_timings;
 
         dlog::flush();
-        dlog::flush();
+#ifdef DO_DETAILED_TIMING
         std::string final_detailed_timings = fmt::format(
                 "run: {} construct_blocks = {} init_blocks = {} average = {} delete_low_edges = {} cc_send = {} cc_receive = {} cc_exchange_1 = {} cc_exchange_2 = {}\n",
                 n_run, time_to_construct_blocks, time_to_init_blocks, time_to_get_average, time_to_delete_low_edges,
                 cc_send_time, cc_receive_time, cc_exchange_1_time, cc_exchange_2_time);
         LOG_SEV_IF(world.rank() == 0, info) << final_detailed_timings;
+#endif
 
         //LOG_SEV_IF(world.rank() == 0, info) << "max_n_gids = [ 0 for i in range(20000) ]";
         //LOG_SEV_IF(world.rank() == 0, info) << "total_n_gids = [ 0 for i in range(20000) ]";
@@ -875,7 +885,7 @@ int main(int argc, char** argv)
             timer.restart();
         }
 
-
+#ifdef DO_DETAILED_TIMING
         if (n_run == n_runs - 1 or n_run == 0)
         {
 
@@ -900,6 +910,8 @@ int main(int argc, char** argv)
                         cp.all_reduce(cc_receive_time, diy::mpi::minimum<DurationType>());
                         cp.all_reduce(cc_exchange_2_time, diy::mpi::minimum<DurationType>());
 
+                        cp.all_reduce(b->global_receive_time, diy::mpi::maximum<DurationType>());
+
                     });
 
             master.exchange();
@@ -921,6 +933,8 @@ int main(int argc, char** argv)
             min_cc_exchange_1_time = proxy.get<DurationType>();
             min_cc_receive_time = proxy.get<DurationType>();
             min_cc_exchange_2_time = proxy.get<DurationType>();
+
+            DurationType max_block_receive_time = proxy.get<DurationType>();
 
 
             LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_construct_blocks = " << max_time_to_construct_blocks;
@@ -966,20 +980,10 @@ int main(int argc, char** argv)
             }
 
              if (cc_exchange_2_time == min_cc_exchange_1_time or
-                    cc_receive_time == max_cc_receive_time)
+                    cc_receive_time == max_cc_receive_time
+                    )
             {
                 master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-
-    DurationType global_receive_time { 0 };
-    DurationType process_senders_time { 0 };
-    DurationType repair_time { 0 };
-    DurationType merge_call_time { 0 };
-    DurationType uc_time { 0 } ;
-    DurationType comps_loop_time { 0 };
-    DurationType rrtc_loop_time { 0 };
-    DurationType ucn_loop_time { 0 };
-    DurationType expand_link_time { 0 };
-    DurationType is_done_time { 0 };
 
                     if (b->global_receive_time > 0)
                         LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid
@@ -993,9 +997,9 @@ int main(int argc, char** argv)
                         LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", repair_time = "
                                                                             << b->repair_time;
 
-//                    if (b->merge_call_time > 0)
-//                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", merge_call_time = "
-//                                                                            << b->merge_call_time;
+                    if (b->merge_call_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", merge_call_time = "
+                                                                            << b->merge_call_time;
                     if (b->uc_time > 0)
                         LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", uc_time = "
                                                                             << b->uc_time;
@@ -1022,6 +1026,7 @@ int main(int argc, char** argv)
                  });
             }
         }
+#endif
 
     }
 

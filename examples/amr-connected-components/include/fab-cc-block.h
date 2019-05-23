@@ -111,12 +111,15 @@ struct FabComponentBlock {
 
     int round_{0};
 
+
+#ifdef EXTRA_INTEGRAL
     LocalIntegral local_integral_;
 
     // names of additional fields
     std::vector<std::string> extra_names_;
     // grids of additional fields
     std::vector<diy::GridRef<Real, D>> extra_grids_;
+#endif
 
 
  #ifdef DO_DETAILED_TIMING

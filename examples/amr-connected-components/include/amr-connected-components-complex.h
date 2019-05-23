@@ -145,6 +145,10 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
 //            }
 
             n_sent++;
+
+            if (debug) fmt::print("in amr_cc_send, c = {}, receiver gid = {}, #current_neighbors = {}, #edges = {}\n",
+                    c.original_deepest(), receiver_gid, c.current_neighbors().size(), c.edges().size());
+
             cp.enqueue(receiver, c.original_deepest());
             cp.enqueue(receiver, c.current_neighbors());
             int n_trees = c.must_send_tree_to_gid(receiver_gid);
@@ -155,7 +159,9 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
             {
                 cp.enqueue(receiver, c.tree_);
                 cp.enqueue(receiver, c.edges());
+#ifdef EXTRA_INTEGRAL
                 cp.enqueue(receiver, c.extra_values());
+#endif
             }
 //            if (debug) fmt::print("in amr_cc_send, sent {} to gid = {}, current_neighbors = {}\n", c.original_deepest(), receiver_gid, container_to_string(c.current_neighbors()));
 
@@ -170,13 +176,10 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
                 [&receivers, b](const auto gid) { return b->gid == gid or std::any_of(receivers.begin(), receivers.end(), [gid](const diy::BlockID& receiver) {
             return receiver.gid == gid; }); } ));
 
-//        assert(std::all_of(c.processed_gids().begin(), c.processed_gids().end(),
-//                [&receivers](const int gid) { return receivers.count(gid) == 1;  }));
-
         c.mark_all_gids_processed();
     }
 
-    if (debug) fmt::print("Exit send_simple for block = {}, b->done = {}, b->round = {}\n", b->gid, b->done_, b->round_);
+    if (debug) fmt::print("Exit send_components for block = {}, b->done = {}, b->round = {}\n", b->gid, b->done_, b->round_);
 }
 
 template<class Real, unsigned D>
@@ -185,7 +188,7 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
 #ifdef DO_DETAILED_TIMING
     dlog::Timer timer;
     dlog::Timer global_timer;
-
+    dlog::Timer merge_call_timer;
     // detailed timings
     using DurationType = decltype(timer.elapsed());
 
@@ -267,15 +270,27 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
                 cp.dequeue(sender, received_tree);
                 cp.dequeue(sender, received_edges);
                 cp.dequeue(sender, received_extra_values);
+
+#ifdef DO_DETAILED_TIMING
+                merge_call_timer.restart();
+#endif
+
                 r::merge(b->merge_tree_, received_tree, received_edges, true);
+
+#ifdef DO_DETAILED_TIMING
+                b->merge_call_time += merge_call_timer.elapsed();
+#endif
             }
 
             received_deepest_vertices.push_back(received_original_deepest);
             received_root_to_components[received_original_deepest] = received_current_neighbors;
+
+#ifdef EXTRA_INTEGRAL
             if (!b->local_integral_.count(received_original_deepest))
                 b->local_integral_[received_original_deepest] = received_extra_values;
             else
                 assert(b->local_integral_[received_original_deepest] == received_extra_values);
+#endif
 
         }
     }

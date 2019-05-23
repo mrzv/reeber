@@ -1,6 +1,6 @@
 //#define SEND_COMPONENTS
 
-#define DO_DETAILED_TIMING
+//#define DO_DETAILED_TIMING
 
 #include "reeber-real.h"
 
@@ -825,11 +825,13 @@ int main(int argc, char** argv)
                 n_run, time_to_read_data, time_for_local_computation, time_for_communication, time_for_output);
         LOG_SEV_IF(world.rank() == 0, info) << final_timings;
         dlog::flush();
+#ifdef DO_DETAILED_TIMING
         std::string final_detailed_timings = fmt::format(
                 "run: {} construct_blocks = {} init_blocks = {} average = {} delete_low_edges = {} tmt_send = {} tmt_receive = {} tmt_exchange_1 = {} tmt_exchange_2 = {}\n",
                 n_run, time_to_construct_blocks, time_to_init_blocks, time_to_get_average, time_to_delete_low_edges,
                 tmt_send_time, tmt_receive_time, tmt_exchange_1_time, tmt_exchange_2_time);
         LOG_SEV_IF(world.rank() == 0, info) << final_detailed_timings;
+#endif
 
 #if 0
         // output diagrams componentwise
@@ -906,6 +908,7 @@ int main(int argc, char** argv)
 //            master.destroy(i);
 //        }
 
+#ifdef DO_DETAILED_TIMING
         if (n_run == n_runs - 1 or n_run == 0)
         {
 
@@ -1029,6 +1032,7 @@ int main(int argc, char** argv)
                 });
             }
         }
+#endif
     }
 
     if (read_plotfile)

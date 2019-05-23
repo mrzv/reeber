@@ -54,8 +54,9 @@ private:
     AmrEdgeContainer edges_;
 
     std::size_t n_prev_current_neighbors_ { 0 };
-
+#ifdef EXTRA_INTEGRAL
     ExtraValues extra_integral_values_;
+#endif
 
 public:
     // methods
@@ -68,7 +69,10 @@ public:
     const AmrVertexSet& current_neighbors() const { return current_neighbors_; }
     const GidSet&       current_gids()      const { return current_gids_; }
     const GidSet&       processed_gids()    const { return processed_gids_; }
+
+#ifdef EXTRA_INTEGRAL
     const ExtraValues&  extra_values()      const { return extra_integral_values_; }
+#endif
 
     const AmrEdgeContainer edges()          const { return edges_; }
 
