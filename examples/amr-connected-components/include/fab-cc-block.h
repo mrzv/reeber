@@ -118,6 +118,25 @@ struct FabComponentBlock {
     // grids of additional fields
     std::vector<diy::GridRef<Real, D>> extra_grids_;
 
+
+ #ifdef DO_DETAILED_TIMING
+    using DurationType = decltype(dlog::Timer().elapsed());
+
+    DurationType global_receive_time { 0 };
+    DurationType process_senders_time { 0 };
+    DurationType repair_time { 0 };
+    DurationType merge_call_time { 0 };
+    DurationType uc_time { 0 } ;
+    DurationType comps_loop_time { 0 };
+    DurationType rrtc_loop_time { 0 };
+    DurationType ucn_loop_time { 0 };
+    DurationType expand_link_time { 0 };
+    DurationType is_done_time { 0 };
+    DurationType collectives_time { 0 };
+#endif
+
+
+
     // methods
 
     // simple getters/setters

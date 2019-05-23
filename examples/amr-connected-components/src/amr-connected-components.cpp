@@ -964,6 +964,63 @@ int main(int argc, char** argv)
                               << ", local_n_active = " << local_n_active
                               << ", local_n_components = " << local_n_components;
             }
+
+             if (cc_exchange_2_time == min_cc_exchange_1_time or
+                    cc_receive_time == max_cc_receive_time)
+            {
+                master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+
+    DurationType global_receive_time { 0 };
+    DurationType process_senders_time { 0 };
+    DurationType repair_time { 0 };
+    DurationType merge_call_time { 0 };
+    DurationType uc_time { 0 } ;
+    DurationType comps_loop_time { 0 };
+    DurationType rrtc_loop_time { 0 };
+    DurationType ucn_loop_time { 0 };
+    DurationType expand_link_time { 0 };
+    DurationType is_done_time { 0 };
+
+                    if (b->global_receive_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid
+                                                                            << ", Total time in receive = "
+                                                                            << b->global_receive_time;
+                     if (b->process_senders_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid
+                                                                            << ", time_to_receive_trees_and_gids = "
+                                                                            << b->process_senders_time;
+                    if (b->repair_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", repair_time = "
+                                                                            << b->repair_time;
+
+//                    if (b->merge_call_time > 0)
+//                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", merge_call_time = "
+//                                                                            << b->merge_call_time;
+                    if (b->uc_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", uc_time = "
+                                                                            << b->uc_time;
+                    if (b->comps_loop_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", comps_loop = "
+                                      << b->comps_loop_time;
+
+                    if (b->rrtc_loop_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", rrtc_time = "
+                                                                            << b->rrtc_loop_time;
+                    if (b->ucn_loop_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", ucn_time = "
+                                                                            << b->ucn_loop_time;
+
+                    if (b->expand_link_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", expand_link_time = "
+                                                                            << b->expand_link_time;
+                    if (b->is_done_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", is_done_time = "
+                                                                            << b->is_done_time;
+                    if (b->collectives_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", collectives_time = "
+                                                                            << b->collectives_time;
+                 });
+            }
         }
 
     }

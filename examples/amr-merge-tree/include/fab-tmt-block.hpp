@@ -789,7 +789,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::compute_final_connected_components()
 {
-    bool debug = true;
+    bool debug = false;
 
     const auto& const_tree = current_merge_tree_;
 

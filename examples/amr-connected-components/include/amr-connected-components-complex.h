@@ -182,6 +182,26 @@ void amr_cc_send(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink
 template<class Real, unsigned D>
 void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
+#ifdef DO_DETAILED_TIMING
+    dlog::Timer timer;
+    dlog::Timer global_timer;
+
+    // detailed timings
+    using DurationType = decltype(timer.elapsed());
+
+//    DurationType time_to_receive_trees_and_gids;
+//    DurationType rl_loop_time;
+//    DurationType repair_time;
+//    DurationType merge_call_time;
+//    DurationType union_find_time;
+//    DurationType sparsify_time;
+//    DurationType expand_link_time;
+
+    timer.restart();
+    global_timer.restart();
+
+#endif
+
     using Block = FabComponentBlock<Real, D>;
     using Component = typename FabComponentBlock<Real, D>::Component;
     using LinkVector = std::vector<AMRLink>;
@@ -215,6 +235,11 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
 
     AmrVertexContainer received_deepest_vertices;
     std::unordered_map<AmrVertexId, AmrVertexSet> received_root_to_components;
+
+#ifdef DO_DETAILED_TIMING
+        timer.restart();
+#endif
+
 
     for (const diy::BlockID& sender : senders)
     {
@@ -255,10 +280,29 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
         }
     }
 
+#ifdef DO_DETAILED_TIMING
+        b->process_senders_time += timer.elapsed();
+        timer.restart();
+#endif
+
+
     if (total_received_trees)
     {
+#ifdef DO_DETAILED_TIMING
+        timer.restart();
+#endif
         r::repair(b->merge_tree_);
+
+#ifdef DO_DETAILED_TIMING
+        b->repair_time += timer.elapsed();
+        timer.restart();
+#endif
+
         b->update_connectivity(received_deepest_vertices);
+#ifdef DO_DETAILED_TIMING
+        b->uc_time += timer.elapsed();
+        timer.restart();
+#endif
     }
 
     GidSet needed_gids;
@@ -268,7 +312,7 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
         std::unordered_map<AmrVertexId, AmrVertexSet> global_deepest_to_neighbors;  // to accumulate current_neighbors of all local components that are in one global component
         std::unordered_map<AmrVertexId, AmrVertexSet> global_deepest_to_original_deepests;
 
-        // collect all neighbors in merged components and corresponding roots
+         // collect all neighbors in merged components and corresponding roots
         for(const Component& c : b->components_)
         {
             AmrVertexId original_deepest = c.original_deepest();
@@ -277,13 +321,22 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             global_deepest_to_original_deepests[global_deepest].insert(original_deepest);
        }
 
-       for(const auto& root_deepest_set_pair : received_root_to_components)
+#ifdef DO_DETAILED_TIMING
+        b->comps_loop_time += timer.elapsed();
+        timer.restart();
+#endif
+        for(const auto& root_deepest_set_pair : received_root_to_components)
        {
            const AmrVertexId& original_deepest = root_deepest_set_pair.first;
            AmrVertexId global_deepest = b->vertex_to_deepest_.at(original_deepest);
            const AmrVertexSet& cn = root_deepest_set_pair.second;
            global_deepest_to_neighbors[global_deepest].insert(cn.begin(), cn.end());
        }
+
+#ifdef DO_DETAILED_TIMING
+        b->rrtc_loop_time += timer.elapsed();
+        timer.restart();
+#endif
 
        // update current neighbors
        for(const auto& deepest_roots_pair : global_deepest_to_original_deepests)
@@ -300,6 +353,11 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
                }
            }
        }
+
+#ifdef DO_DETAILED_TIMING
+        b->ucn_loop_time += timer.elapsed();
+        timer.restart();
+#endif
     }
 
 //    int old_size_unique = l->size_unique();
@@ -307,8 +365,18 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
 
     expand_link(b, cp, l, received_links, needed_gids);
 
+#ifdef DO_DETAILED_TIMING
+        b->expand_link_time += timer.elapsed();
+        timer.restart();
+#endif
+
     b->done_ = b->are_all_components_done();
     int undone = 1 - b->done_;
+
+#ifdef DO_DETAILED_TIMING
+        b->is_done_time += timer.elapsed();
+        timer.restart();
+#endif
 
     if (debug)
         for(const Component& c : b->components_)
@@ -319,6 +387,14 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
 
     cp.collectives()->clear();
     cp.all_reduce(undone, std::plus<int>());
+
+#ifdef DO_DETAILED_TIMING
+        b->collectives_time += timer.elapsed();
+        timer.restart();
+
+        b->global_receive_time += global_timer.elapsed();
+#endif
+
 
     if (debug) fmt::print("Exit amr_cc_receive, gid = {}, round = {}, mt.size = {}, done = {}\n", b->gid, b->round_, b->get_merge_tree().size(), b->done_);
 
