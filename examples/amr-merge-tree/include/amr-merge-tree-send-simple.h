@@ -271,10 +271,10 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 #endif
 
         // make_set in disjoint-sets of components
-        for (const AmrVertexId& new_deepest_vertex : received_deepest_vertices[i])
-        {
-            b->add_component_to_disjoint_sets(new_deepest_vertex);
-        }
+//        for (const AmrVertexId& new_deepest_vertex : received_deepest_vertices[i])
+//        {
+//            b->add_component_to_disjoint_sets(new_deepest_vertex);
+//        }
 
 #ifdef DO_DETAILED_TIMING
         b->union_find_time += union_find_timer.elapsed();
@@ -335,9 +335,9 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
             if (b->edge_exists(e))
             {
                 // edge e connects two vertices that we have, connect their components
-                AmrVertexId deepest_a = b->original_deepest(std::get<0>(e));
-                AmrVertexId deepest_b = b->original_deepest(std::get<1>(e));
-                b->connect_components(deepest_a, deepest_b);
+//                AmrVertexId deepest_a = b->original_deepest(std::get<0>(e));
+//                AmrVertexId deepest_b = b->original_deepest(std::get<1>(e));
+//                b->connect_components(deepest_a, deepest_b);
             } else
             {
                 vertices_to_check.push_back(std::get<0>(e));
@@ -369,6 +369,10 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
     if (debug) fmt::print("Exit receive_simple for block = {}, expand_link OK\n", b->gid);
 
     b->done_ = b->is_done_simple(vertices_to_check);
+
+
+
+
     int n_undone = 1 - b->done_;
 
     cp.collectives()->clear();

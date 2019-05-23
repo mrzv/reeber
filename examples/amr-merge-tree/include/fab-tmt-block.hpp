@@ -9,9 +9,9 @@ bool FabTmtBlock<Real, D>::cmp(Real a, Real b) const
 
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
-                                    diy::AMRLink *l,
-                                    const Real& rho,
-                                    bool is_absolute_threshold)
+        diy::AMRLink* l,
+        const Real& rho,
+        bool is_absolute_threshold)
 {
     using Position = diy::Point<int, D>;
 
@@ -71,7 +71,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     bool is_low = false;
     if (is_absolute_threshold and is_in_core)
         is_low = not is_ghost and
-                 cmp(rho, value);   //(negate_ ? fab_(v_mask) < rho : fab_(v_mask) > rho);
+                cmp(rho, value);   //(negate_ ? fab_(v_mask) < rho : fab_(v_mask) > rho);
 
     r::AmrVertexId v_idx;
     // does not matter here
@@ -81,7 +81,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     {
         if (n_debug_printed_core_ < 10 and not is_on_boundary and is_in_core)
         {
-            n_debug_printed_core_ ++;
+            n_debug_printed_core_++;
             fmt::print(
                     "PRINTING CORE gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n",
                     debug_gid, v_mask,
@@ -90,7 +90,7 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
         }
         if (n_debug_printed_bdry_ < 10 and is_on_boundary)
         {
-            n_debug_printed_bdry_ ++;
+            n_debug_printed_bdry_++;
             fmt::print(
                     "PRINTING BDRY gid = {}, in set_mask, v_mask = {}, v_idx = {}, value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n",
                     debug_gid, v_mask,
@@ -102,7 +102,8 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     // initialization, actual mask to be set later
     if (is_ghost)
     {
-        if (debug) { fmt::print("in set_mask, gid = {}, v_mask = {}, GHOST detected\n", debug_gid, v_mask); }
+        if (debug)
+        { fmt::print("in set_mask, gid = {}, v_mask = {}, GHOST detected\n", debug_gid, v_mask); }
         local_.set_mask(v_mask, MaskedBox::GHOST);
     } else
     {
@@ -121,16 +122,16 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 //    }
 
 
-    bool mask_set { false };
+    bool mask_set{false};
 
     // loop over neighbouring blocks one level above
-    for (int i = 0; i < l->size(); ++i)
+    for(int i = 0; i < l->size(); ++i)
         if (l->level(i) == v_level + 1 && neighbor_contains<D>(i, l, v_glob, v_ref))
         {
             if (debug)
             {
                 fmt::print("Is masked ABOVE {} , is_ghost = {}, gid = {}, v_idx = {}\n", local_.gid(), is_ghost,
-                           l->target(i).gid, v_idx);
+                        l->target(i).gid, v_idx);
             }
             mask_set = true;
             local_.set_mask(v_mask, l->target(i).gid);
@@ -143,14 +144,14 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     if (not mask_set and is_ghost)
     {
         // loop over neighbours on the same level
-        for (int i = 0; i < l->size(); ++i)
+        for(int i = 0; i < l->size(); ++i)
         {
             if (l->level(i) == v_level && neighbor_contains<D>(i, l, v_glob, v_ref))
             {
                 if (debug)
                 {
                     fmt::print("Is masked SAME {} , is_ghost = {}, gid = {}, v_idx = {}\n", l->target(i).gid, is_ghost,
-                               local_.gid(), v_idx);
+                            local_.gid(), v_idx);
                 }
                 mask_set = true;
                 local_.set_mask(v_mask, l->target(i).gid);
@@ -165,14 +166,14 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     // but we save this info in ghost cells to get outgoing edges.
     if (not mask_set and is_ghost)
     {
-        for (int i = 0; i < l->size(); ++i)
+        for(int i = 0; i < l->size(); ++i)
         {
             if (l->level(i) == v_level - 1 && neighbor_contains<D>(i, l, v_glob, v_ref))
             {
                 if (debug)
                 {
                     fmt::print("Is masked FAKE {} , is_ghost = {}, gid = {}, v_idx = {}\n", l->target(i).gid, is_ghost,
-                               local_.gid(), v_idx);
+                            local_.gid(), v_idx);
                 }
                 mask_set = true;
                 local_.set_mask(v_mask, l->target(i).gid);
@@ -196,15 +197,17 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
         n_unmasked_++;
         auto v_local = local_.local_position_from_mask(v_mask);
         sum_ += value;
-        if (debug) fmt::print("FAB INFO gid = {}, sum = {}, v_mask = {}, v_local = {}, f(v) = {}, index(v) = {} ,stride = {}, shape = {}, data = {}, size = {}\n",
-                gid,  sum_, v_mask, v_local, fab_(v_local), fab_.index(v_local), fab_.stride_, fab_.shape(), (void*)fab_.data(), sizeof(fab_.data()[fab_.index(v_local)]));
+        if (debug)
+            fmt::print(
+                    "FAB INFO gid = {}, sum = {}, v_mask = {}, v_local = {}, f(v) = {}, index(v) = {} ,stride = {}, shape = {}, data = {}, size = {}\n",
+                    gid, sum_, v_mask, v_local, fab_(v_local), fab_.index(v_local), fab_.stride_, fab_.shape(),
+                    (void*) fab_.data(), sizeof(fab_.data()[fab_.index(v_local)]));
     }
-
 
     if (debug)
     {
         fmt::print("in set_mask, is_ghost = {}, final mask = {}, {}, gid = {}, v_mask = {},  v_idx = {}\n",
-                   is_ghost, local_.pretty_mask_value(v_mask), local_.mask(v_mask), local_.gid(), v_mask, v_idx);
+                is_ghost, local_.pretty_mask_value(v_mask), local_.mask(v_mask), local_.gid(), v_mask, v_idx);
     }
 
     if (is_ghost and local_.mask(v_mask) == gid)
@@ -218,18 +221,18 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
-                                   const Real& absolute_threshold)
+        const Real& absolute_threshold)
 {
     auto v_mask = local_.mask_position_from_local(v_bounds);
     if (local_.mask(v_mask) != MaskedBox::ACTIVE)
         return;
-    bool is_low = cmp(absolute_threshold, fab_(v_bounds)); //   negate_ ? fab_(v_bounds) < absolute_threshold : fab_(v_bounds) > absolute_threshold;
+    bool is_low = cmp(absolute_threshold,
+            fab_(v_bounds)); //   negate_ ? fab_(v_bounds) < absolute_threshold : fab_(v_bounds) > absolute_threshold;
     if (is_low)
     {
-        n_low_ ++;
+        n_low_++;
         local_.set_mask(v_mask, MaskedBox::LOW);
-    }
-    else
+    } else
     {
         n_active_++;
 //        if (gid == 0) fmt::print("HERE ACTIVE: {}\n", local_.global_position_from_local(v_bounds));
@@ -237,7 +240,7 @@ void FabTmtBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
 }
 
 template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
+void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink* amr_link)
 {
     bool debug = false; //gid == 1 or gid == 100;
     std::string debug_prefix = "In FabTmtBlock::init, gid = " + std::to_string(gid);
@@ -246,8 +249,10 @@ void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
         this->set_low(v_bounds, absolute_rho);
     });
 
-    if (debug) fmt::print("{}, absolute_rho = {}, n_active = {}, n_masked = {}, total_size = {}, level = {}\n", debug_prefix, absolute_rho, n_active_,
-            n_masked_, local_.core_shape()[0] * local_.core_shape()[1] * local_.core_shape()[2], level());
+    if (debug)
+        fmt::print("{}, absolute_rho = {}, n_active = {}, n_masked = {}, total_size = {}, level = {}\n", debug_prefix,
+                absolute_rho, n_active_,
+                n_masked_, local_.core_shape()[0] * local_.core_shape()[1] * local_.core_shape()[2], level());
 
     reeber::compute_merge_tree2(current_merge_tree_, local_, fab_);
     current_merge_tree_.make_deep_copy(original_tree_);
@@ -259,7 +264,7 @@ void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
     sparsify_prune_original_tree();
 
     // TODO: delete this? we are going to overwrite this in adjust_outgoing_edges anyway
-    for (int i = 0; i < amr_link->size(); ++i)
+    for(int i = 0; i < amr_link->size(); ++i)
     {
         if (amr_link->target(i).gid != gid)
         {
@@ -270,11 +275,12 @@ void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink *amr_link)
 
     if (debug)
         fmt::print("{}, constructed, refinement = {}, level = {}, local = {},  #components = {}\n",
-                   debug_prefix, refinement(), level(), local_, components_.size());
+                debug_prefix, refinement(), level(), local_, components_.size());
     if (debug)
     {
         int n_edges = 0;
-        for(auto& gid_edges : gid_to_outgoing_edges_) { n_edges += gid_edges.second.size(); }
+        for(auto& gid_edges : gid_to_outgoing_edges_)
+        { n_edges += gid_edges.second.size(); }
         fmt::print("{},  constructed, tree.size = {}, new_receivers.size = {}, n_edges = {}\n",
                 debug_prefix, current_merge_tree_.size(), new_receivers_.size(), n_edges);
     }
@@ -286,7 +292,7 @@ template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::sparsify_prune_original_tree()
 {
     std::unordered_set<AmrVertexId> special;
-    for (const AmrEdge& out_edge : get_all_outgoing_edges())
+    for(const AmrEdge& out_edge : get_all_outgoing_edges())
     {
         special.insert(std::get<0>(out_edge));
     }
@@ -296,8 +302,8 @@ void FabTmtBlock<Real, D>::sparsify_prune_original_tree()
 
 template<unsigned D>
 r::AmrEdgeContainer
-get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& local, diy::AMRLink *l,
-                 const diy::DiscreteBounds& domain, bool debug = false)
+get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& local, diy::AMRLink* l,
+        const diy::DiscreteBounds& domain, bool debug = false)
 {
     using Position = diy::Point<int, D>;
 
@@ -310,19 +316,19 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
 
     r::AmrEdgeContainer result;
 
-    for (const Position& neighb_v_glob : local.outer_edge_link(v_glob))
+    for(const Position& neighb_v_glob : local.outer_edge_link(v_glob))
     {
 
         Position neighb_v_bounds = neighb_v_glob - local.bounds_from();
-
-
 
         Position wrapped_neighb_vert_glob = wrap_point(neighb_v_glob, domain, local.refinement());
 
         if (debug)
         {
-            fmt::print("In get_vertex_edges, v_glob = {}, gid = {}, neighb_v_bounds = {}, neighb_v_glob = {}, wrapped_neighb_vert_glob = {}\n", v_glob,
-                       local.gid(), neighb_v_bounds, neighb_v_glob, wrapped_neighb_vert_glob);
+            fmt::print(
+                    "In get_vertex_edges, v_glob = {}, gid = {}, neighb_v_bounds = {}, neighb_v_glob = {}, wrapped_neighb_vert_glob = {}\n",
+                    v_glob,
+                    local.gid(), neighb_v_bounds, neighb_v_glob, wrapped_neighb_vert_glob);
         }
 
         Position neighb_v_mask = local.mask_position_from_local(neighb_v_bounds);
@@ -330,7 +336,7 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
 
         size_t link_idx = 0;
         bool link_idx_found = false;
-        for (; link_idx < (size_t) l->size(); ++link_idx)
+        for(; link_idx < (size_t) l->size(); ++link_idx)
         {
             if (l->target(link_idx).gid == masking_gid)
             {
@@ -367,57 +373,61 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
             // neighbour is on the same level or below me, neighbouring vertex corresponds
             // to the unique vertex in a neighbouring block
             size_t neighb_vertex_idx = get_vertex_id(wrapped_neighb_vert_glob, local.refinement(), link_idx, l,
-                                                     local.mask_grid().c_order());
+                    local.mask_grid().c_order());
 
-            result.emplace_back(v_glob_idx, reeber::AmrVertexId { masking_gid, neighb_vertex_idx });
+            result.emplace_back(v_glob_idx, reeber::AmrVertexId{masking_gid, neighb_vertex_idx});
 
             if (debug)
             {
-                fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, Added edge to idx = {}\n", v_glob, masking_gid,
-                           neighb_vertex_idx);
+                fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, Added edge to idx = {}\n", v_glob,
+                        masking_gid,
+                        neighb_vertex_idx);
             }
 
         } else if (nb_level > local.level())
         {
             Position masking_box_from, masking_box_to;
             std::tie(masking_box_from, masking_box_to) = refine_vertex(neighb_v_glob, local.refinement(),
-                                                                       nb_refinement);
+                    nb_refinement);
             if (debug)
-                fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, masking_box_from = {}, masking_box_to = {}\n",
-                           v_glob, local.gid(), masking_box_from, masking_box_to);
+                fmt::print(
+                        "In get_vertex_edges, v_glob = {}, masking_gid = {}, masking_box_from = {}, masking_box_to = {}\n",
+                        v_glob, local.gid(), masking_box_from, masking_box_to);
 
             reeber::Box<D> masking_box(masking_box_from, masking_box_to);
             reeber::Box<D> covering_box(masking_box_from - Position::one(), masking_box_to + Position::one());
 
-            for (const Position& masking_position : masking_box.positions())
+            for(const Position& masking_position : masking_box.positions())
             {
-                for (Position covering_position_glob : covering_box.position_link(masking_position))
+                for(Position covering_position_glob : covering_box.position_link(masking_position))
                 {
                     Position covering_position_coarsened = wrap_point(
                             coarsen_point(covering_position_glob, nb_refinement,
-                                          local.refinement()),
+                                    local.refinement()),
                             domain, local.refinement());
                     if (debug)
                     {
-                        fmt::print("In get_vertex_edges, v_glob = {}, masking_gid = {}, cov_vert = {}, cov_vert_loc = {}\n",
-                                   v_glob, local.gid(), covering_position_glob,
-                                   covering_position_coarsened);
+                        fmt::print(
+                                "In get_vertex_edges, v_glob = {}, masking_gid = {}, cov_vert = {}, cov_vert_loc = {}\n",
+                                v_glob, local.gid(), covering_position_glob,
+                                covering_position_coarsened);
                     }
 
                     if (covering_position_coarsened == v_glob)
                     {
 
                         Position masking_position_global = wrap_point(masking_position, domain, nb_refinement);
-                        r::AmrVertexId masking_vertex_idx { masking_gid, get_vertex_id(masking_position_global, nb_refinement,
-                                                                               link_idx, l,
-                                                                               local.mask_grid().c_order()) };
+                        r::AmrVertexId masking_vertex_idx{masking_gid,
+                                                          get_vertex_id(masking_position_global, nb_refinement,
+                                                                  link_idx, l,
+                                                                  local.mask_grid().c_order())};
 
                         if (debug)
                         {
                             fmt::print(
                                     "IN get_vertex_edges, v_glob = {}, masking_gid = {}, masking_position = {}, nb_from = {}, nb_to = {}, adding edge {}\n",
                                     v_glob, local.gid(), masking_position, nb_from, nb_to,
-                                    r::AmrEdge { v_glob_idx, masking_vertex_idx });
+                                    r::AmrEdge{v_glob_idx, masking_vertex_idx});
                         }
 
                         result.emplace_back(v_glob_idx, masking_vertex_idx);
@@ -429,18 +439,18 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
     return result;
 }
 
-
 template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMap& vertex_to_outgoing_edges)
+void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink* l, VertexEdgesMap& vertex_to_outgoing_edges)
 {
     bool debug = false; //gid == 0 or gid == 1;
     if (debug) fmt::print("Enter compute_outgoing_edges, gid = {}\n", gid);
 
     auto receivers = link_unique(l, gid);
-    if (debug) fmt::print("In compute_outgoing_edges for block = {}, link size = {}, unique = {}\n", gid, l->size(), receivers.size());
+    if (debug)
+        fmt::print("In compute_outgoing_edges for block = {}, link size = {}, unique = {}\n", gid, l->size(),
+                receivers.size());
 
-
-    for (const Vertex& v_glob : local_.active_global_positions())
+    for(const Vertex& v_glob : local_.active_global_positions())
     {
         auto v_idx = local_.get_vertex_from_global_position(v_glob);
 //        debug = (gid == 0 or gid == 1) and (v_idx == 64 or v_idx == 4486);
@@ -451,7 +461,7 @@ void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMa
 
         if (debug)
         {
-            for (auto&& e : out_edges)
+            for(auto&& e : out_edges)
             {
                 fmt::print("outogoing edge e = {} {}\n", std::get<0>(e), std::get<1>(e));
             }
@@ -460,8 +470,8 @@ void FabTmtBlock<Real, D>::compute_outgoing_edges(diy::AMRLink *l, VertexEdgesMa
         if (not out_edges.empty())
         {
             vertex_to_outgoing_edges[local_.get_vertex_from_global_position(v_glob)] = out_edges;
-//            std::copy(out_edges.begin(), out_edges.end(), std::back_inserter(initial_edges_));
-            for (const AmrEdge& e : out_edges)
+            std::copy(out_edges.begin(), out_edges.end(), std::back_inserter(initial_edges_));
+            for(const AmrEdge& e : out_edges)
             {
                 assert(std::get<0>(e).gid == gid);
                 if (debug) fmt::print("in compute_outgoing_edges, adding {} to gid_to_outoging_edges\n", e);
@@ -496,19 +506,19 @@ void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdge
         // all edges from neighbor must end in low vertex of mine
         if (debug)
             fmt::print("In delete_low_edges in block with gid = {}, sender = {}, no edges from this block, exiting\n",
-                       gid, sender_gid);
+                    gid, sender_gid);
         return;  // we don't expect any edges from gid
     }
 
     // edges from neighbor come reversed, correct that
     std::transform(edges_from_sender.begin(), edges_from_sender.end(), edges_from_sender.begin(),
-                   &reeber::reverse_amr_edge);
+            &reeber::reverse_amr_edge);
 
 //    if (debug) fmt::print("in FabTmtBlock::delete_low_edges, transform OK, n_edges_from_sender = {}\n", edges_from_sender.size());
 
     // put edges into set to find the set difference
-    std::set<AmrEdge> my_edges { iter->second.begin(), iter->second.end() };
-    std::set<AmrEdge> neighbor_edges { edges_from_sender.begin(), edges_from_sender.end() };
+    std::set<AmrEdge> my_edges{iter->second.begin(), iter->second.end()};
+    std::set<AmrEdge> neighbor_edges{edges_from_sender.begin(), edges_from_sender.end()};
 
     int old_n_edges = my_edges.size();
 
@@ -529,14 +539,15 @@ void FabTmtBlock<Real, D>::delete_low_edges(int sender_gid, FabTmtBlock::AmrEdge
     // }
 
     std::set_intersection(my_edges.begin(), my_edges.end(), neighbor_edges.begin(), neighbor_edges.end(),
-                          std::back_inserter(iter->second));
+            std::back_inserter(iter->second));
 
     int new_n_edges = iter->second.size();
 
     if (iter->second.empty())
         gid_to_outgoing_edges_.erase(iter);
     if (debug)
-        fmt::print("in Block::delete_low_edges, gid = {}, sender_gid = {}, erase OK, old_n_edges = {}, new_n_edges = {}\n",
+        fmt::print(
+                "in Block::delete_low_edges, gid = {}, sender_gid = {}, erase OK, old_n_edges = {}, new_n_edges = {}\n",
                 gid, sender_gid, old_n_edges, new_n_edges);
 }
 
@@ -548,22 +559,26 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
     size_t s = initial_edges_.size();
     initial_edges_.clear();
 
-    for (const auto& gid_edge_vector_pair : gid_to_outgoing_edges_)
+    for(const auto& gid_edge_vector_pair : gid_to_outgoing_edges_)
     {
         std::copy(gid_edge_vector_pair.second.begin(), gid_edge_vector_pair.second.end(),
-                  std::back_inserter(initial_edges_));
+                std::back_inserter(initial_edges_));
     }
     std::sort(initial_edges_.begin(), initial_edges_.end());
 
     std::set<int> neighbor_gids;
-    for (const AmrEdge& e : initial_edges_)
+    for(const AmrEdge& e : initial_edges_)
     {
         neighbor_gids.insert(std::get<1>(e).gid);
     }
 
     int orig_link_old_size = original_link_gids_.size();
 
-    if (debug) fmt::print( "In adjust_outgoing_edges for gid = {}, old #edges = {}, new #edges = {}, old link size = {}, new link size = {}, new link = {}\n", gid, s, initial_edges_.size(), orig_link_old_size, original_link_gids_.size(), container_to_string(new_receivers_));
+    if (debug)
+        fmt::print(
+                "In adjust_outgoing_edges for gid = {}, old #edges = {}, new #edges = {}, old link size = {}, new link size = {}, new link = {}\n",
+                gid, s, initial_edges_.size(), orig_link_old_size, original_link_gids_.size(),
+                container_to_string(new_receivers_));
 
 #ifdef AMR_MT_SEND_COMPONENTS
     for(Component& c : components_)
@@ -581,7 +596,7 @@ void FabTmtBlock<Real, D>::adjust_outgoing_edges()
         edge_vertices.insert(std::get<0>(e));
     }
 
-    for(auto iter = original_vertex_to_deepest_.cbegin(); iter != original_vertex_to_deepest_.cend(); )
+    for(auto iter = original_vertex_to_deepest_.cbegin(); iter != original_vertex_to_deepest_.cend();)
     {
         iter = (edge_vertices.count(iter->first) == 1) ? std::next(iter) : original_vertex_to_deepest_.erase(iter);
     }
@@ -618,15 +633,15 @@ std::vector<r::AmrVertexId> FabTmtBlock<Real, D>::get_original_deepest_vertices(
 }
 
 
-template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex)
-{
-    //assert(components_disjoint_set_parent_.find(deepest_vertex) == components_disjoint_set_parent_.end());
-    //assert(components_disjoint_set_size_.find(deepest_vertex) == components_disjoint_set_size_.end());
-
-    components_disjoint_set_parent_[deepest_vertex] = deepest_vertex;
-    components_disjoint_set_size_[deepest_vertex] = 1;
-}
+//template<class Real, unsigned D>
+//void FabTmtBlock<Real, D>::add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex)
+//{
+//    //assert(components_disjoint_set_parent_.find(deepest_vertex) == components_disjoint_set_parent_.end());
+//    //assert(components_disjoint_set_size_.find(deepest_vertex) == components_disjoint_set_size_.end());
+//
+//    components_disjoint_set_parent_[deepest_vertex] = deepest_vertex;
+//    components_disjoint_set_size_[deepest_vertex] = 1;
+//}
 
 
 template<class Real, unsigned D>
@@ -637,13 +652,17 @@ void FabTmtBlock<Real, D>::create_component(const AmrVertexId& deepest_vertex)
 
     set_original_deepest(deepest_vertex, deepest_vertex);
 
-    if (debug) fmt::print("In create_component, gid = {}, deepest_vertex = {}, before emplace, size = {}\n", gid, deepest_vertex, components_.size());
+    if (debug)
+        fmt::print("In create_component, gid = {}, deepest_vertex = {}, before emplace, size = {}\n", gid,
+                deepest_vertex, components_.size());
 
     components_.emplace_back(deepest_vertex);
 
-    if (debug) fmt::print("In create_component, gid = {}, deepest_vertex = {}, added to components, size = {}\n", gid, deepest_vertex, components_.size());
+    if (debug)
+        fmt::print("In create_component, gid = {}, deepest_vertex = {}, added to components, size = {}\n", gid,
+                deepest_vertex, components_.size());
 
-    add_component_to_disjoint_sets(deepest_vertex);
+//    add_component_to_disjoint_sets(deepest_vertex);
 }
 
 template<class Real, unsigned D>
@@ -657,14 +676,14 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
 
     VertexNeighborMap component_nodes;
 
-    for (const auto& vert_neighb_pair : const_tree.nodes())
+    for(const auto& vert_neighb_pair : const_tree.nodes())
     {
 
         component_nodes.clear();
 
         if (debug)
             fmt::print("in compute_connected_component, gid = {} processing vertex = {}\n", gid,
-                       vert_neighb_pair.first);
+                    vert_neighb_pair.first);
 
         component_nodes[vert_neighb_pair.first] = vert_neighb_pair.second;
         Neighbor u = vert_neighb_pair.second;
@@ -685,7 +704,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
             visited_neighbors.push_back(v->vertex);
             visited_neighbors.push_back(s->vertex);
 
-            while (u_ != v and not original_deepest_computed(v->vertex))
+            while(u_ != v and not original_deepest_computed(v->vertex))
             {
 
                 visited_neighbors.push_back(u_->vertex);
@@ -705,7 +724,7 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
             AmrVertexId deepest_vertex = (original_deepest_computed(v)) ? original_deepest(v) : v->vertex;
 
             AmrEdgeContainer edges;
-            for (const AmrVertexId& v : visited_neighbors)
+            for(const AmrVertexId& v : visited_neighbors)
             {
                 auto find_iter = vertex_to_outgoing_edges.find(v);
                 if (find_iter != vertex_to_outgoing_edges.end())
@@ -714,15 +733,18 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
                 }
             }
 
-            if (not original_deepest_computed(v))
-            {
-                if (debug) fmt::print("in compute_connected_compponent, gid = {}, creating new cc, deepest = {}\n", gid, deepest_vertex);
-                create_component(deepest_vertex);
-            }
+//            if (not original_deepest_computed(v))
+//            {
+//                if (debug) fmt::print("in compute_connected_compponent, gid = {}, creating new cc, deepest = {}\n", gid, deepest_vertex);
+//                create_component(deepest_vertex);
+//            }
 
-            for (const AmrVertexId& v : visited_neighbors)
+            for(const AmrVertexId& v : visited_neighbors)
             {
-                if (debug) fmt::print( "in compute_connected_compponent, gid = {}, deepest = {}, setting to visited neighbor {}\n", gid, deepest_vertex, v);
+                if (debug)
+                    fmt::print(
+                            "in compute_connected_compponent, gid = {}, deepest = {}, setting to visited neighbor {}\n",
+                            gid, deepest_vertex, v);
                 set_original_deepest(v, deepest_vertex);
             }
         }
@@ -757,7 +779,8 @@ void FabTmtBlock<Real, D>::compute_original_connected_components(const VertexEdg
     }
 #endif
 
-    for(const auto& vertex_deepest_pair : original_vertex_to_deepest_) {
+    for(const auto& vertex_deepest_pair : original_vertex_to_deepest_)
+    {
         original_deepest_.insert(vertex_deepest_pair.second);
     }
     current_deepest_ = original_deepest_;
@@ -772,17 +795,20 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
 
     if (debug) fmt::print("compute_final_connected_components called\n");
 
-    for (const auto& vert_neighb_pair : const_tree.nodes())
+    for(const auto& vert_neighb_pair : const_tree.nodes())
     {
 //        debug = (vert_neighb_pair.second->vertex == reeber::AmrVertexId { 1, 32005});
 
-        if (debug) fmt::print("in compute_final_connected_component, gid = {} processing vertex = {}\n", gid, vert_neighb_pair.first);
+        if (debug)
+            fmt::print("in compute_final_connected_component, gid = {} processing vertex = {}\n", gid,
+                    vert_neighb_pair.first);
 
         Neighbor u = vert_neighb_pair.second;
 
         if (!final_deepest_computed(u->vertex))
         {
-            if (debug) fmt::print("in compute_final_connected_compponent, gid = {}, deepest not computed, traversing\n", gid);
+            if (debug)
+                fmt::print("in compute_final_connected_compponent, gid = {}, deepest not computed, traversing\n", gid);
             // nodes we traverse while going down,
             // they all should get deepest node
             std::vector<AmrVertexId> visited_neighbors;
@@ -794,7 +820,7 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
             visited_neighbors.push_back(v->vertex);
             visited_neighbors.push_back(s->vertex);
 
-            while (u_ != v and not final_deepest_computed(v->vertex))
+            while(u_ != v and not final_deepest_computed(v->vertex))
             {
 
                 // nodes we traverse while going down,
@@ -812,19 +838,23 @@ void FabTmtBlock<Real, D>::compute_final_connected_components()
 
             }
 
-
             AmrVertexId deepest_vertex = (final_deepest_computed(v)) ? final_deepest(v) : v->vertex;
 
-            if (debug) fmt::print("in compute_final_connected_compponent, v = {}, deepest vertex = {}\n", v->vertex, deepest_vertex);
+            if (debug)
+                fmt::print("in compute_final_connected_compponent, v = {}, deepest vertex = {}\n", v->vertex,
+                        deepest_vertex);
 
             if (not final_deepest_computed(v))
             {
                 final_vertex_to_deepest_[deepest_vertex] = deepest_vertex;
             }
 
-            for (const AmrVertexId& v : visited_neighbors)
+            for(const AmrVertexId& v : visited_neighbors)
             {
-                if (debug) fmt::print( "in compute_final_connected_compponent, gid = {}, deepest = {}, setting to visited neighbor {}\n", gid, deepest_vertex, v);
+                if (debug)
+                    fmt::print(
+                            "in compute_final_connected_compponent, gid = {}, deepest = {}, setting to visited neighbor {}\n",
+                            gid, deepest_vertex, v);
                 final_vertex_to_deepest_[v] = deepest_vertex;
             }
         }
@@ -837,7 +867,6 @@ bool FabTmtBlock<Real, D>::edge_exists(const AmrEdge& e) const
     return current_merge_tree_.contains(std::get<0>(e)) and current_merge_tree_.contains(std::get<1>(e));
 }
 
-
 template<class Real, unsigned D>
 bool FabTmtBlock<Real, D>::edge_goes_out(const AmrEdge& e) const
 {
@@ -845,74 +874,73 @@ bool FabTmtBlock<Real, D>::edge_goes_out(const AmrEdge& e) const
 }
 
 
-template<class Real, unsigned D>
-bool FabTmtBlock<Real, D>::are_components_connected(const AmrVertexId& deepest_a, const AmrVertexId& deepest_b)
-{
-    bool result = find_component_in_disjoint_sets(deepest_a) == find_component_in_disjoint_sets(deepest_b);
-    // for debug - assume everything is connected
-    return result;
-}
+//template<class Real, unsigned D>
+//bool FabTmtBlock<Real, D>::are_components_connected(const AmrVertexId& deepest_a, const AmrVertexId& deepest_b)
+//{
+//    bool result = find_component_in_disjoint_sets(deepest_a) == find_component_in_disjoint_sets(deepest_b);
+//    // for debug - assume everything is connected
+//    return result;
+//}
 
 
-template<class Real, unsigned D>
-bool FabTmtBlock<Real, D>::is_component_connected_to_any_internal(const FabTmtBlock::AmrVertexId& deepest)
-{
-    for (const auto& cc : components_)
-        if (are_components_connected(deepest, cc.root_))
-            return true;
-    // for debug - assume everything is connected
-    //assert(false);
-    return false;
-}
+//template<class Real, unsigned D>
+//bool FabTmtBlock<Real, D>::is_component_connected_to_any_internal(const FabTmtBlock::AmrVertexId& deepest)
+//{
+//    for (const auto& cc : components_)
+//        if (are_components_connected(deepest, cc.root_))
+//            return true;
+//    // for debug - assume everything is connected
+//    //assert(false);
+//    return false;
+//}
 
-template<class Real, unsigned D>
-r::AmrVertexId FabTmtBlock<Real, D>::find_component_in_disjoint_sets(AmrVertexId x)
-{
-    bool debug = false;
-    if (debug) fmt::print("Entered find_component_in_disjoint_sets, x = {}\n", x);
-    while (components_disjoint_set_parent_.at(x) != x)
-    {
-        AmrVertexId next = components_disjoint_set_parent_[x];
-        if (debug) fmt::print("in find_component_in_disjoint_sets, x = {}, next = {}\n", x, next);
-        components_disjoint_set_parent_[x] = components_disjoint_set_parent_.at(next);
-        x = next;
-    }
-    if (debug) fmt::print("Exiting find_component_in_disjoint_sets, x = {}\n", x);
-    return x;
-}
+//template<class Real, unsigned D>
+//r::AmrVertexId FabTmtBlock<Real, D>::find_component_in_disjoint_sets(AmrVertexId x)
+//{
+//    bool debug = false;
+//    if (debug) fmt::print("Entered find_component_in_disjoint_sets, x = {}\n", x);
+//    while (components_disjoint_set_parent_.at(x) != x)
+//    {
+//        AmrVertexId next = components_disjoint_set_parent_[x];
+//        if (debug) fmt::print("in find_component_in_disjoint_sets, x = {}, next = {}\n", x, next);
+//        components_disjoint_set_parent_[x] = components_disjoint_set_parent_.at(next);
+//        x = next;
+//    }
+//    if (debug) fmt::print("Exiting find_component_in_disjoint_sets, x = {}\n", x);
+//    return x;
+//}
 
-template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::connect_components(const FabTmtBlock::AmrVertexId& deepest_a,
-                                              const FabTmtBlock::AmrVertexId& deepest_b)
-{
-    AmrVertexId a_root = find_component_in_disjoint_sets(deepest_a);
-    AmrVertexId b_root = find_component_in_disjoint_sets(deepest_b);
-
-    if (a_root == b_root)
-        return;
-
-    auto a_size = components_disjoint_set_size_.at(a_root);
-    auto b_size = components_disjoint_set_size_.at(b_root);
-    if (a_size < b_size)
-    {
-        std::swap(a_root, b_root);
-        std::swap(a_size, b_size);
-    }
-
-    components_disjoint_set_parent_[b_root] = a_root;
-    components_disjoint_set_size_[a_root] += b_size;
-}
+//template<class Real, unsigned D>
+//void FabTmtBlock<Real, D>::connect_components(const FabTmtBlock::AmrVertexId& deepest_a,
+//                                              const FabTmtBlock::AmrVertexId& deepest_b)
+//{
+//    AmrVertexId a_root = find_component_in_disjoint_sets(deepest_a);
+//    AmrVertexId b_root = find_component_in_disjoint_sets(deepest_b);
+//
+//    if (a_root == b_root)
+//        return;
+//
+//    auto a_size = components_disjoint_set_size_.at(a_root);
+//    auto b_size = components_disjoint_set_size_.at(b_root);
+//    if (a_size < b_size)
+//    {
+//        std::swap(a_root, b_root);
+//        std::swap(a_size, b_size);
+//    }
+//
+//    components_disjoint_set_parent_[b_root] = a_root;
+//    components_disjoint_set_size_[a_root] += b_size;
+//}
 
 
 template<class Real, unsigned D>
 Real FabTmtBlock<Real, D>::scaling_factor() const
 {
     Real result = 1;
-    for (unsigned i = 0; i < D; ++i)
+    for(unsigned i = 0; i < D; ++i)
         result /= refinement();
     return result;
 }
-
 
 template<class Real, unsigned D>
 int FabTmtBlock<Real, D>::is_done_simple(const std::vector<FabTmtBlock::AmrVertexId>& vertices_to_check)
@@ -921,32 +949,49 @@ int FabTmtBlock<Real, D>::is_done_simple(const std::vector<FabTmtBlock::AmrVerte
     // do not start in any component of our original local tree
 
 //        bool debug = (gid == 0);
-    bool debug = false;
+    bool debug = true;
+
+    if (n_active_ == 0)
+        return 1;
 
     if (debug)
-        fmt::print("is_done_simple, gid = {}, #vertices = {}, round = {}\n", gid, vertices_to_check.size(), round_);
-    for (const AmrVertexId& v : vertices_to_check)
+        fmt::print("Enter is_done_simple, gid = {}, #vertices = {}, round = {}\n",
+                gid, vertices_to_check.size(), round_);
+    std::set<AmrVertexId> cur_deepest_of_original_deepest;
+    for(const AmrVertexId v : original_deepest_)
     {
-        if (debug) fmt::print("is_done_simple, gid = {}, checking v = {}\n", gid, v);
-        AmrVertexId deepest_v = original_vertex_to_deepest_.at(v);
-        if (is_component_connected_to_any_internal(deepest_v))
+        if (current_merge_tree_.contains(v))
         {
-            if (debug) fmt::print("is_done_simple, gid = {}, v = {}, returning 0\n", gid, v);
-            return 0;
+            Neighbor nv = current_merge_tree_[v];
+            AmrVertexId cur_deepest = current_merge_tree_.find_deepest(nv)->vertex;
+            cur_deepest_of_original_deepest.insert(cur_deepest);
+        } else
+        {
+            fmt::print("ALARM is_done_simple, gid = {}, orginal deepst =  {} not found in tree\n", gid, v);
+            throw std::runtime_error("Here");
         }
+    }
+
+    if (debug)
+        fmt::print("is_done_simple, gid = {}, #vertices = {}, round = {}, cur_deepest_of_original_deepest = {}\n", gid,
+                vertices_to_check.size(), round_, cur_deepest_of_original_deepest.size());
+    for(const AmrVertexId& v : vertices_to_check)
+    {
+        Neighbor nv = current_merge_tree_[v];
+        AmrVertexId dnv = current_merge_tree_.find_deepest(nv)->vertex;
+
+        if (cur_deepest_of_original_deepest.count(dnv))
+            return 0;
     }
     if (debug) fmt::print("is_done_simple, gid = {}, returning 1\n", gid);
     return 1;
 }
 
-
-
-
 template<class Real, unsigned D>
 std::pair<Real, size_t> FabTmtBlock<Real, D>::get_local_stats() const
 {
-    std::pair<Real, size_t> result { 0, 0 };
-    for (const auto& vertex_node_pair : get_merge_tree().nodes())
+    std::pair<Real, size_t> result{0, 0};
+    for(const auto& vertex_node_pair : get_merge_tree().nodes())
     {
         AmrVertexId vertex = vertex_node_pair.first;
         Neighbor u = vertex_node_pair.second;
@@ -961,7 +1006,7 @@ std::pair<Real, size_t> FabTmtBlock<Real, D>::get_local_stats() const
         result.second++;
         result.first += u->value;
 
-        for (const auto& val_vertex_pair : u->vertices)
+        for(const auto& val_vertex_pair : u->vertices)
         {
             if (val_vertex_pair.second.gid != gid)
                 continue;
@@ -973,7 +1018,7 @@ std::pair<Real, size_t> FabTmtBlock<Real, D>::get_local_stats() const
 }
 
 template<class Real, unsigned D>
-void  FabTmtBlock<Real, D>::compute_local_integral()
+void FabTmtBlock<Real, D>::compute_local_integral()
 {
     local_integral_.clear();
 
@@ -996,13 +1041,13 @@ void  FabTmtBlock<Real, D>::compute_local_integral()
 
         Real root_value = nodes.at(root)->value;
         local_integral_[root] += sf * current_node->value;
-        for(const auto& value_vertex_pair : current_node->vertices) {
+        for(const auto& value_vertex_pair : current_node->vertices)
+        {
             assert(value_vertex_pair.second.gid == gid);
             local_integral_[root] += sf * value_vertex_pair.first;
         }
     }
 }
-
 
 #ifdef AMR_MT_SEND_COMPONENTS
 
@@ -1047,9 +1092,9 @@ int FabTmtBlock<Real, D>::are_all_components_done() const
 #endif
 
 template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::save(const void *b, diy::BinaryBuffer& bb)
+void FabTmtBlock<Real, D>::save(const void* b, diy::BinaryBuffer& bb)
 {
-    const FabTmtBlock *block = static_cast<const FabTmtBlock *>(b);
+    const FabTmtBlock* block = static_cast<const FabTmtBlock*>(b);
 
     diy::save(bb, block->gid);
 //        diy::save(bb, block->local_);
@@ -1064,15 +1109,15 @@ void FabTmtBlock<Real, D>::save(const void *b, diy::BinaryBuffer& bb)
     diy::save(bb, block->original_link_gids_);
     diy::save(bb, block->negate_);
     diy::save(bb, block->original_vertex_to_deepest_);
-    diy::save(bb, block->components_disjoint_set_parent_);
-    diy::save(bb, block->components_disjoint_set_size_);
+//    diy::save(bb, block->components_disjoint_set_parent_);
+//    diy::save(bb, block->components_disjoint_set_size_);
     diy::save(bb, block->round_);
 }
 
 template<class Real, unsigned D>
-void FabTmtBlock<Real, D>::load(void *b, diy::BinaryBuffer& bb)
+void FabTmtBlock<Real, D>::load(void* b, diy::BinaryBuffer& bb)
 {
-    FabTmtBlock *block = static_cast<FabTmtBlock *>(b);
+    FabTmtBlock* block = static_cast<FabTmtBlock*>(b);
 
     diy::load(bb, block->gid);
 //        diy::load(bb, block->local_);
@@ -1087,8 +1132,8 @@ void FabTmtBlock<Real, D>::load(void *b, diy::BinaryBuffer& bb)
     diy::load(bb, block->original_link_gids_);
     diy::load(bb, block->negate_);
     diy::load(bb, block->original_vertex_to_deepest_);
-    diy::load(bb, block->components_disjoint_set_parent_);
-    diy::load(bb, block->components_disjoint_set_size_);
+//    diy::load(bb, block->components_disjoint_set_parent_);
+//    diy::load(bb, block->components_disjoint_set_size_);
     diy::load(bb, block->round_);
 }
 

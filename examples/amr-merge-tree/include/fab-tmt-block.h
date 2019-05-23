@@ -210,8 +210,8 @@ struct FabTmtBlock
     std::set<AmrVertexId> current_deepest_;
 
     // tracking how connected components merge - disjoint sets data structure
-    VertexVertexMap components_disjoint_set_parent_;
-    VertexSizeMap components_disjoint_set_size_;
+//    VertexVertexMap components_disjoint_set_parent_;
+//    VertexSizeMap components_disjoint_set_size_;
 
     int round_ { 0 };
 
@@ -373,13 +373,13 @@ struct FabTmtBlock
 //    void adjust_original_gids(int sender_gid, FabTmtBlock::GidVector& edges_from_sender);
 
     // disjoint-sets related methods
-    bool are_components_connected(const AmrVertexId& deepest_a, const AmrVertexId& deepest_b);
+//    bool are_components_connected(const AmrVertexId& deepest_a, const AmrVertexId& deepest_b);
 
-    bool is_component_connected_to_any_internal(const AmrVertexId& deepest);
+//    bool is_component_connected_to_any_internal(const AmrVertexId& deepest);
 
-    void connect_components(const AmrVertexId& deepest_a, const AmrVertexId& deepest_b);
+//    void connect_components(const AmrVertexId& deepest_a, const AmrVertexId& deepest_b);
 
-    void add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex);
+//    void add_component_to_disjoint_sets(const AmrVertexId& deepest_vertex);
 
 #ifdef AMR_MT_SEND_COMPONENTS
 
