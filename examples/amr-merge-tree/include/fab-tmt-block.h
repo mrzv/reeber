@@ -220,6 +220,20 @@ struct FabTmtBlock
 
     // for diagrams of connected components
     std::map<AmrVertexId, Diagram> local_diagrams_;
+
+#ifdef DO_DETAILED_TIMING
+    using DurationType = decltype(dlog::Timer().elapsed());
+
+    DurationType receive_trees_and_gids_time { 0 };
+    DurationType rl_loop_time { 0 };
+    DurationType repair_time { 0 };
+    DurationType whole_merge_tree_time { 0 };
+    DurationType merge_call_time { 0 };
+    DurationType union_find_time { 0 } ;
+    DurationType sparsify_time { 0 };
+    DurationType expand_link_time { 0 };
+    DurationType is_done_time { 0 };
+#endif
     // methods
 
     // simple getters/setters

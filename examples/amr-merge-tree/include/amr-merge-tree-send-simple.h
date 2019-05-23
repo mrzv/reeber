@@ -123,6 +123,25 @@ void amr_tmt_send(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 template<class Real, unsigned D>
 void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& cp)
 {
+#ifdef DO_DETAILED_TIMING
+    dlog::Timer timer;
+    dlog::Timer rl_loop_timer;
+    dlog::Timer merge_timer;
+    dlog::Timer union_find_timer;
+
+    // detailed timings
+    using DurationType = decltype(timer.elapsed());
+
+//    DurationType time_to_receive_trees_and_gids;
+//    DurationType rl_loop_time;
+//    DurationType repair_time;
+//    DurationType merge_call_time;
+//    DurationType union_find_time;
+//    DurationType sparsify_time;
+//    DurationType expand_link_time;
+
+#endif
+
     bool debug = false; // (b->gid == 1 or b->gid == 100);
 
     if (debug) fmt::print("Called receive_simple for block = {}\n", b->gid);
@@ -146,6 +165,9 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
     LinkVector received_links;
 
+#ifdef DO_DETAILED_TIMING
+    timer.restart();
+#endif
 
     auto senders = link_unique(l, b->gid);
     std::vector<int> sender_gids_debug;
@@ -187,9 +209,14 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
 //            if (debug) fmt::print( "In receive_simple for block = {}, dequeued from sender {} original link gids = {}\n", b->gid, sender.gid, container_to_string(received_original_gids.back()));
 
-
         }
     }
+
+#ifdef DO_DETAILED_TIMING
+    b->receive_trees_and_gids_time += timer.elapsed();
+    timer.restart();
+#endif
+
 
     assert(received_trees.size() == received_vertex_to_deepest.size() and
            received_trees.size() == received_edges.size() and
@@ -222,7 +249,16 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
         if (received_edges[i].empty())
             continue;
         AmrTripletMergeTree& rt = received_trees[i];
+
+#ifdef DO_DETAILED_TIMING
+        merge_timer.restart();
+#endif
+
         r::merge(b->current_merge_tree_, rt, received_edges[i], true);
+
+#ifdef DO_DETAILED_TIMING
+        b->merge_call_time += merge_timer.elapsed();
+#endif
 
         if (debug) fmt::print( "In receive_simple for block = {}, merge and repair OK for sender = {}, tree size = {}\n", b->gid, sender_gids_debug[i], b->get_merge_tree().size());
 
@@ -230,15 +266,27 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
         b->original_vertex_to_deepest_.insert(received_vertex_to_deepest[i].begin(),
                                               received_vertex_to_deepest[i].end());
 
+#ifdef DO_DETAILED_TIMING
+        union_find_timer.restart();
+#endif
+
         // make_set in disjoint-sets of components
         for (const AmrVertexId& new_deepest_vertex : received_deepest_vertices[i])
         {
             b->add_component_to_disjoint_sets(new_deepest_vertex);
         }
 
+#ifdef DO_DETAILED_TIMING
+        b->union_find_time += union_find_timer.elapsed();
+#endif
+
         //if (debug) fmt::print("In receive_simple for block = {}, add_component_to_disjoint_sets OK\n", b->gid);
         // update receivers - if a block from the 1-neighbourhood of sender has not received a tree from us
         // we must send it to this block in the next round
+
+#ifdef DO_DETAILED_TIMING
+        rl_loop_timer.restart();
+#endif
 
         for (const AMRLink& rl : received_links)
         {
@@ -258,9 +306,24 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
                     b->new_receivers_.insert(sender_neighbor_gid);
             }
         }
+
+#ifdef DO_DETAILED_TIMING
+        b->rl_loop_time += rl_loop_timer.elapsed();
+#endif
+
     }
 
+#ifdef DO_DETAILED_TIMING
+    b->whole_merge_tree_time += timer.elapsed();
+    timer.restart();
+#endif
+
     r::repair(b->current_merge_tree_);
+
+#ifdef DO_DETAILED_TIMING
+    b->repair_time += timer.elapsed();
+    timer.restart();
+#endif
 
 //    if (debug) fmt::print("In receive_simple for block = {}, processed_receiveres_ OK\n", b->gid);
 
@@ -282,11 +345,26 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
         }
     }
 
+#ifdef DO_DETAILED_TIMING
+    b->union_find_time += timer.elapsed();
+    timer.restart();
+#endif
+
     b->sparsify_local_tree();
+
+#ifdef DO_DETAILED_TIMING
+    b->sparsify_time += timer.elapsed();
+    timer.restart();
+#endif
 
     if (debug) fmt::print("In receive_simple for block = {}, disjoint sets updated OK, tree size = {}\n", b->gid, b->get_merge_tree().size());
 
     expand_link(b, cp, l, received_links, received_original_gids);
+
+#ifdef DO_DETAILED_TIMING
+    b->expand_link_time += timer.elapsed();
+    timer.restart();
+#endif
 
     if (debug) fmt::print("Exit receive_simple for block = {}, expand_link OK\n", b->gid);
 
@@ -295,6 +373,11 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
     cp.collectives()->clear();
     cp.all_reduce(n_undone, std::plus<int>());
+
+#ifdef DO_DETAILED_TIMING
+    b->is_done_time += timer.elapsed();
+    timer.restart();
+#endif
 
     if (debug)
         fmt::print("In receive_simple for block = {}, is_done_simple OK, vertices_to_check.size = {}\n", b->gid,

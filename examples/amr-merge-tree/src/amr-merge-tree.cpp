@@ -654,7 +654,8 @@ int main(int argc, char** argv)
         size_t local_n_blocks = 0;
 
         {
-            master.foreach([&local_n_active, &local_n_blocks, &local_n_components](Block* b, const diy::Master::ProxyWithLink& cp) {
+            master.foreach([&local_n_active, &local_n_blocks, &local_n_components](Block* b,
+                    const diy::Master::ProxyWithLink& cp) {
 //            fmt::print("PRINT ADF gid = {}, mt.size = {}\n", b->gid, b->current_merge_tree_.size());
                 auto sum_n_vertices_pair = b->get_local_stats();
                 int n_low = b->n_low_;
@@ -963,7 +964,6 @@ int main(int argc, char** argv)
             LOG_SEV_IF(world.rank() == 0, info) << "min_time_to_get_average = " << min_time_to_get_average;
             LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
 
-
             LOG_SEV_IF(world.rank() == 0, info) << "max_tmt_send_time = " << max_tmt_send_time;
             LOG_SEV_IF(world.rank() == 0, info) << "min_tmt_send_time = " << min_tmt_send_time;
             LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
@@ -971,7 +971,6 @@ int main(int argc, char** argv)
             LOG_SEV_IF(world.rank() == 0, info) << "max_tmt_exchange_1_time = " << max_tmt_exchange_1_time;
             LOG_SEV_IF(world.rank() == 0, info) << "min_tmt_exchange_1_time = " << min_tmt_exchange_1_time;
             LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
-
 
             LOG_SEV_IF(world.rank() == 0, info) << "max_tmt_receive_time = " << max_tmt_receive_time;
             LOG_SEV_IF(world.rank() == 0, info) << "min_tmt_receive_time = " << min_tmt_receive_time;
@@ -982,18 +981,54 @@ int main(int argc, char** argv)
             LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
 
             if (tmt_exchange_2_time == max_tmt_exchange_2_time or
-                tmt_exchange_2_time == min_tmt_exchange_1_time or
-                tmt_receive_time == max_tmt_receive_time or
-                tmt_receive_time == min_tmt_receive_time)
+                    tmt_exchange_2_time == min_tmt_exchange_1_time or
+                    tmt_receive_time == max_tmt_receive_time or
+                    tmt_receive_time == min_tmt_receive_time)
             {
-                LOG_SEV(info) << "Rank = " << world.rank() << ", tmt_exchange_2_time = " << tmt_exchange_2_time << ", receive_time = "
-                              << tmt_receive_time << ", local_blocks = " << local_n_blocks
-                              << ", local_n_active = " << local_n_active
-                              << ", local_n_components = " << local_n_components;
+                LOG_SEV(info) << "Rank = " << world.rank() << ", tmt_exchange_2_time = " << tmt_exchange_2_time
+                                           << ", receive_time = "
+                                           << tmt_receive_time << ", local_blocks = " << local_n_blocks
+                                           << ", local_n_active = " << local_n_active
+                                           << ", local_n_components = " << local_n_components;
+            }
+
+            if (tmt_exchange_2_time == min_tmt_exchange_1_time or
+                    tmt_receive_time == max_tmt_receive_time)
+            {
+                master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+
+                    if (b->receive_trees_and_gids_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid
+                                                                            << ", time_to_receive_trees_and_gids = "
+                                                                            << b->receive_trees_and_gids_time;
+                    if (b->rl_loop_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", rl_loop_time = "
+                                                                            << b->rl_loop_time;
+                    if (b->repair_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", repair_time = "
+                                                                            << b->repair_time;
+                    if (b->whole_merge_tree_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", time_to_merge_trees = "
+                                                                            << b->whole_merge_tree_time;
+
+                    if (b->merge_call_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", merge_call_time = "
+                                                                            << b->merge_call_time;
+                    if (b->union_find_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", union_find_time = "
+                                                                            << b->union_find_time;
+                    if (b->sparsify_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", sparsify_time = "
+                                                                            << b->sparsify_time;
+                    if (b->expand_link_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", expand_link_time = "
+                                                                            << b->expand_link_time;
+                    if (b->is_done_time > 0)
+                        LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", is_done_time = "
+                                                                            << b->is_done_time;
+                });
             }
         }
-
-
     }
 
     if (read_plotfile)
