@@ -259,7 +259,10 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             int received_n_trees;
             TripletMergeTree received_tree;
             AmrEdgeContainer received_edges;
+
+#ifdef EXTRA_INTEGRAL
             ExtraValues received_extra_values;
+#endif
 
             cp.dequeue(sender, received_original_deepest);
             cp.dequeue(sender, received_current_neighbors);
@@ -269,7 +272,10 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             {
                 cp.dequeue(sender, received_tree);
                 cp.dequeue(sender, received_edges);
+
+#ifdef EXTRA_INTEGRAL
                 cp.dequeue(sender, received_extra_values);
+#endif
 
 #ifdef DO_DETAILED_TIMING
                 merge_call_timer.restart();
@@ -279,6 +285,8 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
 
 #ifdef DO_DETAILED_TIMING
                 b->merge_call_time += merge_call_timer.elapsed();
+                b->merge_calls += 1;
+                b->edges_in_merge += received_edges.size();
 #endif
             }
 

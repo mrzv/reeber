@@ -967,6 +967,7 @@ int main(int argc, char** argv)
             LOG_SEV_IF(world.rank() == 0, info) << "min_cc_exchange_2_time = " << min_cc_exchange_2_time;
             LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
 
+            LOG_SEV_IF(world.rank() == 0, info) << "max_block_receive_time = " << max_block_receive_time;
 
             if (cc_exchange_2_time == max_cc_exchange_2_time or
                 cc_exchange_2_time == min_cc_exchange_1_time or
@@ -979,11 +980,14 @@ int main(int argc, char** argv)
                               << ", local_n_components = " << local_n_components;
             }
 
-             if (cc_exchange_2_time == min_cc_exchange_1_time or
-                    cc_receive_time == max_cc_receive_time
-                    )
+//             if (/*cc_exchange_2_time == min_cc_exchange_1_time or*/
+//                    cc_receive_time == max_cc_receive_time
+//                    )
             {
-                master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+                master.foreach([max_block_receive_time](Block* b, const diy::Master::ProxyWithLink& cp) {
+
+                    if (b->global_receive_time != max_block_receive_time)
+                        return;
 
                     if (b->global_receive_time > 0)
                         LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid
@@ -1000,6 +1004,8 @@ int main(int argc, char** argv)
                     if (b->merge_call_time > 0)
                         LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", merge_call_time = "
                                                                             << b->merge_call_time;
+                    LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", merge_calls = "
+                                                                        << b->merge_calls << ", edges in merge " << b->edges_in_merge;
                     if (b->uc_time > 0)
                         LOG_SEV(info) << "MAX RECEIVE TIME details, gid = " << b->gid << ", uc_time = "
                                                                             << b->uc_time;

@@ -136,6 +136,8 @@ struct FabComponentBlock {
     DurationType expand_link_time { 0 };
     DurationType is_done_time { 0 };
     DurationType collectives_time { 0 };
+    long int merge_calls { 0 };
+    long int edges_in_merge { 0 };
 #endif
 
 
