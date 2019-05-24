@@ -125,6 +125,8 @@ struct FabComponentBlock {
  #ifdef DO_DETAILED_TIMING
     using DurationType = decltype(dlog::Timer().elapsed());
 
+    DurationType copy_nodes_time { 0 };
+    DurationType compute_components_time { 0 };
     DurationType global_receive_time { 0 };
     DurationType process_senders_time { 0 };
     DurationType repair_time { 0 };

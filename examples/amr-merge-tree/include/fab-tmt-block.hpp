@@ -949,7 +949,7 @@ int FabTmtBlock<Real, D>::is_done_simple(const std::vector<FabTmtBlock::AmrVerte
     // do not start in any component of our original local tree
 
 //        bool debug = (gid == 0);
-    bool debug = true;
+    bool debug = false;
 
     if (n_active_ == 0)
         return 1;

@@ -1,4 +1,4 @@
-#define ZARIJA
+//#define ZARIJA
 #define DO_DETAILED_TIMING
 //#define EXTRA_INTEGRAL
 
@@ -286,6 +286,8 @@ int main(int argc, char** argv)
     DurationType min_cc_exchange_1_time;
     DurationType min_cc_exchange_2_time;
     DurationType min_time_to_delete_low_edges;
+    DurationType min_time_to_compute_components;
+    DurationType min_time_to_copy_nodes;
 
     DurationType max_time_to_construct_blocks;
     DurationType max_time_to_init_blocks;
@@ -295,7 +297,8 @@ int main(int argc, char** argv)
     DurationType max_cc_exchange_1_time;
     DurationType max_cc_exchange_2_time;
     DurationType max_time_to_delete_low_edges;
-
+    DurationType max_time_to_compute_components;
+    DurationType max_time_to_copy_nodes;
 #endif
 
     if (read_plotfile)
@@ -423,7 +426,7 @@ int main(int argc, char** argv)
                 local_active += b->n_active_;
             });
 
-            LOG_SEV(info) << "rank = " << world.rank() << ", local active = " << local_active;
+//            LOG_SEV(info) << "rank = " << world.rank() << ", local active = " << local_active;
             dlog::flush();
 
 
@@ -620,8 +623,10 @@ int main(int argc, char** argv)
             master.foreach(
                     [&extra, &test_local, ignore_zero_persistence, absolute_rho](Block* b,
                             const diy::Master::ProxyWithLink& cp) {
-                        b->compute_final_connected_components();
+                        LOG_SEV(info) << "gid:  " << b->gid << " started output_persistence";
                         output_persistence(b, cp, extra, test_local, absolute_rho, ignore_zero_persistence);
+                        LOG_SEV(info) << "gid:  " << b->gid << " done with output_persistence";
+                        dlog::flush();
                     });
         }
 
@@ -901,6 +906,8 @@ int main(int argc, char** argv)
                         cp.all_reduce(cc_exchange_1_time, diy::mpi::maximum<DurationType>());
                         cp.all_reduce(cc_receive_time, diy::mpi::maximum<DurationType>());
                         cp.all_reduce(cc_exchange_2_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(b->compute_components_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(b->copy_nodes_time, diy::mpi::maximum<DurationType>());
 
                         cp.all_reduce(time_to_construct_blocks, diy::mpi::minimum<DurationType>());
                         cp.all_reduce(time_to_init_blocks, diy::mpi::minimum<DurationType>());
@@ -909,6 +916,8 @@ int main(int argc, char** argv)
                         cp.all_reduce(cc_exchange_1_time, diy::mpi::minimum<DurationType>());
                         cp.all_reduce(cc_receive_time, diy::mpi::minimum<DurationType>());
                         cp.all_reduce(cc_exchange_2_time, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(b->compute_components_time, diy::mpi::minimum<DurationType>());
+                        cp.all_reduce(b->copy_nodes_time, diy::mpi::minimum<DurationType>());
 
                         cp.all_reduce(b->global_receive_time, diy::mpi::maximum<DurationType>());
 
@@ -925,6 +934,8 @@ int main(int argc, char** argv)
             max_cc_exchange_1_time = proxy.get<DurationType>();
             max_cc_receive_time = proxy.get<DurationType>();
             max_cc_exchange_2_time = proxy.get<DurationType>();
+            max_time_to_compute_components = proxy.get<DurationType>();
+            max_time_to_copy_nodes = proxy.get<DurationType>();
 
             min_time_to_construct_blocks = proxy.get<DurationType>();
             min_time_to_init_blocks = proxy.get<DurationType>();
@@ -933,8 +944,11 @@ int main(int argc, char** argv)
             min_cc_exchange_1_time = proxy.get<DurationType>();
             min_cc_receive_time = proxy.get<DurationType>();
             min_cc_exchange_2_time = proxy.get<DurationType>();
+            min_time_to_compute_components = proxy.get<DurationType>();
+            min_time_to_copy_nodes = proxy.get<DurationType>();
 
             DurationType max_block_receive_time = proxy.get<DurationType>();
+
 
 
             LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_construct_blocks = " << max_time_to_construct_blocks;
@@ -943,6 +957,14 @@ int main(int argc, char** argv)
 
             LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_init_blocks = " << max_time_to_init_blocks;
             LOG_SEV_IF(world.rank() == 0, info) << "min_time_to_init_blocks = " << min_time_to_init_blocks;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_compute_components = " << max_time_to_compute_components;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_time_to_compute_components = " << min_time_to_compute_components;
+            LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_copy_nodes = " << max_time_to_copy_nodes;
+            LOG_SEV_IF(world.rank() == 0, info) << "min_time_to_copy_nodes = " << min_time_to_copy_nodes;
             LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
 
             LOG_SEV_IF(world.rank() == 0, info) << "max_time_to_get_average = " << max_time_to_get_average;

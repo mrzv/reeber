@@ -67,8 +67,8 @@ FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
         negate_(_negate),
         merge_tree_(negate_)
 #ifdef EXTRA_INTEGRAL
-        , extra_names_(extra_names),
-        extra_grids_(extra_grids)
+, extra_names_(extra_names),
+extra_grids_(extra_grids)
 #endif
 {
     assert(extra_names.size() == extra_grids.size());
@@ -285,14 +285,13 @@ void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink* amr_link)
 
     reeber::compute_merge_tree2(merge_tree_, local_, fab_);
 //    merge_tree_.make_deep_copy(original_tree_);
-
     VertexEdgesMap vertex_to_outgoing_edges;
     compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
-    compute_original_connected_components(vertex_to_outgoing_edges);
-
 #ifndef ZARIJA
     sparsify_prune_original_tree(vertex_to_outgoing_edges);
 #endif
+
+    compute_original_connected_components(vertex_to_outgoing_edges);
 
     if (debug)
     {
@@ -628,116 +627,52 @@ template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_original_connected_components(
         const FabComponentBlock::VertexEdgesMap& vertex_to_outgoing_edges)
 {
+    std::map<std::string, Real> extra_integral_values;
+
+#ifdef DO_DETAILED_TIMING
+    dlog::Timer timer;
+    dlog::Timer copy_nodes_timer;
+#endif
+
     [[maybe_unused]] bool debug = false;
-    auto vertices_ = local_.vertices();
-    std::vector<AmrVertexId> vertices(std::begin(vertices_), std::end(vertices_));
-    std::unordered_set<AmrVertexId> global_processed_vertices;
-    for(const auto& v : vertices)
+
+    const TripletMergeTree& const_tree = merge_tree_;
+    std::unordered_set<AmrVertexId> processed_deepest;
+
+    for(const auto& vertex_neighbor_pair : const_tree.nodes())
     {
-        if (global_processed_vertices.count(v))
+
+        AmrVertexId u = vertex_neighbor_pair.first;
+        Neighbor n = vertex_neighbor_pair.second;
+
+        Neighbor deepest_neighbor = merge_tree_.find_deepest(n);
+        AmrVertexId deepest_vertex = deepest_neighbor->vertex;
+
+        vertex_to_deepest_[u] = deepest_vertex;
+
+        // do we need this?
+        for(auto vv : n->vertices)
         {
-            continue;
+            vertex_to_deepest_[vv.second] = deepest_vertex;
         }
 
-        std::unordered_set<AmrVertexId> component_vertices;
-        AmrEdgeContainer component_edges;
-        std::stack<AmrVertexId> vertices_to_process;
-        vertices_to_process.push(v);
-
-        Real deepest_value = fab_(v);
-
-        std::map<std::string, Real> extra_integral_values;
-#ifdef EXTRA_INTEGRAL
-
-        for(std::string extra_name : extra_names_)
+        if (processed_deepest.count(deepest_vertex) == 0)
         {
-            extra_integral_values[extra_name] = 0.0;
+            // we encounter this deepest vertex for the first time
+            AmrVertexId deepest_value = deepest_neighbor->vertex;
+            components_.emplace_back(negate_, deepest_vertex, deepest_value, extra_integral_values);
+            processed_deepest.insert(deepest_vertex);
         }
+
+#ifdef DO_DETAILED_TIMING
+        copy_nodes_timer.restart();
 #endif
 
-        AmrVertexId deepest = v;
+        TripletMergeTree& mt = get_component_by_deepest(deepest_vertex).tree_;
+        Value val = n->value;
 
-        while(!vertices_to_process.empty())
-        {
-            AmrVertexId u = vertices_to_process.top();
-            vertices_to_process.pop();
-
-            if (global_processed_vertices.count(u))
-            {
-                continue;
-            }
-
-            component_vertices.insert(u);
-            global_processed_vertices.insert(u);
-            if (vertex_to_outgoing_edges.count(u))
-            {
-                std::copy(vertex_to_outgoing_edges.at(u).begin(), vertex_to_outgoing_edges.at(u).end(),
-                        std::back_inserter(component_edges));
-            }
-
-            Real u_val = fab_(u);
-
-#ifdef EXTRA_INTEGRAL
-            for(size_t i = 0; i < extra_names_.size(); ++i)
-            {
-                if (extra_names_[i] == "xmom" or extra_names_[i] == "ymom" or extra_names_[i] == "zmom")
-                {
-                    // we need velocities - divide momentum by density; assumes density is the first field
-                    assert(extra_names_[0] == "density");
-                    extra_integral_values.at(extra_names_.at(i)) += (extra_grids_.at(i)(u) / extra_grids_[0](u));
-                } else
-                {
-                    extra_integral_values.at(extra_names_.at(i)) += extra_grids_.at(i)(u);
-                }
-
-            }
-#endif
-
-            if (cmp(u_val, deepest_value))
-            {
-                deepest_value = u_val;
-                deepest = u;
-            }
-
-            for(auto&& w : local_.link(u))
-            {
-                vertices_to_process.push(w);
-            }
-        }
-
-#ifdef EXTRA_INTEGRAL
-        for(size_t i = 0; i < extra_names_.size(); ++i)
-        {
-            extra_integral_values.at(extra_names_.at(i)) *= scaling_factor();
-        }
-
-        extra_integral_values["n_vertices"] = component_vertices.size();
-        local_integral_[deepest] = extra_integral_values;
-#endif
-
-        for(const auto& component_vertex : component_vertices)
-        {
-            vertex_to_deepest_[component_vertex] = deepest;
-        }
-
-        components_.emplace_back(negate_, deepest, deepest_value, extra_integral_values);
-
-    }
-
-    // copy nodes from local merge tree of block to merge trees of components
-
-    const auto& const_tree = merge_tree_;
-    for(const auto& vertex_deepest_pair : vertex_to_deepest_)
-    {
-        TripletMergeTree& mt = get_component_by_deepest(vertex_deepest_pair.second).tree_;
-
-        AmrVertexId u = vertex_deepest_pair.first;
-        Neighbor mt_n_u = const_tree.nodes().at(u);
-        Value val = mt_n_u->value;
-        //assert(u == mt_n_u->vertex);
-
-        AmrVertexId s = std::get<0>(mt_n_u->parent())->vertex;
-        AmrVertexId v = std::get<1>(mt_n_u->parent())->vertex;
+        AmrVertexId s = std::get<0>(n->parent())->vertex;
+        AmrVertexId v = std::get<1>(n->parent())->vertex;
 
         Neighbor n_u, n_s, n_v;
 
@@ -746,22 +681,57 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
         n_v = mt.find_or_add(v, 0);
         mt.link(n_u, n_s, n_v);
 
-   }
+#ifdef DO_DETAILED_TIMING
+        copy_nodes_time += copy_nodes_timer.elapsed();
+#endif
+    }
 
-    for(Component& c : components_)
-    {
-        r::sparsify(c.tree_,
-            [&vertex_to_outgoing_edges](AmrVertexId u) {
-                return vertex_to_outgoing_edges.find(u) != vertex_to_outgoing_edges.end();
-            });
+#ifdef DO_DETAILED_TIMING
+    compute_components_time += timer.elapsed();
+#endif
 
-     }
+//#ifdef EXTRA_INTEGRAL
+//
+//        for(std::string extra_name : extra_names_)
+//        {
+//            extra_integral_values[extra_name] = 0.0;
+//        }
+//#endif
+//
+//
+//#ifdef EXTRA_INTEGRAL
+//            for(size_t i = 0; i < extra_names_.size(); ++i)
+//            {
+//                if (extra_names_[i] == "xmom" or extra_names_[i] == "ymom" or extra_names_[i] == "zmom")
+//                {
+//                    // we need velocities - divide momentum by density; assumes density is the first field
+//                    assert(extra_names_[0] == "density");
+//                    extra_integral_values.at(extra_names_.at(i)) += (extra_grids_.at(i)(u) / extra_grids_[0](u));
+//                } else
+//                {
+//                    extra_integral_values.at(extra_names_.at(i)) += extra_grids_.at(i)(u);
+//                }
+//            }
+//#endif
+//
+//
+//#ifdef EXTRA_INTEGRAL
+//        for(size_t i = 0; i < extra_names_.size(); ++i)
+//        {
+//            extra_integral_values.at(extra_names_.at(i)) *= scaling_factor();
+//        }
+//
+//        extra_integral_values["n_vertices"] = component_vertices.size();
+//        local_integral_[deepest] = extra_integral_values;
+//#endif
 }
 
 // fill in vertex_to_deepest_ map with correct values
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_final_connected_components()
 {
+    throw std::runtime_error("dont use final_connected_components");
+
     bool debug = false;
 
     vertex_to_deepest_.clear();
