@@ -375,13 +375,14 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 
     int n_undone = 1 - b->done_;
 
-    cp.collectives()->clear();
-    cp.all_reduce(n_undone, std::plus<int>());
-
 #ifdef DO_DETAILED_TIMING
     b->is_done_time += timer.elapsed();
     timer.restart();
 #endif
+
+
+    cp.collectives()->clear();
+    cp.all_reduce(n_undone, std::plus<int>());
 
     if (debug)
         fmt::print("In receive_simple for block = {}, is_done_simple OK, vertices_to_check.size = {}\n", b->gid,

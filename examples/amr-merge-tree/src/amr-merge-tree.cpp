@@ -1,6 +1,6 @@
 //#define SEND_COMPONENTS
 
-//#define DO_DETAILED_TIMING
+#define DO_DETAILED_TIMING
 
 #include "reeber-real.h"
 
@@ -322,6 +322,7 @@ int main(int argc, char** argv)
 
     world.barrier();
     dlog::Timer timer;
+    dlog::Timer timer_all;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
                                                                                      << nblocks
                                                                                      << ", rho = " << rho
@@ -388,8 +389,7 @@ int main(int argc, char** argv)
         diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
                 &Block::load);
         timer.restart();
-
-        world.barrier();
+        timer_all.restart();
 
         // copy FabBlocks to FabTmtBlocks
         // in FabTmtConstructor mask will be set and local trees will be computed
@@ -437,8 +437,6 @@ int main(int argc, char** argv)
             });
         }
 
-        world.barrier();
-
         if (absolute)
         {
             absolute_rho = rho;
@@ -467,7 +465,6 @@ int main(int argc, char** argv)
             mean = proxy.get<Real>() / proxy.get<Real>();
             absolute_rho = rho * mean;                                            // now rho contains absolute threshold
 
-            world.barrier();
             LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
                                                                 << ", absolute_rho =  " << absolute_rho
                                                                 << ", time to compute average: "
@@ -498,7 +495,6 @@ int main(int argc, char** argv)
             time_to_init_blocks = timer.elapsed();
 #endif
 
-            world.barrier();
             LOG_SEV_IF(world.rank() == 0, info) <<
             "Time to initialize FabTmtBlocks (low vertices, local trees, components, outgoing edges): "
                     << timer.elapsed();
@@ -513,7 +509,6 @@ int main(int argc, char** argv)
         master.exchange();
         master.foreach(&delete_low_edges<DIM>);
 
-        world.barrier();
         LOG_SEV_IF(world.rank() == 0, info)  << "edges symmetrized, time elapsed " << timer.elapsed();
         auto time_for_communication = timer.elapsed();
 
@@ -641,10 +636,15 @@ int main(int argc, char** argv)
 
             dlog::flush();
         }
+        world.barrier();
 
+        auto time_for_run = timer_all.elapsed();
         //    fmt::print("world.rank = {}, time for exchange = {}\n", world.rank(), dlog::clock_to_string(timer.elapsed()));
 
         LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
+
+
+        LOG_SEV_IF(world.rank() == 0, info) << "Time for run:  " << time_for_run;
         time_for_communication += timer.elapsed();
         dlog::flush();
         timer.restart();
@@ -699,7 +699,6 @@ int main(int argc, char** argv)
                 diy::io::split::write_blocks(output_filename, world, master);
         }
 
-        world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
         auto time_for_output = timer.elapsed();
         dlog::flush();
@@ -719,7 +718,6 @@ int main(int argc, char** argv)
                     });
         }
 
-        world.barrier();
         LOG_SEV_IF(world.rank() == 0, info) << "Time to write diagrams:  " << dlog::clock_to_string(timer.elapsed());
         time_for_output += timer.elapsed();
         dlog::flush();
@@ -805,8 +803,6 @@ int main(int argc, char** argv)
 
         master.exchange();
 
-        world.barrier();
-
         const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
 
         Real total_value = proxy.get<Real>();
@@ -821,8 +817,8 @@ int main(int argc, char** argv)
                                                                 << total_n_active;
         dlog::flush();
 
-        std::string final_timings = fmt::format("run: {} read: {} local: {} exchange: {} output: {}\n",
-                n_run, time_to_read_data, time_for_local_computation, time_for_communication, time_for_output);
+        std::string final_timings = fmt::format("run: {} read: {} local: {} exchange: {} output: {} total: {}\n",
+                n_run, time_to_read_data, time_for_local_computation, time_for_communication, time_for_output, time_for_run);
         LOG_SEV_IF(world.rank() == 0, info) << final_timings;
         dlog::flush();
 #ifdef DO_DETAILED_TIMING
@@ -1033,6 +1029,7 @@ int main(int argc, char** argv)
             }
         }
 #endif
+        world.barrier();
     }
 
     if (read_plotfile)
