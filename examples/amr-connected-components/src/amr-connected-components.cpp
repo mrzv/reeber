@@ -255,6 +255,7 @@ int main(int argc, char** argv)
             << dlog::color_post() >> dlog::flush();
 
     dlog::Timer timer;
+    dlog::Timer timer_all;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
                                                                                      << nblocks
                                                                                      << ", rho = " << rho;
@@ -342,6 +343,10 @@ int main(int argc, char** argv)
     // FabBlock can be safely discarded afterwards
     for(int n_run = 0; n_run < n_runs; ++n_run)
     {
+        world.barrier();
+        timer.restart();
+        timer_all.restart();
+
 
         diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
                 &Block::load);
@@ -556,9 +561,15 @@ int main(int argc, char** argv)
             dlog::flush();
         }
 
+        // here merge tree computation stops
+        // sync to measure runtime
+        world.barrier();
+        auto time_total_computation = timer_all.elapsed();
+
         //    fmt::print("world.rank = {}, time for exchange = {}\n", world.rank(), dlog::clock_to_string(timer.elapsed()));
 
         LOG_SEV_IF(world.rank() == 0, info) << "Time for exchange:  " << dlog::clock_to_string(timer.elapsed());
+        LOG_SEV_IF(world.rank() == 0, info) << "Total time for computation:  " << time_total_computation;
         time_for_communication += timer.elapsed();
         dlog::flush();
         timer.restart();
@@ -805,8 +816,8 @@ int main(int argc, char** argv)
 
         world.barrier();
 
-        std::string final_timings = fmt::format("run: {} read: {} local: {} exchange: {} output: {}\n",
-                n_run, time_to_read_data, time_for_local_computation, time_for_communication, time_for_output);
+        std::string final_timings = fmt::format("run: {} read: {} local: {} exchange: {} output: {} total: {}\n",
+                n_run, time_to_read_data, time_for_local_computation, time_for_communication, time_for_output, time_total_computation);
         LOG_SEV_IF(world.rank() == 0, info) << final_timings;
 
         dlog::flush();
@@ -1055,8 +1066,6 @@ int main(int argc, char** argv)
             }
         }
 #endif
-        world.barrier();
-
     }
 
     if (read_plotfile)
