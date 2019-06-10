@@ -72,6 +72,7 @@ public:
 
 #ifdef EXTRA_INTEGRAL
     const ExtraValues&  extra_values()      const { return extra_integral_values_; }
+    void set_extra_values(const ExtraValues& ev) { extra_integral_values_ = ev; }
 #endif
 
     const AmrEdgeContainer edges()          const { return edges_; }

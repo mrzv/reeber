@@ -1,6 +1,6 @@
-//#define ZARIJA
+#define ZARIJA
 #define DO_DETAILED_TIMING
-//#define EXTRA_INTEGRAL
+#define EXTRA_INTEGRAL
 
 #include "reeber-real.h"
 
@@ -19,6 +19,7 @@
 #include <dlog/stats.h>
 #include <dlog/log.h>
 #include <opts/opts.h>
+#include <error.h>
 
 #include "../../amr-merge-tree/include/fab-block.h"
 #include "fab-cc-block.h"
@@ -159,12 +160,18 @@ int main(int argc, char** argv)
 //        return 1;
 //    }
 
+
+
     int nblocks = world.size();
     std::string prefix = "./DIY.XXXXXX";
     int in_memory = -1;
     int threads = 1;
     std::string profile_path;
     std::string log_level = "info";
+
+    dlog::add_stream(std::cerr, dlog::severity(log_level))
+            << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level()
+            << dlog::color_post() >> dlog::flush();
 
     // threshold
     Real rho = 81.66;
@@ -176,6 +183,8 @@ int main(int argc, char** argv)
     int n_runs = 1;
 
     using namespace opts;
+
+    LOG_SEV_IF(world.rank() == 0, info) << "HELLO HERE";
 
     opts::Options ops(argc, argv);
     ops
@@ -205,6 +214,7 @@ int main(int argc, char** argv)
             ',');  //{"particle_mass_density", "density", "xmom", "ymom", "zmom"};
 
     LOG_SEV_IF(world.rank() == 0, info) << "Reading fields: " << fields_to_read << ", vector = " << container_to_string(all_var_names);
+    dlog::flush();
 
     int n_mt_vars = all_var_names.size();
 
@@ -214,6 +224,7 @@ int main(int argc, char** argv)
     const bool has_xmom = std::find(all_var_names.begin(), all_var_names.end(), "xmom") != all_var_names.end();
     const bool has_ymom = std::find(all_var_names.begin(), all_var_names.end(), "ymom") != all_var_names.end();
     const bool has_zmom = std::find(all_var_names.begin(), all_var_names.end(), "zmom") != all_var_names.end();
+    LOG_SEV_IF(world.rank() == 0, info) << "has_density = " << has_density << ", has_xmom = " << has_xmom << ", has_ymom = " << has_ymom << ", has_zmom = " << has_zmom;
     n_mt_vars = has_density ? 2 : 1;
 #endif
 
@@ -250,11 +261,7 @@ int main(int argc, char** argv)
     diy::MemoryBuffer header;
     diy::DiscreteBounds domain(DIM);
 
-    dlog::add_stream(std::cerr, dlog::severity(log_level))
-            << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level()
-            << dlog::color_post() >> dlog::flush();
-
-    dlog::Timer timer;
+   dlog::Timer timer;
     dlog::Timer timer_all;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
                                                                                      << nblocks
@@ -688,33 +695,35 @@ int main(int argc, char** argv)
 
                             if (values.count("n_vertices") == 0)
                             {
-                                fmt::print("ERROR HERE, no n_vertices, gid = {}\n", b->gid);
+                                LOG_SEV(error) << "ERROR HERE, no n_vertices, gid =" << b->gid;
                             }
 
                             if (has_xmom and values.count("xmom") == 0)
                             {
-                                fmt::print("ERROR HERE, no xmom gid = {}\n", b->gid);
+                                LOG_SEV(error) << "ERROR HERE, no xmom, gid =" << b->gid;
                             }
 
                             if (has_ymom and values.count("ymom") == 0)
                             {
-                                fmt::print("ERROR HERE, no ymom gid = {}\n", b->gid);
+                                LOG_SEV(error) << "ERROR HERE, no ymom, gid =" << b->gid;
                             }
 
                             if (has_zmom and values.count("zmom") == 0)
                             {
-                                fmt::print("ERROR HERE, no zmom gid = {}\n", b->gid);
+                                LOG_SEV(error) << "ERROR HERE, no zmom, gid =" << b->gid;
                             }
 
                             if (has_density and values.count("density") == 0)
                             {
-                                fmt::print("ERROR HERE, no density gid = {}\n", b->gid);
+                                LOG_SEV(error) << "ERROR HERE, no density gid =" << b->gid;
                             }
 
                             if (values.count("particle_mass_density") == 0)
                             {
-                                fmt::print("ERROR HERE, no particle_mass_density gid = {}\n", b->gid);
+                                LOG_SEV(error) << "ERROR HERE, no particle_mass_density gid =" << b->gid;
                             }
+
+                            dlog::flush();
 
                             Real n_vertices = values.at("n_vertices");
 
