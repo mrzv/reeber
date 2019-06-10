@@ -666,6 +666,7 @@ int main(int argc, char** argv)
 
 #ifdef EXTRA_INTEGRAL
 #ifdef ZARIJA
+            world.barrier();
             master.foreach(
                     [output_integral_filename, domain, min_cells, has_density, has_xmom, has_ymom, has_zmom](Block* b,
                             const diy::Master::ProxyWithLink& cp) {
@@ -747,11 +748,34 @@ int main(int argc, char** argv)
                         }
                         ofs.close();
                     });
+
+            world.barrier();
+            LOG_SEV_IF(world.rank() == 0, info) << "Local integrals printed";
+            dlog::flush();
+            world.barrier();
 #else
             master.foreach(
                     [output_integral_filename, domain, min_cells](Block* b, const diy::Master::ProxyWithLink& cp) {
 
                         std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
+
+                        //bool must_output = false;
+
+                        //for(const auto& root_values_pair : b->local_integral_)
+                        //{
+                        //    AmrVertexId root = root_values_pair.first;
+                        //    if (root.gid != b->gid)
+                        //        continue;
+                        //    auto& values = root_values_pair.second;
+                        //    Real n_vertices = values.at("n_vertices");
+                        //    if (n_vertices >= min_cells) {
+                        //        must_output = true;
+                        //        break;
+                        //    }
+                        //}
+                        //if (not must_output)
+                        //    return;
+
                         std::ofstream ofs(integral_local_fname);
 
                         diy::Point<int, 3> domain_shape;
