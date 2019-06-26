@@ -68,14 +68,6 @@ if                          (counters)
 endif                       (counters)
 
 # DIY
-if (DEFINED ENV{NERSC_HOST})
-    set(DIY_INCLUDE_DIR "/global/homes/g/greynarn/code/diy-new/diy/include")
-    message(STATUS "Looking for DIY on NERSC, path = ${DIY_INCLUDE_DIR}")
-else()
-    set(DIY_INCLUDE_DIR "/home/narn/code/diy_versions/diy-new/include")
-    message(STATUS "Looking for DIY on Arnur's computer, path = ${DIY_INCLUDE_DIR}")
-endif()
-#
 find_path                   (DIY_INCLUDE_DIR        diy/master.hpp)
 
 # BOXLIB
