@@ -759,22 +759,22 @@ int main(int argc, char** argv)
 
                         std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
 
-                        //bool must_output = false;
+                        bool must_output = false;
 
-                        //for(const auto& root_values_pair : b->local_integral_)
-                        //{
-                        //    AmrVertexId root = root_values_pair.first;
-                        //    if (root.gid != b->gid)
-                        //        continue;
-                        //    auto& values = root_values_pair.second;
-                        //    Real n_vertices = values.at("n_vertices");
-                        //    if (n_vertices >= min_cells) {
-                        //        must_output = true;
-                        //        break;
-                        //    }
-                        //}
-                        //if (not must_output)
-                        //    return;
+                        for(const auto& root_values_pair : b->local_integral_)
+                        {
+                            AmrVertexId root = root_values_pair.first;
+                            if (root.gid != b->gid)
+                                continue;
+                            auto& values = root_values_pair.second;
+                            Real n_vertices = values.at("n_vertices");
+                            if (n_vertices >= min_cells) {
+                                must_output = true;
+                                break;
+                            }
+                        }
+                        if (not must_output)
+                            return;
 
                         std::ofstream ofs(integral_local_fname);
 
