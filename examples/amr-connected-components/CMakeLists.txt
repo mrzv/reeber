@@ -48,8 +48,8 @@ if (DEFINED ENV{NERSC_HOST})
         find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_cori_knl_gnu_${real}")
     endif()
 else()
-    set(AMREX_HOME "/home/narn/code/berkeley-2018/amrex")
-    find_package(AMReX 18 REQUIRED HINTS "/home/narn/code/berkeley-2018/amrex_install_dir_${real}")
+    set(AMREX_HOME "/home/narn/code/berkeley-2019/amrex")
+    find_package(AMReX 18 REQUIRED HINTS "/home/narn/code/berkeley-2019/amrex/install")
     message(STATUS "Looking for AMR on Arnur's computer for ${real}")
 endif()
 
@@ -72,7 +72,8 @@ add_executable(amr_connected_components_${real}
         ${CMAKE_CURRENT_SOURCE_DIR}/../amr-merge-tree/src/amr-plot-reader.cpp
         ${AMT_HEADERS}
         ${REEBER_HEADERS})
-set_target_properties(amr_connected_components_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real}")
+
+target_compile_definitions(amr_connected_components_${real} PRIVATE REEBER_REAL=${real} AMREX_SPACEDIM=3 BL_USE_MPI=ON ENABLE_DP=OFF BL_USE_FLOAT=1)
 
 # target_link_libraries(amr_merge_tree PUBLIC ${libraries})
 target_link_libraries(amr_connected_components_${real} PUBLIC ${libraries})

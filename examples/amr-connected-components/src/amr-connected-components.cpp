@@ -1,5 +1,5 @@
 #define ZARIJA
-#define DO_DETAILED_TIMING
+//#define DO_DETAILED_TIMING
 #define EXTRA_INTEGRAL
 
 #include "reeber-real.h"
@@ -213,21 +213,36 @@ int main(int argc, char** argv)
     std::vector<std::string> all_var_names = split_by_delim(fields_to_read,
             ',');  //{"particle_mass_density", "density", "xmom", "ymom", "zmom"};
 
-    LOG_SEV_IF(world.rank() == 0, info) << "Reading fields: " << fields_to_read << ", vector = " << container_to_string(all_var_names);
-    dlog::flush();
 
     int n_mt_vars = all_var_names.size();
 
 #ifdef ZARIJA
-    n_mt_vars = std::min((int)all_var_names.size(), 2);
-    const bool has_density = std::find(all_var_names.begin(), all_var_names.end(), "density") != all_var_names.end();
-    const bool has_xmom = std::find(all_var_names.begin(), all_var_names.end(), "xmom") != all_var_names.end();
-    const bool has_ymom = std::find(all_var_names.begin(), all_var_names.end(), "ymom") != all_var_names.end();
-    const bool has_zmom = std::find(all_var_names.begin(), all_var_names.end(), "zmom") != all_var_names.end();
-    LOG_SEV_IF(world.rank() == 0, info) << "has_density = " << has_density << ", has_xmom = " << has_xmom << ", has_ymom = " << has_ymom << ", has_zmom = " << has_zmom;
+    n_mt_vars = std::min((int) all_var_names.size(), 2);
+    bool has_density = std::find(all_var_names.begin(), all_var_names.end(), "density") != all_var_names.end();
+    bool has_particle_mass_density =
+            std::find(all_var_names.begin(), all_var_names.end(), "particle_mass_density") != all_var_names.end();
+    bool has_xmom = std::find(all_var_names.begin(), all_var_names.end(), "xmom") != all_var_names.end();
+    bool has_ymom = std::find(all_var_names.begin(), all_var_names.end(), "ymom") != all_var_names.end();
+    bool has_zmom = std::find(all_var_names.begin(), all_var_names.end(), "zmom") != all_var_names.end();
+
+    if (!read_plotfile)
+    {
+        n_mt_vars = 1;
+        has_density = false;
+        has_xmom = false;
+        has_ymom = false;
+        has_zmom = false;
+    }
+
+    LOG_SEV_IF(world.rank() == 0, info) << "has_density = " << has_density << ", has_xmom = " << has_xmom
+                                                            << ", has_ymom = " << has_ymom << ", has_zmom = "
+                                                            << has_zmom;
     n_mt_vars = has_density ? 2 : 1;
 #endif
 
+    LOG_SEV_IF(world.rank() == 0, info) << "Reading fields: " << fields_to_read << ", vector = "
+                                                              << container_to_string(all_var_names) << ", fields to sum = " << n_mt_vars;
+    dlog::flush();
 
     if (ops >> Present('h', "help", "show help message") or
             not(ops >> PosOption(input_filename)) or
@@ -261,7 +276,7 @@ int main(int argc, char** argv)
     diy::MemoryBuffer header;
     diy::DiscreteBounds domain(DIM);
 
-   dlog::Timer timer;
+    dlog::Timer timer;
     dlog::Timer timer_all;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
                                                                                      << nblocks
@@ -317,8 +332,6 @@ int main(int argc, char** argv)
         read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
     }
 
-    world.barrier();
-
     auto time_to_read_data = timer.elapsed();
     dlog::flush();
 
@@ -354,10 +367,9 @@ int main(int argc, char** argv)
         timer.restart();
         timer_all.restart();
 
-
         diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
                 &Block::load);
-         master_reader.foreach(
+        master_reader.foreach(
                 [&master, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
                     auto* l = static_cast<AMRLink*>(cp.link());
                     AMRLink* new_link = new AMRLink(*l);
@@ -406,12 +418,17 @@ int main(int argc, char** argv)
 
             const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
 
-            mean = proxy.get<Real>() / proxy.get<Real>();
+            Real total_sum = proxy.get<Real>();
+            Real total_unmasked = proxy.get<Real>();
+
+            mean = total_sum / total_unmasked;
 
             absolute_rho = rho * mean;                                            // now rho contains absolute threshold
 #ifdef DO_DETAILED_TIMING
             time_to_get_average = timer.elapsed();
 #endif
+
+            LOG_SEV_IF(world.rank() == 0, info) << "Total sum = " << total_sum << ", total_unmasked = " << total_unmasked;
 
             LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
                                                                 << ", absolute_rho = " << absolute_rho
@@ -431,7 +448,7 @@ int main(int argc, char** argv)
             timer.restart();
 
             long int local_active = 0;
-            master.foreach([absolute_rho,&local_active](Block* b, const diy::Master::ProxyWithLink& cp) {
+            master.foreach([absolute_rho, &local_active](Block* b, const diy::Master::ProxyWithLink& cp) {
                 AMRLink* l = static_cast<AMRLink*>(cp.link());
                 b->init(absolute_rho, l);
                 cp.collectives()->clear();
@@ -440,7 +457,6 @@ int main(int argc, char** argv)
 
 //            LOG_SEV(info) << "rank = " << world.rank() << ", local active = " << local_active;
             dlog::flush();
-
 
 #ifdef DO_DETAILED_TIMING
             time_to_init_blocks = timer.elapsed();
@@ -668,7 +684,8 @@ int main(int argc, char** argv)
 #ifdef ZARIJA
             world.barrier();
             master.foreach(
-                    [output_integral_filename, domain, min_cells, has_density, has_xmom, has_ymom, has_zmom](Block* b,
+                    [output_integral_filename, domain, min_cells, has_density, has_particle_mass_density, has_xmom, has_ymom, has_zmom](
+                            Block* b,
                             const diy::Master::ProxyWithLink& cp) {
 
                         std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
@@ -719,7 +736,7 @@ int main(int argc, char** argv)
                                 LOG_SEV(error) << "ERROR HERE, no density gid =" << b->gid;
                             }
 
-                            if (values.count("particle_mass_density") == 0)
+                            if (has_particle_mass_density and values.count("particle_mass_density") == 0)
                             {
                                 LOG_SEV(error) << "ERROR HERE, no particle_mass_density gid =" << b->gid;
                             }
@@ -736,15 +753,19 @@ int main(int argc, char** argv)
                             Real vz = has_zmom ? values.at("zmom") / n_vertices : 0;
 
                             Real m_gas = has_density ? values.at("density") : 0;
-                            Real m_particles = values.at("particle_mass_density");
+                            Real m_particles = has_particle_mass_density ? values.at("particle_mass_density") : 0;
                             Real m_total = m_gas + m_particles;
 
-                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {}\n",
-                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
-                                    n_vertices,
+                            fmt::print(ofs, "{} {}\n",
                                     b->local_.global_position(root),
-                                    vx, vy, vz,
-                                    m_gas, m_particles, m_total);
+                                    m_gas);
+
+//                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {}\n",
+//                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
+//                                    n_vertices,
+//                                    b->local_.global_position(root),
+//                                    vx, vy, vz,
+//                                    m_gas, m_particles, m_total);
                         }
                         ofs.close();
                     });
@@ -850,7 +871,8 @@ int main(int argc, char** argv)
         world.barrier();
 
         std::string final_timings = fmt::format("run: {} read: {} local: {} exchange: {} output: {} total: {}\n",
-                n_run, time_to_read_data, time_for_local_computation, time_for_communication, time_for_output, time_total_computation);
+                n_run, time_to_read_data, time_for_local_computation, time_for_communication, time_for_output,
+                time_total_computation);
         LOG_SEV_IF(world.rank() == 0, info) << final_timings;
 
         dlog::flush();
@@ -920,8 +942,8 @@ int main(int argc, char** argv)
             size_t total_n_active = proxy.get<size_t>();
             size_t total_n_masked = proxy.get<size_t>();
 
-
-            master.foreach([&local_n_active, &local_n_components, &local_n_blocks](Block* b, const diy::Master::ProxyWithLink& cp) {
+            master.foreach([&local_n_active, &local_n_components, &local_n_blocks](Block* b,
+                    const diy::Master::ProxyWithLink& cp) {
                 local_n_active += b->n_active_;
                 local_n_components += b->components_.size();
                 local_n_blocks += 1;
