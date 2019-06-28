@@ -241,7 +241,8 @@ int main(int argc, char** argv)
 #endif
 
     LOG_SEV_IF(world.rank() == 0, info) << "Reading fields: " << fields_to_read << ", vector = "
-                                                              << container_to_string(all_var_names) << ", fields to sum = " << n_mt_vars;
+                                                              << container_to_string(all_var_names)
+                                                              << ", fields to sum = " << n_mt_vars;
     dlog::flush();
 
     if (ops >> Present('h', "help", "show help message") or
@@ -428,7 +429,8 @@ int main(int argc, char** argv)
             time_to_get_average = timer.elapsed();
 #endif
 
-            LOG_SEV_IF(world.rank() == 0, info) << "Total sum = " << total_sum << ", total_unmasked = " << total_unmasked;
+            LOG_SEV_IF(world.rank() == 0, info) << "Total sum = " << total_sum << ", total_unmasked = "
+                                                                  << total_unmasked;
 
             LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
                                                                 << ", absolute_rho = " << absolute_rho
@@ -688,7 +690,28 @@ int main(int argc, char** argv)
                             Block* b,
                             const diy::Master::ProxyWithLink& cp) {
 
+                        bool must_output = false;
+                        for(const auto& root_values_pair : b->local_integral_)
+                        {
+                            AmrVertexId root = root_values_pair.first;
+                            if (root.gid != b->gid)
+                                continue;
+
+                            auto& values = root_values_pair.second;
+                            Real n_vertices = values.at("n_vertices");
+
+                            if (n_vertices >= min_cells)
+                            {
+                                must_output = true;
+                                break;
+                            }
+                        }
+
+                        if (not must_output)
+                            return;
+
                         std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
+
                         std::ofstream ofs(integral_local_fname);
 
                         diy::Point<int, 3> domain_shape;
