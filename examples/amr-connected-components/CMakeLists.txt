@@ -35,23 +35,7 @@ set(libraries ${libraries} ${CMAKE_THREAD_LIBS_INIT})
 foreach(real   float )
 
 # AMR
-if (DEFINED ENV{NERSC_HOST})
-    set(AMREX_HOME "/global/homes/g/greynarn/code/amrex")
-    message(STATUS "Looking for AMR on NERSC")
-    if ("$ENV{NERSC_HOST}" STREQUAL "edison")
-        message(STATUS "Linking with Edison version of AMReX")
-        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_edison_gnu_${real}")
-    else()
-        #message(STATUS "Linking with Cori (non-Edison) version of AMReX, intel compiled")
-        #find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_cori_knl_intel_${real}")
-        message(STATUS "Linking with Cori (non-Edison) version of AMReX, GNU compiled")
-        find_package(AMReX 18 REQUIRED HINTS "/global/homes/g/greynarn/code/amrex/install_cori_knl_gnu_${real}")
-    endif()
-else()
-    set(AMREX_HOME "/home/narn/code/berkeley-2019/amrex")
-    find_package(AMReX 18 REQUIRED HINTS "/home/narn/code/berkeley-2019/amrex/install")
-    message(STATUS "Looking for AMR on Arnur's computer for ${real}")
-endif()
+find_package(AMReX 18 REQUIRED HINTS ${AMREX_INSTALL_DIR})
 
 set (libraries ${libraries}
         ${CMAKE_THREAD_LIBS_INIT}

@@ -110,54 +110,55 @@ void read_amr_plotfile(std::string infile,
     std::map<int, Real*> gid_to_fab;
     std::map<int, std::vector<Real*>> gid_to_extra_pointers;
 
-    for(int level = 0; level < n_levels; ++level)
+    for(int var_idx = 0; var_idx < all_var_names.size(); ++var_idx)
     {
-        const MultiFab& mf = plotfile.get(level, all_var_names[0]);
-        const BoxArray ba = mf.boxArray();
-        BoxArray ba_finer;
-        if (level < finest_level)
+        for(int level = 0; level < n_levels; ++level)
         {
-            const MultiFab& mf_finer = plotfile.get(level + 1, all_var_names[0]);
-            ba_finer = mf_finer.boxArray();
-        }
+            const MultiFab& mf = plotfile.get(level, all_var_names[var_idx]);
+            const BoxArray ba = mf.boxArray();
+            BoxArray ba_finer;
+            if (level < finest_level)
+            {
+                // TODO: this will load actual data; we only boxes from finer level
+                const MultiFab& mf_finer = plotfile.get(level + 1, all_var_names[var_idx]);
+                ba_finer = mf_finer.boxArray();
+            }
 
-        for(int var_idx = 0; var_idx < all_var_names.size(); ++var_idx)
-        {
-            // no tiling in MFIter; we want boxes exactly as they are in plotfile
+            // false is for no tiling in MFIter; we want boxes exactly as they are in plotfile
             for(MFIter mfi(mf, false); mfi.isValid(); ++mfi)
             {
-                const FArrayBox& myFab = mf[mfi];
-                Block::Shape fab_shape, a_shape;
-                const Box& fab_box = mfi.fabbox();
+                const FArrayBox& my_fab = mf[mfi];
+                Block::Shape valid_shape, a_shape;
+                const Box& valid_box = mfi.validbox();
                 for(size_t i = 0; i < DIY_DIM; ++i)
-                    fab_shape[i] = fab_box.bigEnd()[i] - fab_box.smallEnd()[i] + 1;
+                    valid_shape[i] = valid_box.bigEnd()[i] - valid_box.smallEnd()[i] + 1;
 
-                total_fab_vertices += fab_shape[0] * fab_shape[1] * fab_shape[2];
+                total_fab_vertices += valid_shape[0] * valid_shape[1] * valid_shape[2];
 
                 // This is the Box on which the FArrayBox is defined.
                 // Note that "abox" includes ghost cells (if there are any),
                 // and is thus larger than or equal to "box".
-                Box abox = myFab.box();
+                Box abox = my_fab.box();
                 for(size_t i = 0; i < DIY_DIM; ++i)
                     a_shape[i] = abox.bigEnd()[i] - abox.smallEnd()[i] + 1;
                 total_a_vertices += a_shape[0] * a_shape[1] * a_shape[2];
 
                 int gid = gid_offsets[level] + mfi.index();
-                if (debug) fmt::print( "amr-plot-reader: ALL SHAPES rank = {}, gid = {}; fab shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid, fab_shape[0], fab_shape[1], fab_shape[2], a_shape[0], a_shape[1], a_shape[2]);
+                if (debug) fmt::print( "amr-plot-reader: ALL SHAPES rank = {}, gid = {}; fab shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid, valid_shape[0], valid_shape[1], valid_shape[2], a_shape[0], a_shape[1], a_shape[2]);
                 if (debug) fmt::print( "amr-plot-reader: ALL BOXES rank = {}, gid = {}; FABBOX smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),  ABOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),\n", world.rank(), gid,
-                        fab_box.smallEnd()[0], fab_box.smallEnd()[1], fab_box.smallEnd()[2], fab_box.bigEnd()[0], fab_box.bigEnd()[1], fab_box.bigEnd()[2],
+                        valid_box.smallEnd()[0], valid_box.smallEnd()[1], valid_box.smallEnd()[2], valid_box.bigEnd()[0], valid_box.bigEnd()[1], valid_box.bigEnd()[2],
                         abox.smallEnd()[0], abox.smallEnd()[1], abox.smallEnd()[2], abox.bigEnd()[0], abox.bigEnd()[1], abox.bigEnd()[2]);
 
 
                 std::vector<std::pair<int, Box>> isects;
-                diy::AMRLink* link = new diy::AMRLink(3, level, refinements[level], bounds(fab_box), bounds(abox));
+                diy::AMRLink* link = new diy::AMRLink(3, level, refinements[level], bounds(valid_box), bounds(abox));
                 // init fab
                 // TODO: c_order?
-                if (debug) fmt::print("n_comps = {}, var_idx = {}, smallestPtr = {}, nextPtr = {}, diff = {}, max_ptr = {}\n", myFab.nComp(), var_idx,
-                        (void*) myFab.dataPtr(0), (void*) myFab.dataPtr(1), (myFab.dataPtr(1) - myFab.dataPtr(0)), (void*) myFab.dataPtr(myFab.nComp() - 1));
+                if (debug) fmt::print("n_comps = {}, var_idx = {}, smallestPtr = {}, nextPtr = {}, diff = {}, max_ptr = {}\n", my_fab.nComp(), var_idx,
+                        (void*) my_fab.dataPtr(0), (void*) my_fab.dataPtr(1), (my_fab.dataPtr(1) - my_fab.dataPtr(0)), (void*) my_fab.dataPtr(my_fab.nComp() - 1));
 
-                Real* fab_ptr = const_cast<Real*>(myFab.dataPtr(0));
-                long long int fab_size = fab_shape[0] * fab_shape[1] * fab_shape[2];
+                Real* fab_ptr = const_cast<Real*>(my_fab.dataPtr(0));
+                long long int fab_size = valid_shape[0] * valid_shape[1] * valid_shape[2];
                 if (var_idx == 0)
                 {
                     // allocate memory for all fields that we store in FabBlock
@@ -189,28 +190,28 @@ void read_amr_plotfile(std::string infile,
                     }
                     if (debug) { fmt::print("FIELD 0 rank = {}, gid = {}, sum = {}, fabs_size = {}, avg_in_fab = {}, n_nans = {}, n_infs = {}, n_negs = {}, n_wo = {}, avg_wo = {}\n", world.rank(), gid, total_sum, fab_size, total_sum / fab_size, n_nans, n_infs, n_negs, n_wo, total_sum_wo / n_wo); }
 
-                    master_reader.add(gid, new Block(fab_ptr_copy, all_var_names, extra_pointers, fab_shape), link);
+                    master_reader.add(gid, new Block(fab_ptr_copy, all_var_names, extra_pointers, valid_shape), link);
 
                     // record wrap
                     for(int dir_x : {-1, 0, 1})
                     {
                         if (!is_periodic[0] && dir_x) continue;
-                        if (dir_x < 0 && fab_box.loVect()[0] != domain.loVect()[0]) continue;
-                        if (dir_x > 0 && fab_box.hiVect()[0] != domain.hiVect()[0]) continue;
+                        if (dir_x < 0 && valid_box.loVect()[0] != domain.loVect()[0]) continue;
+                        if (dir_x > 0 && valid_box.hiVect()[0] != domain.hiVect()[0]) continue;
 
                         for(int dir_y : {-1, 0, 1})
                         {
                             if (!is_periodic[1] && dir_y) continue;
-                            if (dir_y < 0 && fab_box.loVect()[1] != domain.loVect()[1]) continue;
-                            if (dir_y > 0 && fab_box.hiVect()[1] != domain.hiVect()[1]) continue;
+                            if (dir_y < 0 && valid_box.loVect()[1] != domain.loVect()[1]) continue;
+                            if (dir_y > 0 && valid_box.hiVect()[1] != domain.hiVect()[1]) continue;
                             for(int dir_z : {-1, 0, 1})
                             {
                                 if (dir_x == 0 && dir_y == 0 && dir_z == 0)
                                     continue;
 
                                 if (!is_periodic[2] && dir_z) continue;
-                                if (dir_z < 0 && fab_box.loVect()[2] != domain.loVect()[2]) continue;
-                                if (dir_z > 0 && fab_box.hiVect()[2] != domain.hiVect()[2]) continue;
+                                if (dir_z < 0 && valid_box.loVect()[2] != domain.loVect()[2]) continue;
+                                if (dir_z > 0 && valid_box.hiVect()[2] != domain.hiVect()[2]) continue;
 
                                 link->add_wrap(diy::Direction{dir_x, dir_y, dir_z});
                             }
@@ -233,7 +234,7 @@ void read_amr_plotfile(std::string infile,
 //                        int ratio = mesh.RefRatio().at(std::min(lev, nbr_lev));
                         int ratio = 2;
 
-                        Box gbx = fab_box;
+                        Box gbx = valid_box;
                         if (nbr_lev < level)
                             gbx.coarsen(ratio);
                         else if (nbr_lev > level)

@@ -756,16 +756,16 @@ int main(int argc, char** argv)
                             Real m_particles = has_particle_mass_density ? values.at("particle_mass_density") : 0;
                             Real m_total = m_gas + m_particles;
 
-                            fmt::print(ofs, "{} {}\n",
-                                    b->local_.global_position(root),
-                                    m_gas);
-
-//                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {}\n",
-//                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
-//                                    n_vertices,
+//                            fmt::print(ofs, "{} {}\n",
 //                                    b->local_.global_position(root),
-//                                    vx, vy, vz,
-//                                    m_gas, m_particles, m_total);
+//                                    m_gas);
+
+                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {}\n",
+                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
+                                    n_vertices,
+                                    b->local_.global_position(root),
+                                    vx, vy, vz,
+                                    m_gas, m_particles, m_total);
                         }
                         ofs.close();
                     });
