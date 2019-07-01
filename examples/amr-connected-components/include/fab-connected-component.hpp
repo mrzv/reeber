@@ -4,7 +4,7 @@ FabConnectedComponent<Real>::FabConnectedComponent()
 }
 
 template<class Real>
-FabConnectedComponent<Real>::FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value, const ExtraValues& extra_integral_values) :
+FabConnectedComponent<Real>::FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value) :
         negate_(negate),
         original_deepest_(deepest),
         global_deepest_value_(deepest_value),
@@ -12,21 +12,9 @@ FabConnectedComponent<Real>::FabConnectedComponent(bool negate, const AmrVertexI
         current_gids_({deepest.gid}),
         processed_gids_({deepest.gid}),
         n_prev_current_neighbors_(1),
-#ifdef EXTRA_INTEGRAL
-        extra_integral_values_(extra_integral_values),
-#endif
         tree_(negate)
 {
-#ifdef EXTRA_INTEGRAL
-    bool debug = false;
-    if (debug)
-        for(auto kv : extra_integral_values_)
-        {
-            fmt::print("original deepest = {}: {} -> {}\n", deepest, kv.first, kv.second);
-        }
-#endif
 }
-
 
 template<class Real>
 bool FabConnectedComponent<Real>::cmp(Real x, Real y) const

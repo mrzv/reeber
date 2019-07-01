@@ -116,6 +116,9 @@ class TripletMergeTree
         Neighbor    new_node()                          { Neighbor p = alloc_.allocate(1); alloc_.construct(p); return p; }
         void        delete_node(Neighbor p)             { alloc_.destroy(p); alloc_.deallocate(p,1); }
 
+        // return total number of vertices in all nodes
+        size_t      n_vertices_total() const;
+
     private:
         VertexNeighborMap& nodes()                      { return nodes_; }
 

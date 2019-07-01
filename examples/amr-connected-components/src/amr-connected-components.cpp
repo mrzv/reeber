@@ -154,14 +154,6 @@ int main(int argc, char** argv)
     diy::mpi::environment env(argc, argv);
     diy::mpi::communicator world;
 
-//    if (argc < 2)
-//    {
-//        fmt::print(std::cerr, "Usage: {} IN.amr rho\n", argv[0]);
-//        return 1;
-//    }
-
-
-
     int nblocks = world.size();
     std::string prefix = "./DIY.XXXXXX";
     int in_memory = -1;
@@ -184,7 +176,7 @@ int main(int argc, char** argv)
 
     using namespace opts;
 
-    LOG_SEV_IF(world.rank() == 0, info) << "HELLO HERE";
+    LOG_SEV_IF(world.rank() == 0, info) << "Started, n_runs = " << n_runs << ", size of Real = " << sizeof(Real);
 
     opts::Options ops(argc, argv);
     ops
@@ -359,15 +351,15 @@ int main(int argc, char** argv)
 
     timer.restart();
 
-    // copy FabBlocks to FabComponentBlocks
-    // in FabTmtConstructor mask will be set and local trees will be computed
-    // FabBlock can be safely discarded afterwards
     for(int n_run = 0; n_run < n_runs; ++n_run)
     {
         world.barrier();
         timer.restart();
         timer_all.restart();
 
+        // copy FabBlocks to FabComponentBlocks
+        // in FabTmtConstructor mask will be set and local trees will be computed
+        // FabBlock can be safely discarded afterwards
         diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
                 &Block::load);
         master_reader.foreach(
@@ -487,35 +479,6 @@ int main(int argc, char** argv)
         auto time_for_communication = timer.elapsed();
         dlog::flush();
         timer.restart();
-
-
-        // debug: check symmetry
-//    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-//        auto* l = static_cast<AMRLink*>(cp.link());
-//
-//        for(const diy::BlockID& receiver : link_unique(l, b->gid))
-//        {
-//            cp.enqueue(receiver, b->components_);
-//        }
-//    });
-//
-//    master.exchange();
-//
-//    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-//        auto* l = static_cast<AMRLink*>(cp.link());
-//        for(const diy::BlockID& sender : link_unique(l, b->gid))
-//        {
-//            std::vector<Component> received_components;
-//            cp.dequeue(sender, received_components);
-//            b->check_symmetry(sender.gid, received_components);
-//        }
-//    });
-//
-//    LOG_SEV_IF(world.rank() == 0, info)  << "Symmetry checked in " << dlog::clock_to_string(timer.elapsed());
-//    time_for_communication += timer.elapsed();
-//    dlog::flush();
-//    timer.restart();
-        // end symmetry checking
 
 #ifdef DO_DETAILED_TIMING
         cc_exchange_2_time = 0;
@@ -659,9 +622,7 @@ int main(int argc, char** argv)
             master.foreach(
                     [&extra, &test_local, ignore_zero_persistence, absolute_rho](Block* b,
                             const diy::Master::ProxyWithLink& cp) {
-                        LOG_SEV(info) << "gid:  " << b->gid << " started output_persistence";
                         output_persistence(b, cp, extra, test_local, absolute_rho, ignore_zero_persistence);
-                        LOG_SEV(info) << "gid:  " << b->gid << " done with output_persistence";
                         dlog::flush();
                     });
         }
@@ -676,7 +637,6 @@ int main(int argc, char** argv)
             master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
                 b->compute_final_connected_components();
                 b->compute_local_integral();
-
             });
 
             LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed";
@@ -684,7 +644,6 @@ int main(int argc, char** argv)
 
 #ifdef EXTRA_INTEGRAL
 #ifdef ZARIJA
-            world.barrier();
             master.foreach(
                     [output_integral_filename, domain, min_cells, has_density, has_particle_mass_density, has_xmom, has_ymom, has_zmom](
                             Block* b,
@@ -694,6 +653,7 @@ int main(int argc, char** argv)
                         for(const auto& root_values_pair : b->local_integral_)
                         {
                             AmrVertexId root = root_values_pair.first;
+
                             if (root.gid != b->gid)
                                 continue;
 
@@ -731,6 +691,7 @@ int main(int argc, char** argv)
                             AmrVertexId root = root_values_pair.first;
                             if (root.gid != b->gid)
                                 continue;
+
 
                             auto& values = root_values_pair.second;
 
@@ -793,10 +754,8 @@ int main(int argc, char** argv)
                         ofs.close();
                     });
 
-            world.barrier();
             LOG_SEV_IF(world.rank() == 0, info) << "Local integrals printed";
             dlog::flush();
-            world.barrier();
 #else
             master.foreach(
                     [output_integral_filename, domain, min_cells](Block* b, const diy::Master::ProxyWithLink& cp) {
@@ -1142,9 +1101,9 @@ int main(int argc, char** argv)
                                                                             << b->collectives_time;
                  });
             }
-        }
+        } // if for 1st and last runs
 #endif
-    }
+    } // loop over runs
 
     if (read_plotfile)
     {

@@ -233,8 +233,6 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
 
     for_each(0, vertices.size(), [&](size_t i) { Vertex a = vertices[i]; mt.add(a, f(a)); });
 
-//    fmt::print("vertices.size = {}, add to mt OK\n", vertices.size());
-
     for_each(0, vertices.size(), [&](size_t i)
     {
         Vertex a = vertices[i];
@@ -257,9 +255,21 @@ reeber::compute_merge_tree2(TripletMergeTree<Vertex, Value>& mt, const Topology&
         }
     });
 
+
     repair(mt);
 
     dlog::prof >> "compute-merge-tree2";
+}
+
+template<class Vertex, class Value>
+size_t reeber::TripletMergeTree<Vertex, Value>::n_vertices_total() const
+{
+    size_t result = 0;
+    for(const auto& n : nodes_)
+    {
+        result += 1 + n.second->vertices.size();
+    }
+    return result;
 }
 
 template<class Vertex, class Value, class Special>

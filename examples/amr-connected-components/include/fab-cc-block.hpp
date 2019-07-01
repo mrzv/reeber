@@ -287,6 +287,7 @@ void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink* amr_link)
 //    merge_tree_.make_deep_copy(original_tree_);
     VertexEdgesMap vertex_to_outgoing_edges;
     compute_outgoing_edges(amr_link, vertex_to_outgoing_edges);
+
 #ifndef ZARIJA
     sparsify_prune_original_tree(vertex_to_outgoing_edges);
 #endif
@@ -627,7 +628,7 @@ template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_original_connected_components(
         const FabComponentBlock::VertexEdgesMap& vertex_to_outgoing_edges)
 {
-    std::map<AmrVertexId, std::map<std::string, Real>> extra_integral_values;
+    local_integral_.clear();
 
 #ifdef DO_DETAILED_TIMING
     dlog::Timer timer;
@@ -659,18 +660,18 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
         }
 
 #ifdef EXTRA_INTEGRAL
-        extra_integral_values[deepest_vertex]["n_vertices"] = 1 + n->vertices.size();
+        local_integral_[deepest_vertex]["n_vertices"] += 1 + n->vertices.size();
         for(size_t i = 0; i < extra_names_.size(); ++i)
         {
             if (extra_names_[i] == "xmom" or extra_names_[i] == "ymom" or extra_names_[i] == "zmom")
             {
                 // we need velocities - divide momentum by density; assumes density is the first field
                 assert(extra_names_[0] == "density");
-                extra_integral_values[deepest_vertex][extra_names_.at(i)] += sf * (extra_grids_.at(i)(u)
+                local_integral_[deepest_vertex][extra_names_.at(i)] += sf * (extra_grids_.at(i)(u)
                         / extra_grids_[0](u));
             } else
             {
-                extra_integral_values[deepest_vertex][extra_names_.at(i)] += sf * extra_grids_.at(i)(u);
+                local_integral_[deepest_vertex][extra_names_.at(i)] += sf * extra_grids_.at(i)(u);
             }
 
             for(auto vvv : n->vertices)
@@ -680,11 +681,11 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
                 {
                     // we need velocities - divide momentum by density; assumes density is the first field
                     assert(extra_names_[0] == "density");
-                    extra_integral_values[deepest_vertex][extra_names_.at(i)] += sf * (extra_grids_.at(i)(vv)
+                    local_integral_[deepest_vertex][extra_names_.at(i)] += sf * (extra_grids_.at(i)(vv)
                             / extra_grids_[0](vv));
                 } else
                 {
-                    extra_integral_values[deepest_vertex][extra_names_.at(i)] += sf * extra_grids_.at(i)(vv);
+                    local_integral_[deepest_vertex][extra_names_.at(i)] += sf * extra_grids_.at(i)(vv);
                 }
             }
         }
@@ -694,11 +695,10 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
         {
             // we encounter this deepest vertex for the first time
             AmrVertexId deepest_value = deepest_neighbor->vertex;
-            components_.emplace_back(negate_, deepest_vertex, deepest_value, extra_integral_values[deepest_vertex]);
+            // local integral is still incomplete and will be set below,
+            // after all active vertices were processed
+            components_.emplace_back(negate_, deepest_vertex, deepest_value);
             processed_deepest.insert(deepest_vertex);
-        } else
-        {
-            get_component_by_deepest(deepest_vertex).set_extra_values(extra_integral_values[deepest_vertex]);
         }
 
 #ifdef DO_DETAILED_TIMING
@@ -728,10 +728,20 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
 #endif
 
 #ifdef EXTRA_INTEGRAL
-    for(auto& deepest_extra_values_pair : extra_integral_values)
+    for(auto& deepest_extra_values_pair : local_integral_)
     {
         AmrVertexId deepest = deepest_extra_values_pair.first;
-        local_integral_[deepest] = deepest_extra_values_pair.second;
+        get_component_by_deepest(deepest).set_extra_values(deepest_extra_values_pair.second);
+
+        if (debug)
+        {
+            for(auto ev : deepest_extra_values_pair.second)
+            {
+                LOG_SEV(info) << "In compute_original_components, gid = " << gid << ", field " << ev.first << " = "
+                                                                          << ev.second;
+            }
+        }
+
     }
 #endif
 }
@@ -1033,20 +1043,30 @@ void FabComponentBlock<Real, D>::compute_local_integral()
                     {
                         fmt::print("ERROR HERE, field not found, v= {}, root= {}, filed = {}, gid = {}\n", v, root,
                                 field_sum.first, gid);
-                        LOG_SEV_IF(true, info) << "ERROR HERE, field not found, v= " << v << ", root = " << root
+                        LOG_SEV(error) << "ERROR HERE, field not found, v= " << v << ", root = " << root
                                                                                      << ", field = " << field_sum.first
                                                                                      << ", gid = " << gid;
                         dlog::flush();
                     }
 
-                    LOG_SEV_IF(debug, info) << "In loop over local_integral, gid = " << gid << ", v = " << v <<", root = " << root << ", adding to " << field_sum.first << ", value " << field_sum.second;
                     local_integral_.at(root).at(field_sum.first) += field_sum.second;
+                    LOG_SEV_IF(debug, info) << "In loop over local_integral, gid = " << gid << ", v = " << v <<", root = " << root << ", adding to " << field_sum.first << ", value " << field_sum.second << ", new value = " << local_integral_.at(root).at(field_sum.first);
                 }
             }
             li_iter = local_integral_.erase(li_iter);
         } else
         {
             ++li_iter;
+        }
+    }
+
+    for(auto root_field_values : local_integral_)
+    {
+        for(auto field_val_pair : root_field_values.second)
+        {
+            LOG_SEV_IF(debug, info) << "Computed local_integral, gid = " << gid << ", root = " << root_field_values.first
+                                                                         << ", field = " << field_val_pair.first
+                                                                         << ", value " << field_val_pair.second;
         }
     }
 #endif

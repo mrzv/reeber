@@ -56,6 +56,7 @@ struct OutputPairs
             death_time = through->value;
             if (negate)
             {
+//                LOG_SEV(info) << "in OutputPairs(), from = " << from->vertex << " recognized as local" << ", b = " << birth_time << ", d = " << death_time << ", to value = " << to->value << ", threshold = " << threshold;
                 if (birth_time < threshold)
                     return;
                 if (death_time < threshold)
@@ -96,8 +97,10 @@ void output_persistence(Block* b, const diy::Master::ProxyWithLink& cp,
                         typename Block::RealType threshold,
                         bool  _ignore_zero_persistence)
 {
-    //LOG_SEV(info) << "Output persistence, block:   " << cp.gid();
     if (b->get_merge_tree().size())
-        reeber::traverse_persistence(b->get_merge_tree(), OutputPairs<Block, LocalFunctor>(*b, extra, test_local, threshold, _ignore_zero_persistence));
-    //LOG_SEV(info) << "Done output persistence, block:   " << cp.gid();
+    {
+//        LOG_SEV(info) << "Output persistence, block:   " << cp.gid() << ", vertices: " << b->get_merge_tree().n_vertices_total();
+        reeber::traverse_persistence(b->get_merge_tree(),
+                OutputPairs<Block, LocalFunctor>(*b, extra, test_local, threshold, _ignore_zero_persistence));
+    }
 }

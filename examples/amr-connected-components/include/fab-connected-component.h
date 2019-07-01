@@ -62,7 +62,7 @@ public:
     // methods
     // ctors
     FabConnectedComponent();
-    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value, const ExtraValues& extra_integral_values);
+    FabConnectedComponent(bool negate, const AmrVertexId& deepest, Real deepest_value);
 
     // getters
     AmrVertexId         original_deepest()  const { return original_deepest_; }
