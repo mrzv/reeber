@@ -44,8 +44,6 @@
 //    }
 //}
 
-#include <cublas_v2.h>
-
 template<class Real, unsigned D>
 FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
         std::vector<std::string>& extra_names,

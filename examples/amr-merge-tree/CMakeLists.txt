@@ -78,9 +78,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
 
 add_executable(amr_merge_tree_simple_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-merge-tree.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-plot-reader.cpp ${AMT_HEADERS} ${REEBER_HEADERS})
 if ("${real}" STREQUAL "float")
-    set_target_properties(amr_merge_tree_simple_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real};ENABLE_DP=OFF;BL_USE_FLOAT=1")
+    target_compile_definitions(amr_merge_tree_simple_${real} PRIVATE REEBER_REAL=${real} AMREX_SPACEDIM=3 BL_USE_MPI=ON ENABLE_DP=OFF BL_USE_FLOAT=1)
 else()
-    set_target_properties(amr_merge_tree_simple_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real};ENABLE_DP=ON;BL_USE_DOUBLE=1")
+    target_compile_definitions(amr_merge_tree_simple_${real} PRIVATE REEBER_REAL=${real} AMREX_SPACEDIM=3 BL_USE_MPI=ON ENABLE_DP=ON BL_USE_FLOAT=0)
+#    ket_target_properties(amr_merge_tree_simple_${real}   PROPERTIES COMPILE_DEFINITIONS "REEBER_REAL=${real};ENABLE_DP=ON;BL_USE_DOUBLE=1")
 endif()
 
 

@@ -1,6 +1,6 @@
 //#define SEND_COMPONENTS
 
-#define DO_DETAILED_TIMING
+//#define DO_DETAILED_TIMING
 
 #include "reeber-real.h"
 
