@@ -89,6 +89,21 @@ struct FabComponentBlock {
     size_t n_active_ {0};
     size_t n_unmasked_{0};
     size_t n_low_{0};
+
+    Real sum_low_ {0};
+    Real sum_active_ {0};
+
+    // TODO: remove this, for debug of integrals only
+    Real sum_gas_small_halos_ {0};
+    Real sum_particles_small_halos_ {0};
+    Real sum_total_small_halos_ {0};
+
+    Real sum_gas_big_halos_ {0};
+    Real sum_particles_big_halos_ {0};
+    Real sum_total_big_halos_ {0};
+
+
+
     size_t n_masked_{0};
     std::unordered_map<AmrVertexId, Real> vertex_values_;
 

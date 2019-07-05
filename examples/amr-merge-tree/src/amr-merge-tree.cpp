@@ -451,7 +451,7 @@ int main(int argc, char** argv)
 
             master.foreach([debug](Block* b, const diy::Master::ProxyWithLink& cp) {
                 cp.collectives()->clear();
-                cp.all_reduce(b->sum_, std::plus<Real>());
+                cp.all_reduce(b->sum_ * b->scaling_factor(), std::plus<Real>());
                 cp.all_reduce(static_cast<Real>(b->n_unmasked_) * b->scaling_factor(), std::plus<Real>());
                 if (debug)
                     fmt::print("BEFORE EXCHANgE gid = {}, sum = {}, n_unmasked = {}\n", b->gid, b->sum_,

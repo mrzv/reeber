@@ -1,6 +1,6 @@
-#define ZARIJA
+//#define ZARIJA
 //#define DO_DETAILED_TIMING
-#define EXTRA_INTEGRAL
+//#define EXTRA_INTEGRAL
 
 #include "reeber-real.h"
 
@@ -227,14 +227,14 @@ int main(int argc, char** argv)
     }
 
     LOG_SEV_IF(world.rank() == 0, info) << "has_density = " << has_density << ", has_xmom = " << has_xmom
-                                                            << ", has_ymom = " << has_ymom << ", has_zmom = "
-                                                            << has_zmom;
+                                        << ", has_ymom = " << has_ymom << ", has_zmom = "
+                                        << has_zmom;
     n_mt_vars = has_density ? 2 : 1;
 #endif
 
     LOG_SEV_IF(world.rank() == 0, info) << "Reading fields: " << fields_to_read << ", vector = "
-                                                              << container_to_string(all_var_names)
-                                                              << ", fields to sum = " << n_mt_vars;
+                                        << container_to_string(all_var_names)
+                                        << ", fields to sum = " << n_mt_vars;
     dlog::flush();
 
     if (ops >> Present('h', "help", "show help message") or
@@ -272,8 +272,8 @@ int main(int argc, char** argv)
     dlog::Timer timer;
     dlog::Timer timer_all;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
-                                                                                     << nblocks
-                                                                                     << ", rho = " << rho;
+                                        << nblocks
+                                        << ", rho = " << rho;
     dlog::flush();
 
 #ifdef DO_DETAILED_TIMING
@@ -324,6 +324,8 @@ int main(int argc, char** argv)
     {
         read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
     }
+
+    world.barrier();
 
     auto time_to_read_data = timer.elapsed();
     dlog::flush();
@@ -393,17 +395,17 @@ int main(int argc, char** argv)
         {
             absolute_rho = rho;
             LOG_SEV_IF(world.rank() == 0, info) << "Time to compute local trees and components:  "
-                    << dlog::clock_to_string(timer.elapsed());
+                                                << dlog::clock_to_string(timer.elapsed());
         } else
         {
             LOG_SEV_IF(world.rank() == 0, info) << "Time to construct FabComponentBlocks: "
-                    << dlog::clock_to_string(timer.elapsed());
+                                                << dlog::clock_to_string(timer.elapsed());
             dlog::flush();
             timer.restart();
 
             master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
                 cp.collectives()->clear();
-                cp.all_reduce(b->sum_, std::plus<Real>());
+                cp.all_reduce(b->sum_ * b->scaling_factor(), std::plus<Real>());
                 cp.all_reduce(static_cast<Real>(b->n_unmasked_) * b->scaling_factor(), std::plus<Real>());
             });
 
@@ -422,12 +424,12 @@ int main(int argc, char** argv)
 #endif
 
             LOG_SEV_IF(world.rank() == 0, info) << "Total sum = " << total_sum << ", total_unmasked = "
-                                                                  << total_unmasked;
+                                                << total_unmasked;
 
             LOG_SEV_IF(world.rank() == 0, info) << "Average = " << mean << ", rho = " << rho
-                                                                << ", absolute_rho = " << absolute_rho
-                                                                << ", time to compute average: "
-                                                                << dlog::clock_to_string(timer.elapsed());
+                                                << ", absolute_rho = " << absolute_rho
+                                                << ", time to compute average: "
+                                                << dlog::clock_to_string(timer.elapsed());
 
             if (mean < 0 or std::isnan(mean) or std::isinf(mean) or mean > 1e+40)
             {
@@ -457,12 +459,39 @@ int main(int argc, char** argv)
 #endif
 
             LOG_SEV_IF(world.rank() == 0, info) <<
-            "Time to initialize FabComponentBlocks (low vertices, local trees, components, outgoing edges): "
-                    << timer.elapsed();
+                                                "Time to initialize FabComponentBlocks (low vertices, local trees, components, outgoing edges): "
+                                                << timer.elapsed();
             time_for_local_computation += timer.elapsed();
         }
 
         dlog::flush();
+
+        // for debug
+        {
+            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+                cp.collectives()->clear();
+                cp.all_reduce(b->sum_low_ * b->scaling_factor(), std::plus<Real>());
+                cp.all_reduce(b->sum_active_ * b->scaling_factor(), std::plus<Real>());
+            });
+
+            master.exchange();
+
+            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+
+            Real total_sum_low = proxy.get<Real>();
+            Real total_sum_active = proxy.get<Real>();
+            LOG_SEV_IF(world.rank() == 0, info) << "Sum of active values  = " << total_sum_active
+                                                << ", sum of low = " << total_sum_low
+                                                << ", total sum = " << total_sum_active + total_sum_low;
+
+//            world.barrier();
+
+            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+                cp.collectives()->clear();
+            });
+
+         }
+
         timer.restart();
 
         int global_n_undone = 1;
@@ -475,7 +504,7 @@ int main(int argc, char** argv)
         time_to_delete_low_edges = timer.elapsed();
 #endif
 
-        LOG_SEV_IF(world.rank() == 0, info)  << "edges symmetrized, time elapsed " << timer.elapsed();
+        LOG_SEV_IF(world.rank() == 0, info) << "edges symmetrized, time elapsed " << timer.elapsed();
         auto time_for_communication = timer.elapsed();
         dlog::flush();
         timer.restart();
@@ -533,7 +562,7 @@ int main(int argc, char** argv)
             // to compute total number of undone blocks
 
             LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", global_n_undone = "
-                                                                   << global_n_undone;
+                                                << global_n_undone;
 
             if (print_stats)
             {
@@ -544,7 +573,7 @@ int main(int argc, char** argv)
                         });
 
                 LOG_SEV(info) << "STAT MASTER round " << rounds << ", rank = " << world.rank() << ", local_n_undone = "
-                                                      << local_n_undone;
+                              << local_n_undone;
             }
             dlog::flush();
         }
@@ -562,39 +591,6 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
 
-        if (false)
-        {
-            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-                size_t n_low = b->n_low_;
-                size_t n_active = b->n_active_;
-                size_t n_masked = b->n_masked_;
-                cp.collectives()->clear();
-                cp.all_reduce(n_low, std::plus<size_t>());
-                cp.all_reduce(n_active, std::plus<size_t>());
-                cp.all_reduce(n_masked, std::plus<size_t>());
-            });
-
-            master.exchange();
-
-            world.barrier();
-
-            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
-
-            size_t total_n_low = proxy.get<size_t>();
-            size_t total_n_active = proxy.get<size_t>();
-            size_t total_n_masked = proxy.get<size_t>();
-
-            LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
-                                                                    << total_n_active << ", total_n_masked = "
-                                                                    << total_n_masked;
-            dlog::flush();
-            world.barrier();
-            timer.restart();
-        }
-
-#if 0
-        auto time_for_output = timer.elapsed();
-#else
         // save the result
         if (output_filename != "none")
         {
@@ -658,12 +654,24 @@ int main(int argc, char** argv)
                                 continue;
 
                             auto& values = root_values_pair.second;
-                            Real n_vertices = values.at("n_vertices");
+                            Real n_vertices_sf = values.at("n_vertices_sf");
 
-                            if (n_vertices >= min_cells)
+                            Real m_gas = has_density ? values.at("density") : 0;
+                            Real m_particles = has_particle_mass_density ? values.at("particle_mass_density") : 0;
+                            Real m_total = m_gas + m_particles;
+
+                            // TODO: add break after getting rid of debug sums
+                            if (n_vertices_sf >= min_cells)
                             {
                                 must_output = true;
-                                break;
+                                b->sum_gas_big_halos_ += m_gas;
+                                b->sum_particles_big_halos_ += m_particles;
+                                b->sum_total_big_halos_ += m_total;
+                            } else
+                            {
+                                b->sum_gas_small_halos_ += m_gas;
+                                b->sum_particles_small_halos_ += m_particles;
+                                b->sum_total_small_halos_ += m_total;
                             }
                         }
 
@@ -691,7 +699,6 @@ int main(int argc, char** argv)
                             AmrVertexId root = root_values_pair.first;
                             if (root.gid != b->gid)
                                 continue;
-
 
                             auto& values = root_values_pair.second;
 
@@ -728,13 +735,14 @@ int main(int argc, char** argv)
                             dlog::flush();
 
                             Real n_vertices = values.at("n_vertices");
+                            Real n_vertices_sf = values.at("n_vertices_sf");
 
-                            if (n_vertices < min_cells)
+                            if (n_vertices_sf < min_cells)
                                 continue;
 
-                            Real vx = has_xmom ? values.at("xmom") / n_vertices : 0;
-                            Real vy = has_ymom ? values.at("ymom") / n_vertices : 0;
-                            Real vz = has_zmom ? values.at("zmom") / n_vertices : 0;
+                            Real vx = has_xmom ? values.at("xmom") / n_vertices_sf : 0;
+                            Real vy = has_ymom ? values.at("ymom") / n_vertices_sf : 0;
+                            Real vz = has_zmom ? values.at("zmom") / n_vertices_sf : 0;
 
                             Real m_gas = has_density ? values.at("density") : 0;
                             Real m_particles = has_particle_mass_density ? values.at("particle_mass_density") : 0;
@@ -744,8 +752,10 @@ int main(int argc, char** argv)
 //                                    b->local_.global_position(root),
 //                                    m_gas);
 
-                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {}\n",
+                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {} {} {}\n",
+                                    root,
                                     domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
+                                    n_vertices_sf,
                                     n_vertices,
                                     b->local_.global_position(root),
                                     vx, vy, vz,
@@ -790,7 +800,7 @@ int main(int argc, char** argv)
                         diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
 
                         // local integral already stores number of vertices (set in init)
-                        // so we add it here just to print it
+                        // so we add it here to the list of fields just to print it
                         b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
 
                         for(const auto& root_values_pair : b->local_integral_)
@@ -806,9 +816,15 @@ int main(int argc, char** argv)
                                 fmt::print("ERROR HERE, no n_vertices, gid = {}\n", b->gid);
                             }
 
-                            Real n_vertices = values.at("n_vertices");
+                            if (values.count("n_vertices_sf") == 0)
+                            {
+                                fmt::print("ERROR HERE, no n_vertices_sf, gid = {}\n", b->gid);
+                            }
 
-                            if (n_vertices < min_cells)
+                            Real n_vertices = values.at("n_vertices");
+                            Real n_vertices_sf = values.at("n_vertices_sf");
+
+                            if (n_vertices_sf < min_cells)
                                 continue;
 
                             fmt::print(ofs, "{} {} {} {}\n",
@@ -816,6 +832,9 @@ int main(int argc, char** argv)
                                     n_vertices,
                                     b->local_.global_position(root),
                                     values.at(b->extra_names_.back()));
+
+
+
                         }
                         ofs.close();
                     });
@@ -823,12 +842,53 @@ int main(int argc, char** argv)
 #endif
 
             LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
-                    << dlog::clock_to_string(timer.elapsed());
+                                                << dlog::clock_to_string(timer.elapsed());
             time_for_output += timer.elapsed();
             dlog::flush();
             timer.restart();
         }
-#endif
+
+         // for debug
+        {
+            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+                cp.collectives()->clear();
+                cp.all_reduce(b->sum_gas_big_halos_, std::plus<Real>());
+                cp.all_reduce(b->sum_particles_big_halos_, std::plus<Real>());
+                cp.all_reduce(b->sum_total_big_halos_, std::plus<Real>());
+
+                cp.all_reduce(b->sum_gas_small_halos_, std::plus<Real>());
+                cp.all_reduce(b->sum_particles_small_halos_, std::plus<Real>());
+                cp.all_reduce(b->sum_total_small_halos_, std::plus<Real>());
+
+            });
+
+            master.exchange();
+
+            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+
+            Real total_sum_gas_big = proxy.get<Real>();
+            Real total_sum_particles_big = proxy.get<Real>();
+            Real total_sum_mass_big = proxy.get<Real>();
+
+            Real total_sum_gas_small = proxy.get<Real>();
+            Real total_sum_particles_small = proxy.get<Real>();
+            Real total_sum_mass_small = proxy.get<Real>();
+
+            LOG_SEV_IF(world.rank() == 0, info) << "Big gas sum = " << total_sum_gas_big
+                                                << ", big particles sum = " << total_sum_particles_big
+                                                << ", big mass sum = " << total_sum_mass_big;
+
+            LOG_SEV_IF(world.rank() == 0, info) << "Small gas sum = " << total_sum_gas_small
+                                                << ", small particles sum = " << total_sum_particles_small
+                                                << ", small mass sum = " << total_sum_mass_small;
+
+            LOG_SEV_IF(world.rank() == 0, info) << "Big + small gas sum = " << total_sum_gas_small + total_sum_gas_big
+                                                << ", big + small particles sum = " << total_sum_particles_small +total_sum_particles_big
+                                                << ", big + small mass sum = " << total_sum_mass_small + total_sum_mass_big;
+
+            world.barrier();
+         }
+
 //    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
 //        auto sum_n_vertices_pair = b->get_local_stats();
 //        cp.collectives()->clear();
@@ -932,8 +992,8 @@ int main(int argc, char** argv)
             });
 
             LOG_SEV_IF(world.rank() == 0, info) << "Total_n_low = " << total_n_low << ", total_n_active = "
-                                                                    << total_n_active << ", total_n_masked = "
-                                                                    << total_n_masked;
+                                                << total_n_active << ", total_n_masked = "
+                                                << total_n_masked;
             dlog::flush();
             timer.restart();
         }

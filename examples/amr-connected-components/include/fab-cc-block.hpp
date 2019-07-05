@@ -44,6 +44,8 @@
 //    }
 //}
 
+#include <cublas_v2.h>
+
 template<class Real, unsigned D>
 FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
         std::vector<std::string>& extra_names,
@@ -257,6 +259,7 @@ template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
         const Real& absolute_threshold)
 {
+    bool is_debug = false;
     auto v_mask = local_.mask_position_from_local(v_bounds);
     if (local_.mask(v_mask) != MaskedBox::ACTIVE)
         return;
@@ -265,11 +268,22 @@ void FabComponentBlock<Real, D>::set_low(const diy::Point<int, D>& v_bounds,
     if (is_low)
     {
         n_low_++;
+        sum_low_ += fab_(v_bounds);
         local_.set_mask(v_mask, MaskedBox::LOW);
     } else
     {
         n_active_++;
-//        if (gid == 0) fmt::print("HERE ACTIVE: {}\n", local_.global_position_from_local(v_bounds));
+        sum_active_ += fab_(v_bounds);
+    }
+
+    if (is_debug)
+    {
+        AmrVertexId v = local_.local_position_to_vertex(v_bounds);
+        if (v == AmrVertexId{4930, 4953} )
+        {
+            LOG_SEV(info) << "DEBUG VALS HERE v = " << v << ", value = " << fab_(v_bounds)
+                          << ", value - absolute_rho = " << fab_(v_bounds) - absolute_threshold;
+        }
     }
 }
 
@@ -628,7 +642,9 @@ template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_original_connected_components(
         const FabComponentBlock::VertexEdgesMap& vertex_to_outgoing_edges)
 {
+#ifdef EXTRA_INTEGRAL
     local_integral_.clear();
+#endif
 
 #ifdef DO_DETAILED_TIMING
     dlog::Timer timer;
@@ -661,6 +677,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
 
 #ifdef EXTRA_INTEGRAL
         local_integral_[deepest_vertex]["n_vertices"] += 1 + n->vertices.size();
+        local_integral_[deepest_vertex]["n_vertices_sf"] += sf * (1 + n->vertices.size());
         for(size_t i = 0; i < extra_names_.size(); ++i)
         {
             if (extra_names_[i] == "xmom" or extra_names_[i] == "ymom" or extra_names_[i] == "zmom")
@@ -738,7 +755,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
             for(auto ev : deepest_extra_values_pair.second)
             {
                 LOG_SEV(info) << "In compute_original_components, gid = " << gid << ", field " << ev.first << " = "
-                                                                          << ev.second;
+                              << ev.second;
             }
         }
 
@@ -1003,7 +1020,7 @@ template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::compute_local_integral()
 {
 #ifdef EXTRA_INTEGRAL
-    bool debug = false;
+    bool debug = gid == 3505;
 
     if (debug) fmt::print("Enter compute_local_integral, gid = {}\n", gid);
 
@@ -1021,7 +1038,7 @@ void FabComponentBlock<Real, D>::compute_local_integral()
 
         AmrVertexId root = vertex_to_deepest_.at(v);
 
-        LOG_SEV_IF(debug, info) << "In loop over local_integral, gid = " << gid << ", v = " << v <<", root = " << root;
+        LOG_SEV_IF(debug, info) << "In loop over local_integral, gid = " << gid << ", v = " << v << ", root = " << root;
 
         // if deepest vertex belongs to another block, skip it
         if (root != v)
@@ -1030,7 +1047,7 @@ void FabComponentBlock<Real, D>::compute_local_integral()
             {
                 fmt::print("ERROR HERE, root not found, v= {}, root= {}, gid = {}\n", v, root, gid);
                 LOG_SEV_IF(true, info) << "ERROR HERE, root not found, v= " << v << ", root = " << root << ", gid = "
-                                                                            << gid;
+                                       << gid;
                 dlog::flush();
             }
 
@@ -1044,13 +1061,16 @@ void FabComponentBlock<Real, D>::compute_local_integral()
                         fmt::print("ERROR HERE, field not found, v= {}, root= {}, filed = {}, gid = {}\n", v, root,
                                 field_sum.first, gid);
                         LOG_SEV(error) << "ERROR HERE, field not found, v= " << v << ", root = " << root
-                                                                                     << ", field = " << field_sum.first
-                                                                                     << ", gid = " << gid;
+                                       << ", field = " << field_sum.first
+                                       << ", gid = " << gid;
                         dlog::flush();
                     }
 
                     local_integral_.at(root).at(field_sum.first) += field_sum.second;
-                    LOG_SEV_IF(debug, info) << "In loop over local_integral, gid = " << gid << ", v = " << v <<", root = " << root << ", adding to " << field_sum.first << ", value " << field_sum.second << ", new value = " << local_integral_.at(root).at(field_sum.first);
+                    LOG_SEV_IF(debug, info) << "In loop over local_integral, gid = " << gid << ", v = " << v
+                                            << ", root = " << root << ", adding to " << field_sum.first << ", value "
+                                            << field_sum.second << ", new value = "
+                                            << local_integral_.at(root).at(field_sum.first);
                 }
             }
             li_iter = local_integral_.erase(li_iter);
@@ -1064,11 +1084,44 @@ void FabComponentBlock<Real, D>::compute_local_integral()
     {
         for(auto field_val_pair : root_field_values.second)
         {
-            LOG_SEV_IF(debug, info) << "Computed local_integral, gid = " << gid << ", root = " << root_field_values.first
-                                                                         << ", field = " << field_val_pair.first
-                                                                         << ", value " << field_val_pair.second;
+            LOG_SEV_IF(debug, info) << "Computed local_integral, gid = " << gid << ", root = "
+                                    << root_field_values.first
+                                    << ", field = " << field_val_pair.first
+                                    << ", value " << field_val_pair.second;
         }
     }
+
+    if (gid != 3505)
+        return;
+    AmrVertexId debug_root{3505, 29500};
+    const auto& const_tree = merge_tree_;
+    for(auto mt_node : const_tree.nodes())
+    {
+        AmrVertexId v = mt_node.second->vertex;
+        AmrVertexId vv = merge_tree_.find_deepest(mt_node.second)->vertex;
+        if (v == AmrVertexId{4930, 4952})
+        {
+            LOG_SEV(info) << "ACHTUNG v = " << v << ", deepest in tree = " << vv << " , vertex_to_deepest_.at(vv) = "
+                          << vertex_to_deepest_.at(vv);
+        }
+        if (vertex_to_deepest_.at(vv) == debug_root)
+        {
+            LOG_SEV(info) << "Tree vertex of " << debug_root << " is " << "AmrVertexId { " << v.gid << ", " << v.vertex
+                          << "}, ";
+            for(const auto& w : mt_node.second->vertices)
+            {
+                if (w.second.gid == gid)
+                {
+                    LOG_SEV(info) << "vertices() vertex of " << debug_root << " is " << w.second << ", "
+                                  << local_.global_position(w.second);
+                } else
+                {
+                    LOG_SEV(info) << "vertices() vertex of " << debug_root << " is " << w.second;
+                }
+            }
+        }
+    }
+
 #endif
 }
 
