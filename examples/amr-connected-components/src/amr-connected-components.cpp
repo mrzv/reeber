@@ -1,6 +1,10 @@
 //#define ZARIJA
+// if ZARIJA is defined, we read momentum fields
+// and divide them by mass to get velocity;
+// fields are hard-coded for NyX
+
 //#define DO_DETAILED_TIMING
-#define EXTRA_INTEGRAL
+//#define EXTRA_INTEGRAL
 
 #include "reeber-real.h"
 
@@ -150,121 +154,6 @@ void read_from_file(std::string infn,
     }
 }
 
-void compute_halos(diy::mpi::communicator& world,
-        diy::Master& master_reader,
-        int threads,
-        diy::DiscreteBounds domain,
-        Real absolute_rho,
-        bool negate,
-        Real min_halo_volume)
-{
-    world.barrier();
-    std::string prefix = "./DIY.XXXXXX";
-    int in_memory = -1;
-    std::string log_level = "info";
-    diy::FileStorage storage(prefix);
-
-    dlog::add_stream(std::cerr, dlog::severity(log_level))
-            << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level()
-            << dlog::color_post() >> dlog::flush();
-
-
-    // copy FabBlocks to FabComponentBlocks
-    // in FabTmtConstructor mask will be set and local trees will be computed
-    // FabBlock can be safely discarded afterwards
-    diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
-            &Block::load);
-    master_reader.foreach(
-            [&master, domain, absolute_rho, negate](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
-                auto* l = static_cast<AMRLink*>(cp.link());
-                AMRLink* new_link = new AMRLink(*l);
-
-                // prepare neighbor box info to save in MaskedBox
-                // TODO: refinment vector
-                int local_ref = l->refinement()[0];
-                int local_lev = l->level();
-
-                master.add(cp.gid(),
-                        new Block(b->fab, b->extra_names_, b->extra_fabs_, local_ref, local_lev, domain,
-                                l->bounds(),
-                                l->core(), cp.gid(),
-                                new_link, absolute_rho, negate, /*absolute = */ true),
-                        new_link);
-
-            });
-
-    int global_n_undone = 1;
-
-    master.foreach(&send_edges_to_neighbors_cc<Real, DIM>);
-    master.exchange();
-    master.foreach(&delete_low_edges_cc<Real, DIM>);
-
-    int rounds = 0;
-    while(global_n_undone)
-    {
-        rounds++;
-
-        master.foreach(&amr_cc_send<Real, DIM>);
-        master.exchange();
-        master.foreach(&amr_cc_receive<Real, DIM>);
-        master.exchange();
-
-        global_n_undone = master.proxy(master.loaded_block()).read<int>();
-    }
-
-    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-        b->compute_final_connected_components();
-        b->compute_local_integral();
-    });
-
-    LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed";
-    dlog::flush();
-
-    bool has_density = true;
-    bool has_particle_mass_density = true;
-    bool has_momentum = false;
-
-    master.foreach(
-            [domain, min_halo_volume,
-                    has_density, has_particle_mass_density,
-                    has_momentum](
-                    Block* b,
-                    const diy::Master::ProxyWithLink& cp) {
-
-                diy::Point<int, 3> domain_shape;
-                for(int i = 0; i < 3; ++i)
-                {
-                    domain_shape[i] = domain.max[i] - domain.min[i] + 1;
-                }
-
-                diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
-
-                // local integral already stores number of vertices (set in init)
-                // so we add it here just to print it
-                b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
-
-                for(const auto& root_values_pair : b->local_integral_)
-                {
-                    AmrVertexId root = root_values_pair.first;
-                    if (root.gid != b->gid)
-                        continue;
-
-                    auto& values = root_values_pair.second;
-
-                    Real n_vertices = values.at("n_vertices");
-                    Real halo_volume = values.at("n_vertices_sf");
-
-                    if (halo_volume < min_halo_volume)
-                        continue;
-
-                    Real m_gas = has_density ? values.at("density") : 0;
-                    Real m_particles = has_particle_mass_density ? values.at("particle_mass_density") : 0;
-                    Real m_total = m_gas + m_particles;
-                    // TODO: add halo to vector
-
-                }
-            });
-}
 
 int main(int argc, char** argv)
 {

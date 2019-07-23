@@ -1159,9 +1159,11 @@ void FabComponentBlock<Real, D>::compute_local_integral()
 template<class Real, unsigned D>
 void FabComponentBlock<Real, D>::destroy_extra_grids()
 {
+#ifdef EXTRA_INTEGRAL
     for(size_t i = 0; i < extra_grids_.size(); ++i) {
         delete[] extra_grids_[i].data();
     }
+#endif
 }
 
 template<class Real, unsigned D>
