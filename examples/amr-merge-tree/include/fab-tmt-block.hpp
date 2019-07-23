@@ -300,6 +300,13 @@ void FabTmtBlock<Real, D>::sparsify_prune_original_tree()
     r::sparsify(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
 }
 
+template<class Real, unsigned D>
+void FabTmtBlock<Real, D>::sparsify_local_tree(const FabTmtBlock::AmrVertexSet& keep)
+{
+    r::sparsify(current_merge_tree_,
+            [this, &keep](AmrVertexId u)
+            { return u.gid == this->gid or keep.find(u) != keep.end(); });
+}
 template<unsigned D>
 r::AmrEdgeContainer
 get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& local, diy::AMRLink* l,

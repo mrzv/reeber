@@ -40,6 +40,7 @@ struct FabTmtBlock
     using Vertex = typename MaskedBox::Position;
     using TripletMergeTree = r::TripletMergeTree<r::AmrVertexId, Value>;
     using AmrVertexContainer = std::vector<AmrVertexId>;
+    using AmrVertexSet = std::set<AmrVertexId>;
 
     using Neighbor = typename TripletMergeTree::Neighbor;
     using Node = typename TripletMergeTree::Node;
@@ -305,8 +306,7 @@ struct FabTmtBlock
 
     void sparsify_prune_original_tree();
 
-    void sparsify_local_tree()
-    {}
+    void sparsify_local_tree(const AmrVertexSet& keep);
 
     // compare w.r.t negate_ flag
     bool cmp(Real a, Real b) const;

@@ -149,6 +149,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
     using Block = FabTmtBlock<Real, D>;
     using AmrTripletMergeTree = typename Block::TripletMergeTree;
     using AmrEdgeVector = typename Block::AmrEdgeContainer;
+    using AmrVertexSet = typename Block::AmrVertexSet;
     using VertexVertexMap = typename Block::VertexVertexMap;
     //    using VertexSizeMap = typename Block::VertexSizeMap;
     using LinkVector = std::vector<AMRLink>;
@@ -162,6 +163,8 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
     std::vector<AmrEdgeVector> received_edges;
     std::vector<std::vector<AmrVertexId>> received_deepest_vertices;
     std::vector<std::vector<int>> received_original_gids;
+    
+    AmrVertexSet keep;
 
     LinkVector received_links;
 
@@ -253,6 +256,12 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 #ifdef DO_DETAILED_TIMING
         merge_timer.restart();
 #endif
+        
+        for(auto e : received_edges[i])
+        {
+            keep.insert(std::get<0>(e));
+            keep.insert(std::get<1>(e));
+        }
 
         r::merge(b->current_merge_tree_, rt, received_edges[i], true);
 
@@ -350,7 +359,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
     timer.restart();
 #endif
 
-    b->sparsify_local_tree();
+    b->sparsify_local_tree(keep);
 
 #ifdef DO_DETAILED_TIMING
     b->sparsify_time += timer.elapsed();
