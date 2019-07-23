@@ -113,6 +113,8 @@ struct FabComponentBlock {
     VertexVertexMap vertex_to_deepest_;
 
     diy::DiscreteBounds domain_ { D };
+    // physical domain at the level of this block
+    diy::ContinuousBounds prob_domain_ { D };
 
     int done_{0};
 
@@ -128,6 +130,7 @@ struct FabComponentBlock {
 
 
 #ifdef EXTRA_INTEGRAL
+    std::map<int, int> gid_to_level_;
     LocalIntegral local_integral_;
 
     // names of additional fields
@@ -214,7 +217,7 @@ struct FabComponentBlock {
 
     void sparsify_prune_original_tree(const VertexEdgesMap& vertex_to_outgoing_edges);
 
-    void sparsify_local_tree() {}
+    void sparsify_local_tree(const AmrVertexSet& keep);
 
     int get_n_components_for_gid(int gid) const;
 
@@ -255,6 +258,8 @@ struct FabComponentBlock {
     }
 
     void sanity_check_fin() const;
+    
+    void destroy_extra_grids();
 
     static void *create()
     {

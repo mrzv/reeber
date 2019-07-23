@@ -230,9 +230,18 @@ void read_amr_plotfile(std::string infile,
                         // TODO: here we always assume ghosts, get this information somehow
                         int ng = 0;
                         const BoxArray& ba = plotfile.boxArray(nbr_lev);
+
+//                        fmt::print("gid = {}, level = {}, refRatio = {}\n", gid, level, plotfile.refRatio(level));
+
                         // TODO!
 //                        int ratio = mesh.RefRatio().at(std::min(lev, nbr_lev));
-                        int ratio = 2;
+                        int ratio = plotfile.refRatio(level);
+
+                        if (ratio == 0 and level != finest_level)
+                            throw std::runtime_error("ration!");
+
+                        if (ratio == 0)
+                            ratio = plotfile.refRatio(level - 1);
 
                         Box gbx = valid_box;
                         if (nbr_lev < level)
@@ -251,6 +260,7 @@ void read_amr_plotfile(std::string infile,
                                 int nbr_gid = gid_offsets[nbr_lev] + is.first;
                                 const Box& nbr_box = ba[is.first];
                                 Box nbr_ghost_box = grow(nbr_box, ng);
+                                if (debug) { fmt::print("nbr_box = {}, nbr_lev = {}, my box = {}, my level = {}, ratio = {}\n", nbr_box, nbr_lev, valid_box, level, ratio); }
                                 link->add_neighbor(diy::BlockID{nbr_gid,
                                                                 -1});        // we don't know the proc, but we'll figure it out later through DynamicAssigner
                                 link->add_bounds(nbr_lev, refinements[nbr_lev], bounds(nbr_box), bounds(nbr_ghost_box));

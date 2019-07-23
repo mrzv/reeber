@@ -324,6 +324,8 @@ void FabComponentBlock<Real, D>::init(Real absolute_rho, diy::AMRLink* amr_link)
                 n_low_ + n_active_ - n_unmasked_, n_low_ + n_active_ + n_masked_
                         - local_.core_shape()[0] * local_.core_shape()[1] * local_.core_shape()[2]);
     }
+
+    destroy_extra_grids();
 }
 
 template<class Real, unsigned D>
@@ -676,6 +678,7 @@ void FabComponentBlock<Real, D>::compute_original_connected_components(
 #ifdef EXTRA_INTEGRAL
         local_integral_[deepest_vertex]["n_vertices"] += 1 + n->vertices.size();
         local_integral_[deepest_vertex]["n_vertices_sf"] += sf * (1 + n->vertices.size());
+        local_integral_[deepest_vertex]["function_value"] += sf * fab_(u);
         for(size_t i = 0; i < extra_names_.size(); ++i)
         {
             if (extra_names_[i] == "xmom" or extra_names_[i] == "ymom" or extra_names_[i] == "zmom")
@@ -1152,6 +1155,31 @@ void FabComponentBlock<Real, D>::compute_local_integral()
 //        }
 //    }
 //}
+
+template<class Real, unsigned D>
+void FabComponentBlock<Real, D>::destroy_extra_grids()
+{
+    for(size_t i = 0; i < extra_grids_.size(); ++i) {
+        delete[] extra_grids_[i].data();
+    }
+}
+
+template<class Real, unsigned D>
+void FabComponentBlock<Real, D>::sparsify_local_tree(const AmrVertexSet& keep)
+{
+#ifndef ZARIJA
+    auto old_size = merge_tree_.size();
+     r::sparsify(merge_tree_,
+            [this, &keep](AmrVertexId u) {
+                return u.gid == this->gid or keep.find(u) != keep.end();
+            });
+    auto new_size = merge_tree_.size();
+//    if (gid % 100 == 1)
+//    {
+//        fmt::print("gid = {}, before sparsification {}, after {}\n", gid, old_size, new_size);
+//    }
+#endif
+}
 
 
 template<class Real, unsigned D>

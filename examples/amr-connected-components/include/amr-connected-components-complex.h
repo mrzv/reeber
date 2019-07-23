@@ -239,6 +239,8 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
     AmrVertexContainer received_deepest_vertices;
     std::unordered_map<AmrVertexId, AmrVertexSet> received_root_to_components;
 
+    AmrVertexSet keep;
+
 #ifdef DO_DETAILED_TIMING
         timer.restart();
 #endif
@@ -248,8 +250,12 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
     {
         //if (debug) fmt::print("amr_cc_receive, round = {}, block {}, receiving from {}\n", b->round_, b->gid, sender.gid);
         diy::MemoryBuffer& in = cp.incoming(sender.gid);
+
+        if (debug) fmt::print("amr_cc_receive, round = {}, block {}, receiving from {}\n", b->round_, b->gid, sender.gid);
         AMRLink* l = static_cast<AMRLink*>(diy::LinkFactory::load(in));
+        if (debug) fmt::print("amr_cc_receive, round = {}, block {}, loaded link\n", b->round_, b->gid, sender.gid);
         received_links.push_back(*l);
+        if (debug) fmt::print("amr_cc_receive, round = {}, block {}, pushed\n", b->round_, b->gid, sender.gid);
         delete l;
 
         while(cp.incoming(sender.gid))
@@ -282,6 +288,12 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
 #endif
 
                 r::merge(b->merge_tree_, received_tree, received_edges, true);
+
+                for(auto e : received_edges)
+                {
+                    keep.insert(std::get<0>(e));
+                    keep.insert(std::get<1>(e));
+                }
 
 #ifdef DO_DETAILED_TIMING
                 b->merge_call_time += merge_call_timer.elapsed();
@@ -326,7 +338,9 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
         b->uc_time += timer.elapsed();
         timer.restart();
 #endif
+        b->sparsify_local_tree(keep);
     }
+
 
     GidSet needed_gids;
 

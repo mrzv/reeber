@@ -1,6 +1,6 @@
 //#define ZARIJA
 //#define DO_DETAILED_TIMING
-//#define EXTRA_INTEGRAL
+#define EXTRA_INTEGRAL
 
 #include "reeber-real.h"
 
@@ -20,6 +20,7 @@
 #include <dlog/log.h>
 #include <opts/opts.h>
 #include <error.h>
+#include <AMReX_Geometry.H>
 
 #include "../../amr-merge-tree/include/fab-block.h"
 #include "fab-cc-block.h"
@@ -149,6 +150,122 @@ void read_from_file(std::string infn,
     }
 }
 
+void compute_halos(diy::mpi::communicator& world,
+        diy::Master& master_reader,
+        int threads,
+        diy::DiscreteBounds domain,
+        Real absolute_rho,
+        bool negate,
+        Real min_halo_volume)
+{
+    world.barrier();
+    std::string prefix = "./DIY.XXXXXX";
+    int in_memory = -1;
+    std::string log_level = "info";
+    diy::FileStorage storage(prefix);
+
+    dlog::add_stream(std::cerr, dlog::severity(log_level))
+            << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level()
+            << dlog::color_post() >> dlog::flush();
+
+
+    // copy FabBlocks to FabComponentBlocks
+    // in FabTmtConstructor mask will be set and local trees will be computed
+    // FabBlock can be safely discarded afterwards
+    diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
+            &Block::load);
+    master_reader.foreach(
+            [&master, domain, absolute_rho, negate](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
+                auto* l = static_cast<AMRLink*>(cp.link());
+                AMRLink* new_link = new AMRLink(*l);
+
+                // prepare neighbor box info to save in MaskedBox
+                // TODO: refinment vector
+                int local_ref = l->refinement()[0];
+                int local_lev = l->level();
+
+                master.add(cp.gid(),
+                        new Block(b->fab, b->extra_names_, b->extra_fabs_, local_ref, local_lev, domain,
+                                l->bounds(),
+                                l->core(), cp.gid(),
+                                new_link, absolute_rho, negate, /*absolute = */ true),
+                        new_link);
+
+            });
+
+    int global_n_undone = 1;
+
+    master.foreach(&send_edges_to_neighbors_cc<Real, DIM>);
+    master.exchange();
+    master.foreach(&delete_low_edges_cc<Real, DIM>);
+
+    int rounds = 0;
+    while(global_n_undone)
+    {
+        rounds++;
+
+        master.foreach(&amr_cc_send<Real, DIM>);
+        master.exchange();
+        master.foreach(&amr_cc_receive<Real, DIM>);
+        master.exchange();
+
+        global_n_undone = master.proxy(master.loaded_block()).read<int>();
+    }
+
+    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+        b->compute_final_connected_components();
+        b->compute_local_integral();
+    });
+
+    LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed";
+    dlog::flush();
+
+    bool has_density = true;
+    bool has_particle_mass_density = true;
+    bool has_momentum = false;
+
+    master.foreach(
+            [domain, min_halo_volume,
+                    has_density, has_particle_mass_density,
+                    has_momentum](
+                    Block* b,
+                    const diy::Master::ProxyWithLink& cp) {
+
+                diy::Point<int, 3> domain_shape;
+                for(int i = 0; i < 3; ++i)
+                {
+                    domain_shape[i] = domain.max[i] - domain.min[i] + 1;
+                }
+
+                diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
+
+                // local integral already stores number of vertices (set in init)
+                // so we add it here just to print it
+                b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
+
+                for(const auto& root_values_pair : b->local_integral_)
+                {
+                    AmrVertexId root = root_values_pair.first;
+                    if (root.gid != b->gid)
+                        continue;
+
+                    auto& values = root_values_pair.second;
+
+                    Real n_vertices = values.at("n_vertices");
+                    Real halo_volume = values.at("n_vertices_sf");
+
+                    if (halo_volume < min_halo_volume)
+                        continue;
+
+                    Real m_gas = has_density ? values.at("density") : 0;
+                    Real m_particles = has_particle_mass_density ? values.at("particle_mass_density") : 0;
+                    Real m_total = m_gas + m_particles;
+                    // TODO: add halo to vector
+
+                }
+            });
+}
+
 int main(int argc, char** argv)
 {
     diy::mpi::environment env(argc, argv);
@@ -226,9 +343,11 @@ int main(int argc, char** argv)
         has_zmom = false;
     }
 
-    LOG_SEV_IF(world.rank() == 0, info) << "has_density = " << has_density << ", has_xmom = " << has_xmom
-                                        << ", has_ymom = " << has_ymom << ", has_zmom = "
-                                        << has_zmom;
+    LOG_SEV_IF(world.rank() == 0, info) << "has_density = " << has_density
+                                        << ", has_particle_mass_density = " << has_particle_mass_density
+                                        << ", has_xmom = " << has_xmom
+                                        << ", has_ymom = " << has_ymom
+                                        << ", has_zmom = " << has_zmom;
     n_mt_vars = has_density ? 2 : 1;
 #endif
 
@@ -390,6 +509,7 @@ int main(int argc, char** argv)
 #endif
 
         Real mean = std::numeric_limits<Real>::min();
+        Real total_sum;
 
         if (absolute)
         {
@@ -413,7 +533,7 @@ int main(int argc, char** argv)
 
             const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
 
-            Real total_sum = proxy.get<Real>();
+            total_sum = proxy.get<Real>();
             Real total_unmasked = proxy.get<Real>();
 
             mean = total_sum / total_unmasked;
@@ -490,7 +610,7 @@ int main(int argc, char** argv)
                 cp.collectives()->clear();
             });
 
-         }
+        }
 
         timer.restart();
 
@@ -641,7 +761,10 @@ int main(int argc, char** argv)
 #ifdef EXTRA_INTEGRAL
 #ifdef ZARIJA
             master.foreach(
-                    [output_integral_filename, domain, min_cells, has_density, has_particle_mass_density, has_xmom, has_ymom, has_zmom](
+                    [output_integral_filename, domain, min_cells,
+                            mean, total_sum, read_plotfile,
+                            has_density, has_particle_mass_density,
+                            has_xmom, has_ymom, has_zmom](
                             Block* b,
                             const diy::Master::ProxyWithLink& cp) {
 
@@ -737,6 +860,8 @@ int main(int argc, char** argv)
                             Real n_vertices = values.at("n_vertices");
                             Real n_vertices_sf = values.at("n_vertices_sf");
 
+                            Real function_value = read_plotfile ? 0 : values.at("function_value");
+
                             if (n_vertices_sf < min_cells)
                                 continue;
 
@@ -746,20 +871,23 @@ int main(int argc, char** argv)
 
                             Real m_gas = has_density ? values.at("density") : 0;
                             Real m_particles = has_particle_mass_density ? values.at("particle_mass_density") : 0;
-                            Real m_total = m_gas + m_particles;
+                            Real m_total = read_plotfile ? (m_gas + m_particles) : function_value;
+                            Real m_total_normed = m_total / mean;
 
-//                            fmt::print(ofs, "{} {}\n",
+                            fmt::print(ofs, "{} {} {}\n",
+                                    m_total_normed,
+                                    m_total,
+                                    b->local_.global_position(root)
+                            );
+
+//                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {} {} {}\n",
+//                                    n_vertices_sf,
+//                                    n_vertices,
+//                                    root,
+//                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
 //                                    b->local_.global_position(root),
-//                                    m_gas);
-
-                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {} {} {}\n",
-                                    root,
-                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
-                                    n_vertices_sf,
-                                    n_vertices,
-                                    b->local_.global_position(root),
-                                    vx, vy, vz,
-                                    m_gas, m_particles, m_total);
+//                                    vx, vy, vz,
+//                                    m_gas, m_particles, m_total);
                         }
                         ofs.close();
                     });
@@ -848,7 +976,7 @@ int main(int argc, char** argv)
             timer.restart();
         }
 
-         // for debug
+        // for debug
         {
             master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
                 cp.collectives()->clear();
@@ -883,11 +1011,13 @@ int main(int argc, char** argv)
                                                 << ", small mass sum = " << total_sum_mass_small;
 
             LOG_SEV_IF(world.rank() == 0, info) << "Big + small gas sum = " << total_sum_gas_small + total_sum_gas_big
-                                                << ", big + small particles sum = " << total_sum_particles_small +total_sum_particles_big
-                                                << ", big + small mass sum = " << total_sum_mass_small + total_sum_mass_big;
+                                                << ", big + small particles sum = "
+                                                << total_sum_particles_small + total_sum_particles_big
+                                                << ", big + small mass sum = "
+                                                << total_sum_mass_small + total_sum_mass_big;
 
             world.barrier();
-         }
+        }
 
 //    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
 //        auto sum_n_vertices_pair = b->get_local_stats();

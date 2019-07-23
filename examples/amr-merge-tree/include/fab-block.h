@@ -50,6 +50,8 @@ struct FabBlock
 
     static void load(void* b_, diy::BinaryBuffer& bb);
 
+    int level_ { -1 };
+
     diy::Grid<T, D> fab_storage_;        // container, in case we own the data
     diy::GridRef<T, D> fab;
 
@@ -109,3 +111,6 @@ void change_to_c_order(FabBlock<T, D>* b)
                               b->fab_storage_.c_order());     // fab points to the data in fab_storage_
 
 }
+
+
+void destroy_extra_grids();
