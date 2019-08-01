@@ -50,34 +50,6 @@ namespace reeber {
 
         MaskedBox() {}
 
-        /*
-         MaskedBox(const Position& core_from,
-                  const Position& core_to,
-                  const Position& bounds_from,
-                  const Position& bounds_to,
-                  int _ref,
-                  int _level,
-                  int _gid,
-                  bool c_order) :
-                core_from_(core_from),
-                core_to_(core_to),
-                bounds_from_(bounds_from),
-                bounds_to_(bounds_to),
-                mask_from_(core_from_ - Position::one()),
-                mask_to_(core_to_ + Position::one()),
-                core_shape_(core_to_ - core_from_ + Position::one()),
-                mask_shape_(bounds_to_ - bounds_from_ + Position::one()),
-                ghost_adjustment_(core_from_ - bounds_from_),
-                mask_(mask_shape_, c_order),
-                refinement_(_ref),
-                level_(_level),
-                gid_(_gid)
-        {
-            //assert(ghost_adjustment_ == bounds_to - core_to);
-            diy::for_each(mask_.shape(), [this](const Position& p) { this->set_mask(p, this->UNINIT); });
-        }
-         */
-
         MaskedBox(const NewDynamicPoint& core_from,
                   const NewDynamicPoint& core_to,
                   const NewDynamicPoint& bounds_from,
@@ -123,11 +95,20 @@ namespace reeber {
                 MaskValue m = this->mask_(p_mask);
                 Position p_core = p_mask - Position::one();
 
-                if (debug) fmt::print( "in check validity, p_mask ={}, p_core = {}, m = {}, is_ghost = {}, contains = {}, core_from = {}, core_to = {}\n", p_mask, p_core, pretty_mask_value(m), is_outer(p_mask), contains_local(p_mask), core_from_, core_to_);
+                bool is_valid = (m == ACTIVE and not is_outer(p_mask)) or
+                                (is_in_core(p_core) and m == LOW) or
+                                (m >= 0 and m <= max_gid and m != this->gid());
 
-                assert((m == ACTIVE and not is_outer(p_mask)) or
-                       (contains_local(p_mask) and m == LOW) or
-                       (m >= 0 and m <= max_gid and m != this->gid()));
+                if (not is_valid)
+                {
+                    fmt::print(
+                            "in check validity, p_mask ={}, p_core = {}, m = {}, is_ghost = {}, contains = {}, core_from = {}, core_to = {}\n",
+                            p_mask, p_core, pretty_mask_value(m), is_outer(p_mask), is_in_core(p_core), core_from_,
+                            core_to_);
+                    throw std::runtime_error("bad mask value");
+                }
+
+                assert(is_valid);
             });
         }
 
@@ -139,7 +120,7 @@ namespace reeber {
          */
         decltype(auto) vertices() const
         {
-            return range::iterator_range<VI>(VI::begin(bounds_from_, bounds_to_), VI::end(bounds_from_, bounds_to_))
+            return range::iterator_range<VI>(VI::begin(core_from_, core_to_), VI::end(core_from_, core_to_))
                    | range::filtered(std::bind(&MaskedBox::is_active_global, this, std::placeholders::_1))
                    | range::transformed(std::bind(&MaskedBox::global_position_to_vertex, this, std::placeholders::_1) );
         }
@@ -234,6 +215,11 @@ namespace reeber {
          */
         MaskValue mask(const Position& p_mask) const
         {
+            if (not is_valid_mask_position(p_mask))
+            {
+                fmt::print("error in mask, p_mask = {}\n", p_mask);
+                throw std::runtime_error("bad p_mask");
+            }
             //assert(is_valid_mask_position(p_bounds));
             return mask_(p_mask);
         }
@@ -313,6 +299,7 @@ namespace reeber {
         }
 
         Position bounds_shape() const { return bounds_shape_; }
+        Position ghost_adjustment() const { return ghost_adjustment_; }
 
         /**
          *
@@ -417,10 +404,10 @@ namespace reeber {
 
         /**
          *
-         * @param p_local cell in local coordinates
-         * @return true, if cell belongs to the box
+         * @param p_core cell in core coordinates
+         * @return true, if cell belongs to core
          */
-        bool contains_local(const Position& p_local) const;
+        bool is_in_core(const Position& p_core) const;
 
         /**
          *
@@ -428,9 +415,9 @@ namespace reeber {
          * @return range of all active local vertices of Freudenthal link of p
          * in local coordinates
          */
-        decltype(auto) local_position_link(const Position& p) const
+        decltype(auto) local_position_link(const Position& p_local) const
         {
-            return FreudenthalLinkRange(FreudenthalLinkIterator::begin(p), FreudenthalLinkIterator::end(p))
+            return FreudenthalLinkRange(FreudenthalLinkIterator::begin(p_local), FreudenthalLinkIterator::end(p_local))
                    | range::filtered(std::bind(&MaskedBox::is_active_local, this, std::placeholders::_1));
         }
 
@@ -474,8 +461,7 @@ namespace reeber {
          */
         bool is_active_global(const Position& p_global) const
         {
-//            std::cout << "called is_active_global for p_global = " << p_global << ", mask value = " << pretty_mask_value(mask_(p_global - bounds_from_ + mask_adjustment_)) << std::endl;
-            return mask_(p_global - bounds_from_ + mask_adjustment_) == ACTIVE;
+            return mask_(mask_position_from_global(p_global)) == ACTIVE;
         }
 
         /**
@@ -485,10 +471,11 @@ namespace reeber {
          */
         bool is_active_local(const Position& p_local) const
         {
-//            fmt::print("call is_active_local, p_local = {}, is_valid_local = {}, mask = {} \n",
-//                    p_local, is_valid_local_position(p_local),
-//                    pretty_mask_value(mask_(mask_position_from_local(p_local))));
-            return is_valid_local_position(p_local) && mask_(mask_position_from_local(p_local)) == ACTIVE;
+            Position p_mask = mask_position_from_local(p_local);
+            if (not is_valid_mask_position(p_mask))
+                return false;
+            else
+                return mask(p_mask) == ACTIVE;
         }
 
         /**
@@ -510,6 +497,9 @@ namespace reeber {
         {
             Position p_mask = mask_position_from_global(p_global);
 
+            if (not is_valid_mask_position(p_mask))
+                return false;
+
             if ((mask_(p_mask) == ACTIVE or mask_(p_mask) == LOW) and is_outer(p_mask))
             {
                 fmt::print("Error in is_outer_edge_start, p_global = {}, p_mask = {}, this = {}, is outer\n", p_global, p_mask, *this);
@@ -521,15 +511,32 @@ namespace reeber {
 
         bool is_valid_mask_position(const Position& p_mask) const
         {
-            return p_mask.is_less_or_eq(mask_shape_) and p_mask.is_greater_or_eq(Position::zero());
+            for(int i = 0; i < (int)D; ++i)
+            {
+                if (p_mask[i] > mask_shape_[i] or
+                    p_mask[i] < 0)
+                {
+                    return false;
+                }
+            }
+            return true;
+//            return p_mask.is_less_or_eq(mask_shape_) and p_mask.is_greater_or_eq(Position::zero());
         }
 
         bool is_valid_local_position(const Position& p_bounds) const
         {
-            return p_bounds.is_less_or_eq(bounds_shape_) and p_bounds.is_greater_or_eq(Position::zero());
+            for(int i = 0; i < (int)D; ++i)
+            {
+                if (p_bounds[i] > bounds_shape_[i] or
+                    p_bounds[i] < 0)
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
-       Vertex global_position_to_vertex(const Position& p_global) const
+        Vertex global_position_to_vertex(const Position& p_global) const
         {
             return local_position_to_vertex(local_position_from_global(p_global));
         }

@@ -10,7 +10,7 @@
 #include <reeber/box.h>
 
 #include "fab-block.h"
-#include "fab-tmt-block.h"
+#include "fab-cc-block.h"
 #include "reader-interfaces.h"
 #include "diy/vertices.hpp"
 #include "reeber/grid.h"
@@ -424,7 +424,6 @@ TEST_CASE("Ghosts and no ghosts", "[masked_box][dim2]")
 
 
 
-#if 0
 TEST_CASE("Check blocks constructor in simplest case", "[FabTmtBlock][dim2]")
 {
     using Point = diy::DynamicPoint<int, 4>;
@@ -434,7 +433,7 @@ TEST_CASE("Check blocks constructor in simplest case", "[FabTmtBlock][dim2]")
     using DBounds = diy::DiscreteBounds;
     using Grid = diy::Grid<double, 2>;
     using IntGrid = diy::Grid<int, 2>;
-    using Block = FabTmtBlock<double, 2>;
+    using Block = FabComponentBlock<Real, 2>;
 
     using Vertex = Block::Vertex;
     using MaskedBox = Block::MaskedBox;
@@ -918,7 +917,6 @@ TEST_CASE("Check blocks constructor in simplest case-no ghosts", "[FabTmtBlock][
         }
     }
 }
-#endif
 
 
 /*

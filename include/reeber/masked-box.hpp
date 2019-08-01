@@ -52,10 +52,10 @@ bool reeber::MaskedBox<D>::bounds_contains_global(const Position& p) const
         }
     return true;
 }
+
 template<unsigned D>
-bool reeber::MaskedBox<D>::contains_local(const Position& p_local) const
+bool reeber::MaskedBox<D>::is_in_core(const Position& p_core) const
 {
-    Position p_core = p_local - ghost_adjustment_;
     for (unsigned i = 0; i < D; ++i)
         if (p_core[i] < 0 || p_core[i] >= core_shape_[i]) {
             return false;

@@ -49,7 +49,6 @@ void read_amr_plotfile(std::string infile,
 
     bool debug = false;
 
-
     PlotFileData plotfile(infile);
     const auto& pf_comp_names = plotfile.varNames();
     const int n_levels = plotfile.finestLevel() + 1;
@@ -69,12 +68,9 @@ void read_amr_plotfile(std::string infile,
         domain_diy.max[i] = domain.hiVect()[i];
     }
 
-
     std::vector<int> gid_offsets = {0};
     std::vector<int> refinements = {1};
     nblocks = 0;
-
-//    std::vector<int> all_var_indices(all_var_names.size(), -1);
 
     // iterate over all levels to collect refinements and box array sizes (=gid offsets)
     for(int level = 0; level < n_levels; ++level)
@@ -108,7 +104,10 @@ void read_amr_plotfile(std::string infile,
     long long int total_a_vertices = 0;
 
     std::map<int, Real*> gid_to_fab;
+
+#ifdef REEBER_EXTRA_INTEGRAL
     std::map<int, std::vector<Real*>> gid_to_extra_pointers;
+#endif
 
     for(int var_idx = 0; var_idx < all_var_names.size(); ++var_idx)
     {
@@ -143,6 +142,11 @@ void read_amr_plotfile(std::string infile,
                     a_shape[i] = abox.bigEnd()[i] - abox.smallEnd()[i] + 1;
                 total_a_vertices += a_shape[0] * a_shape[1] * a_shape[2];
 
+                if (a_shape != valid_shape)
+                {
+                    throw std::runtime_error("ghosts in plotfile - not expected");
+                }
+
                 int gid = gid_offsets[level] + mfi.index();
                 if (debug) fmt::print( "amr-plot-reader: ALL SHAPES rank = {}, gid = {}; fab shape = ({}, {}, {}), a_shape = ({}, {}, {})\n", world.rank(), gid, valid_shape[0], valid_shape[1], valid_shape[2], a_shape[0], a_shape[1], a_shape[2]);
                 if (debug) fmt::print( "amr-plot-reader: ALL BOXES rank = {}, gid = {}; FABBOX smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),  ABOX  smallEnd = ({}, {}, {}), bigEnd = ({}, {}, {}),\n", world.rank(), gid,
@@ -158,9 +162,14 @@ void read_amr_plotfile(std::string infile,
                         (void*) my_fab.dataPtr(0), (void*) my_fab.dataPtr(1), (my_fab.dataPtr(1) - my_fab.dataPtr(0)), (void*) my_fab.dataPtr(my_fab.nComp() - 1));
 
                 Real* fab_ptr = const_cast<Real*>(my_fab.dataPtr(0));
-                long long int fab_size = valid_shape[0] * valid_shape[1] * valid_shape[2];
+                long long int fab_size = a_shape[0] * a_shape[1] * a_shape[2];
                 if (var_idx == 0)
                 {
+                    fab_ptr_copy = new Real[fab_size];
+                    gid_to_fab[gid] = fab_ptr_copy;
+                    memcpy(fab_ptr_copy, fab_ptr, sizeof(Real) * fab_size);
+
+#ifdef REEBER_EXTRA_INTEGRAL
                     // allocate memory for all fields that we store in FabBlock
                     // actual copying for next fields will happen later
                     std::vector<Real*> extra_pointers;
@@ -169,13 +178,12 @@ void read_amr_plotfile(std::string infile,
                         Real* extra_ptr_copy = new Real[fab_size];
                         if (debug) fmt::print("amr-plot-reader: gid = {}, size of Real = {}, allocated memory for {}\n", gid, sizeof(Real), all_var_names[var_idx]);
                         extra_pointers.push_back(extra_ptr_copy);
-                        if (i == 0)
-                            fab_ptr_copy = new Real[fab_size];
                     }
-                    gid_to_fab[gid] = fab_ptr_copy;
+
                     gid_to_extra_pointers[gid] = extra_pointers;
-                    memcpy(fab_ptr_copy, fab_ptr, sizeof(Real) * fab_size);
                     memcpy(extra_pointers[0], fab_ptr, sizeof(Real) * fab_size);
+#endif
+
                     for(int i = 0; i < fab_size; ++i)
                     {
                         total_sum += fab_ptr[i];
@@ -190,8 +198,11 @@ void read_amr_plotfile(std::string infile,
                     }
                     if (debug) { fmt::print("FIELD 0 rank = {}, gid = {}, sum = {}, fabs_size = {}, avg_in_fab = {}, n_nans = {}, n_infs = {}, n_negs = {}, n_wo = {}, avg_wo = {}\n", world.rank(), gid, total_sum, fab_size, total_sum / fab_size, n_nans, n_infs, n_negs, n_wo, total_sum_wo / n_wo); }
 
-                    master_reader.add(gid, new Block(fab_ptr_copy, all_var_names, extra_pointers, valid_shape), link);
-
+#ifdef REEBER_EXTRA_INTEGRAL
+                    master_reader.add(gid, new Block(fab_ptr_copy, all_var_names, extra_pointers, a_shape), link);
+#else
+                    master_reader.add(gid, new Block(fab_ptr_copy, a_shape), link);
+#endif
                     // record wrap
                     for(int dir_x : {-1, 0, 1})
                     {
@@ -263,16 +274,19 @@ void read_amr_plotfile(std::string infile,
                                 if (debug) { fmt::print("nbr_box = {}, nbr_lev = {}, my box = {}, my level = {}, ratio = {}\n", nbr_box, nbr_lev, valid_box, level, ratio); }
                                 link->add_neighbor(diy::BlockID{nbr_gid,
                                                                 -1});        // we don't know the proc, but we'll figure it out later through DynamicAssigner
-                                link->add_bounds(nbr_lev, refinements[nbr_lev], bounds(nbr_box), bounds(nbr_ghost_box));
+                                // ghosts not expected, hence nbr_box in the 2 last parameter
+                                link->add_bounds(nbr_lev, refinements[nbr_lev], bounds(nbr_box), bounds(nbr_box));
                             }
                         }
                     }
                 } else
                 {
+#ifdef REEBER_EXTRA_INTEGRAL
                     Real* block_extra_ptr = gid_to_extra_pointers.at(gid).at(var_idx);
+#endif
                     Real* block_fab_ptr = gid_to_fab.at(gid);
                     bool add_to_fab = var_idx < n_mt_vars;
-                    if (debug) fmt::print("Adding next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}\n", (void*) block_fab_ptr, (void*) fab_ptr, gid);
+                    if (debug) fmt::print("Adding next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}, fab_size = {}\n", (void*) block_fab_ptr, (void*) fab_ptr, gid, fab_size);
                     for(int i = 0; i < fab_size; ++i)
                     {
                         total_sum_1 += fab_ptr[i];
@@ -289,7 +303,10 @@ void read_amr_plotfile(std::string infile,
                             block_fab_ptr[i] += fab_ptr[i];
                             n_additions += 1;
                         }
+
+#ifdef REEBER_EXTRA_INTEGRAL
                         block_extra_ptr[i] = fab_ptr[i];
+#endif
                     }
                     if (debug) fmt::print( "Added next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}, n_nans_1 = {}, n_negs_1 = {}, n_infs_1 = {}, totao_sum_1 = {}\n", (void*) block_fab_ptr, (void*) fab_ptr, gid, n_nans_1, n_negs_1, n_infs_1, total_sum_1);
                 }

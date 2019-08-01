@@ -16,6 +16,7 @@
 
 #include "small_set.h"
 
+namespace r = reeber;
 
 template<class Real_>
 class FabConnectedComponent {
@@ -38,6 +39,7 @@ public:
     using VertexValueMap = std::unordered_map<AmrVertexId, Real>;
     using UnionFind = DisjointSets<AmrVertexId>;
 
+    using VertexEdgesMap = std::map<AmrVertexId, AmrEdgeContainer>;
     using ExtraValues = std::map<std::string, Real>;
 
 private:
@@ -54,7 +56,7 @@ private:
     AmrEdgeContainer edges_;
 
     std::size_t n_prev_current_neighbors_ { 0 };
-#ifdef EXTRA_INTEGRAL
+#ifdef REEBER_EXTRA_INTEGRAL
     ExtraValues extra_integral_values_;
 #endif
 
@@ -70,7 +72,7 @@ public:
     const GidSet&       current_gids()      const { return current_gids_; }
     const GidSet&       processed_gids()    const { return processed_gids_; }
 
-#ifdef EXTRA_INTEGRAL
+#ifdef REEBER_EXTRA_INTEGRAL
     const ExtraValues&  extra_values()      const { return extra_integral_values_; }
     void set_extra_values(const ExtraValues& ev) { extra_integral_values_ = ev; }
 #endif
@@ -92,6 +94,8 @@ public:
     void mark_all_gids_processed();
 
     void add_edge(const AmrEdge& e);
+
+    void sparsify(const VertexEdgesMap& vertex_to_outgoing_edges);
 
     // access to tree
     TripletMergeTree tree_;

@@ -112,5 +112,3 @@ void change_to_c_order(FabBlock<T, D>* b)
 
 }
 
-
-void destroy_extra_grids();

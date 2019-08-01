@@ -54,7 +54,7 @@ struct FabComponentBlock {
     using AmrEdge = r::AmrEdge;
     using AmrEdgeContainer = r::AmrEdgeContainer;
     using AmrEdgeSet = std::set<AmrEdge>;
-    using VertexEdgesMap = std::map<AmrVertexId, AmrEdgeContainer>;
+    using VertexEdgesMap = typename Component::VertexEdgesMap;
 
     using GidSet = typename Component::GidSet;
     using GidVector = std::vector<int>;
@@ -62,7 +62,7 @@ struct FabComponentBlock {
     using RealType = Real;
 
 //    using UnionFind = typename Component::UnionFind;
-    using VertexVertexMap = std::unordered_map<AmrVertexId, AmrVertexId>;
+    using VertexVertexMap = std::map<AmrVertexId, AmrVertexId>;
 //    using VertexSizeMap = typename UnionFind::VertexSizeMap;
 
     using Neighbor = typename TripletMergeTree::Neighbor;
@@ -128,8 +128,9 @@ struct FabComponentBlock {
 
     int round_{0};
 
+    int max_gid_ {0};
 
-#ifdef EXTRA_INTEGRAL
+#ifdef REEBER_EXTRA_INTEGRAL
     std::map<int, int> gid_to_level_;
     LocalIntegral local_integral_;
 
@@ -192,12 +193,12 @@ struct FabComponentBlock {
             fab_(nullptr, diy::Point<int, D>::zero())
     {}
 
-    void init(Real absolute_rho, diy::AMRLink *amr_link);
+    void init(Real absolute_rho, diy::AMRLink *amr_link, bool must_set_low);
 
     // compare w.r.t negate_ flag
     bool cmp(Real a, Real b) const;
 
-    void set_low(const diy::Point<int, D>& v_bounds,
+    void set_low(const diy::Point<int, D>& v_core,
                  const Real& absolute_rho);
 
     void set_mask(const diy::Point<int, D>& v_mask,
@@ -259,8 +260,6 @@ struct FabComponentBlock {
 
     void sanity_check_fin() const;
     
-    void destroy_extra_grids();
-
     static void *create()
     {
         return new FabComponentBlock;

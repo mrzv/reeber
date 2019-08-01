@@ -17,6 +17,17 @@ FabConnectedComponent<Real>::FabConnectedComponent(bool negate, const AmrVertexI
 }
 
 template<class Real>
+void FabConnectedComponent<Real>::sparsify(const VertexEdgesMap& vertex_to_outgoing_edges)
+{
+#ifndef REEBER_NO_SPARSIFICATION
+    r::sparsify(tree_,
+            [&vertex_to_outgoing_edges, this](AmrVertexId u) {
+                return u == this->original_deepest() or vertex_to_outgoing_edges.find(u) != vertex_to_outgoing_edges.end();
+            });
+#endif
+}
+
+template<class Real>
 bool FabConnectedComponent<Real>::cmp(Real x, Real y) const
 {
     return negate_ ? x > y : x < y;

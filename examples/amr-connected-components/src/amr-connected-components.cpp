@@ -1,10 +1,13 @@
-//#define ZARIJA
-// if ZARIJA is defined, we read momentum fields
+//#define REEBER_COSMOLOGY_INTEGRAL
+// if REEBER_COSMOLOGY_INTEGRAL is defined, we read momentum fields
 // and divide them by mass to get velocity;
 // fields are hard-coded for NyX
 
+// uncomment to switch off sparsification
+//#define REEBER_NO_SPARSIFICATION
+
 //#define DO_DETAILED_TIMING
-//#define EXTRA_INTEGRAL
+//#define REEBER_EXTRA_INTEGRAL
 
 #include "reeber-real.h"
 
@@ -140,7 +143,7 @@ void read_from_file(std::string infn,
 
     if (ends_with(infn, ".npy"))
     {
-        read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
+//        read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
     } else
     {
         if (split)
@@ -154,6 +157,48 @@ void read_from_file(std::string infn,
     }
 }
 
+void create_fab_cc_blocks(const diy::mpi::communicator& world, int in_memory, int threads, Real rho, bool absolute,
+        bool negate, const diy::FileStorage& storage, diy::Master& master_reader, diy::Master& master,
+        const diy::DiscreteBounds& domain)
+{
+    // copy FabBlocks to FabComponentBlocks
+    // in FabTmtConstructor mask will be set and local trees will be computed
+    // FabBlock can be safely discarded afterwards
+
+    master_reader.foreach(
+            [&master, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
+                auto* l = static_cast<AMRLink*>(cp.link());
+                AMRLink* new_link = new AMRLink(*l);
+
+                // prepare neighbor box info to save in MaskedBox
+                // TODO: refinment vector
+                int local_ref = l->refinement()[0];
+                int local_lev = l->level();
+
+                master.add(cp.gid(),
+                        new Block(b->fab, b->extra_names_, b->extra_fabs_, local_ref, local_lev, domain,
+                                l->bounds(),
+                                l->core(), cp.gid(),
+                                new_link, rho, negate, absolute),
+                        new_link);
+
+            });
+}
+
+void write_tree_blocks(const diy::mpi::communicator& world, bool split, const std::string& output_filename,
+        diy::Master& master)
+{
+    if (output_filename != "none")
+    {
+        if (!split)
+        {
+            diy::io::write_blocks(output_filename, world, master);
+        } else
+        {
+            diy::io::split::write_blocks(output_filename, world, master);
+        }
+    }
+}
 
 int main(int argc, char** argv)
 {
@@ -214,7 +259,7 @@ int main(int argc, char** argv)
 
     int n_mt_vars = all_var_names.size();
 
-#ifdef ZARIJA
+#ifdef REEBER_COSMOLOGY_INTEGRAL
     n_mt_vars = std::min((int) all_var_names.size(), 2);
     bool has_density = std::find(all_var_names.begin(), all_var_names.end(), "density") != all_var_names.end();
     bool has_particle_mass_density =
@@ -333,29 +378,10 @@ int main(int argc, char** argv)
         read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
     }
 
-    world.barrier();
-
     auto time_to_read_data = timer.elapsed();
     dlog::flush();
 
-    if (print_stats)
-    {
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT #!/usr/bin/env python";
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT import numpy as np";
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT import matplotlib.pyplot as plt";
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT n_cores = " << world.size();
-
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT sizes = [ 0 for i in range(n_cores) ]";
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT max_n_gids = [ 0 for i in range(n_cores) ]";
-        LOG_SEV_IF(world.rank() == 0, info) << "STAT total_n_gids = [ 0 for i in range(n_cores) ]";
-        dlog::flush();
-        world.barrier();
-        LOG_SEV_IF(true, info) << "STAT sizes[" << world.rank() << "] = " << master_reader.size();
-        dlog::flush();
-        world.barrier();
-    }
-
-    LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master_reader.size();
+   LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master_reader.size();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
     dlog::flush();
 
@@ -367,31 +393,13 @@ int main(int argc, char** argv)
         timer.restart();
         timer_all.restart();
 
-        // copy FabBlocks to FabComponentBlocks
-        // in FabTmtConstructor mask will be set and local trees will be computed
-        // FabBlock can be safely discarded afterwards
         diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
-                &Block::load);
-        master_reader.foreach(
-                [&master, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
-                    auto* l = static_cast<AMRLink*>(cp.link());
-                    AMRLink* new_link = new AMRLink(*l);
+            &Block::load);
 
-                    // prepare neighbor box info to save in MaskedBox
-                    // TODO: refinment vector
-                    int local_ref = l->refinement()[0];
-                    int local_lev = l->level();
-
-                    master.add(cp.gid(),
-                            new Block(b->fab, b->extra_names_, b->extra_fabs_, local_ref, local_lev, domain,
-                                    l->bounds(),
-                                    l->core(), cp.gid(),
-                                    new_link, rho, negate, absolute),
-                            new_link);
-
-                });
+        create_fab_cc_blocks(world, in_memory, threads, rho, absolute, negate, storage, master_reader, master, domain);
 
         auto time_for_local_computation = timer.elapsed();
+
 
 #ifdef DO_DETAILED_TIMING
         time_to_construct_blocks = timer.elapsed();
@@ -455,7 +463,7 @@ int main(int argc, char** argv)
             long int local_active = 0;
             master.foreach([absolute_rho, &local_active](Block* b, const diy::Master::ProxyWithLink& cp) {
                 AMRLink* l = static_cast<AMRLink*>(cp.link());
-                b->init(absolute_rho, l);
+                b->init(absolute_rho, l, true);
                 cp.collectives()->clear();
                 local_active += b->n_active_;
             });
@@ -492,8 +500,6 @@ int main(int argc, char** argv)
             LOG_SEV_IF(world.rank() == 0, info) << "Sum of active values  = " << total_sum_active
                                                 << ", sum of low = " << total_sum_low
                                                 << ", total sum = " << total_sum_active + total_sum_low;
-
-//            world.barrier();
 
             master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
                 cp.collectives()->clear();
@@ -601,16 +607,7 @@ int main(int argc, char** argv)
         timer.restart();
 
         // save the result
-        if (output_filename != "none")
-        {
-            if (!split)
-            {
-                diy::io::write_blocks(output_filename, world, master);
-            } else
-            {
-                diy::io::split::write_blocks(output_filename, world, master);
-            }
-        }
+        write_tree_blocks(world, split, output_filename, master);
 
         LOG_SEV_IF(world.rank() == 0, info) << "Time to write tree:  " << dlog::clock_to_string(timer.elapsed());
         auto time_for_output = timer.elapsed();
@@ -644,11 +641,11 @@ int main(int argc, char** argv)
                 b->compute_local_integral();
             });
 
-            LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed";
+            LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed\n";
             dlog::flush();
 
-#ifdef EXTRA_INTEGRAL
-#ifdef ZARIJA
+#ifdef REEBER_EXTRA_INTEGRAL
+#ifdef REEBER_COSMOLOGY_INTEGRAL
             master.foreach(
                     [output_integral_filename, domain, min_cells,
                             mean, total_sum, read_plotfile,
@@ -713,38 +710,6 @@ int main(int argc, char** argv)
                                 continue;
 
                             auto& values = root_values_pair.second;
-
-                            if (values.count("n_vertices") == 0)
-                            {
-                                LOG_SEV(error) << "ERROR HERE, no n_vertices, gid =" << b->gid;
-                            }
-
-                            if (has_xmom and values.count("xmom") == 0)
-                            {
-                                LOG_SEV(error) << "ERROR HERE, no xmom, gid =" << b->gid;
-                            }
-
-                            if (has_ymom and values.count("ymom") == 0)
-                            {
-                                LOG_SEV(error) << "ERROR HERE, no ymom, gid =" << b->gid;
-                            }
-
-                            if (has_zmom and values.count("zmom") == 0)
-                            {
-                                LOG_SEV(error) << "ERROR HERE, no zmom, gid =" << b->gid;
-                            }
-
-                            if (has_density and values.count("density") == 0)
-                            {
-                                LOG_SEV(error) << "ERROR HERE, no density gid =" << b->gid;
-                            }
-
-                            if (has_particle_mass_density and values.count("particle_mass_density") == 0)
-                            {
-                                LOG_SEV(error) << "ERROR HERE, no particle_mass_density gid =" << b->gid;
-                            }
-
-                            dlog::flush();
 
                             Real n_vertices = values.at("n_vertices");
                             Real n_vertices_sf = values.at("n_vertices_sf");
@@ -828,30 +793,21 @@ int main(int argc, char** argv)
 
                             auto& values = root_values_pair.second;
 
-                            if (values.count("n_vertices") == 0)
-                            {
-                                fmt::print("ERROR HERE, no n_vertices, gid = {}\n", b->gid);
-                            }
-
-                            if (values.count("n_vertices_sf") == 0)
-                            {
-                                fmt::print("ERROR HERE, no n_vertices_sf, gid = {}\n", b->gid);
-                            }
-
                             Real n_vertices = values.at("n_vertices");
                             Real n_vertices_sf = values.at("n_vertices_sf");
 
                             if (n_vertices_sf < min_cells)
                                 continue;
 
-                            fmt::print(ofs, "{} {} {} {}\n",
-                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
-                                    n_vertices,
+                            fmt::print(ofs, "{} {}\n",
                                     b->local_.global_position(root),
                                     values.at(b->extra_names_.back()));
 
-
-
+//                            fmt::print(ofs, "{} {} {} {}\n",
+//                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
+//                                    n_vertices,
+//                                    b->local_.global_position(root),
+//                                    values.at(b->extra_names_.back()));
                         }
                         ofs.close();
                     });
