@@ -1,6 +1,7 @@
 #ifndef REEBER_AMR_PLOT_READER_H
 #define REEBER_AMR_PLOT_READER_H
 
+
 #include <string>
 
 #include <diy/master.hpp>
@@ -14,6 +15,7 @@ void read_amr_plotfile(std::string infile,
                        int nblocks,
                        diy::Master& master_reader,
                        diy::MemoryBuffer& header,
+                       Real& cell_volume,
                        diy::DiscreteBounds& domain);
 
 #endif //REEBER_AMR_PLOT_READER_H

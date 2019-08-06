@@ -115,6 +115,7 @@ struct FabComponentBlock {
     diy::DiscreteBounds domain_ { D };
     // physical domain at the level of this block
     diy::ContinuousBounds prob_domain_ { D };
+    Real cell_volume_ { 1 };
 
     int done_{0};
 
@@ -131,21 +132,29 @@ struct FabComponentBlock {
     int max_gid_ {0};
 
 #ifdef REEBER_EXTRA_INTEGRAL
-    std::map<int, int> gid_to_level_;
     LocalIntegral local_integral_;
 
     // names of additional fields
     std::vector<std::string> extra_names_;
     // grids of additional fields
     std::vector<diy::GridRef<Real, D>> extra_grids_;
+
+    void compute_local_integral();
+    void multiply_integral_by_cell_volume();
 #endif
 
 
- #ifdef DO_DETAILED_TIMING
+ #ifdef REEBER_DO_DETAILED_TIMING
     using DurationType = decltype(dlog::Timer().elapsed());
 
     DurationType copy_nodes_time { 0 };
     DurationType compute_components_time { 0 };
+    DurationType original_sparsify_time { 0 };
+    DurationType set_low_time { 0 };
+    DurationType original_components_time { 0 };
+    DurationType local_tree_time { 0 };
+    DurationType out_edges_time { 0 };
+    DurationType integral_init_time { 0 };
     DurationType global_receive_time { 0 };
     DurationType process_senders_time { 0 };
     DurationType repair_time { 0 };
@@ -156,6 +165,7 @@ struct FabComponentBlock {
     DurationType ucn_loop_time { 0 };
     DurationType expand_link_time { 0 };
     DurationType is_done_time { 0 };
+    DurationType recv_sparsify_time { 0 };
     DurationType collectives_time { 0 };
     long int merge_calls { 0 };
     long int edges_in_merge { 0 };
@@ -187,7 +197,8 @@ struct FabComponentBlock {
                       diy::AMRLink *amr_link,
                       Real rho,                                           // threshold for LOW value
                       bool _negate,
-                      bool is_absolute_threshold);
+                      bool is_absolute_threshold,
+                      Real cell_volume);
 
     FabComponentBlock() :
             fab_(nullptr, diy::Point<int, D>::zero())
@@ -235,7 +246,6 @@ struct FabComponentBlock {
 
     AmrVertexContainer component_of(AmrVertexId deepest);
 
-    void compute_local_integral();
 
     bool check_symmetry(int gid, const std::vector<Component>& received_components);
 
@@ -259,7 +269,10 @@ struct FabComponentBlock {
     }
 
     void sanity_check_fin() const;
-    
+
+    // return values from local integral concatenated in one string
+    std::string pretty_integral(const AmrVertexId& deepest, const std::vector<std::string>& var_names) const;
+
     static void *create()
     {
         return new FabComponentBlock;

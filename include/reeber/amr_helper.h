@@ -1,8 +1,8 @@
 #ifndef REEBER_AMR_HELPER_H
 #define REEBER_AMR_HELPER_H
 
-//#pragma once
-
+//#define REEBER_EXTRA_INTEGRAL
+//#define REEBER_COMPUTE_GAS_VELOCITIES
 
 #include <assert.h>
 #include <string>

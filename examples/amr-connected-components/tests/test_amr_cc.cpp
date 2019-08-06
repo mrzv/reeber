@@ -424,6 +424,7 @@ TEST_CASE("Ghosts and no ghosts", "[masked_box][dim2]")
 
 
 
+#if 0
 TEST_CASE("Check blocks constructor in simplest case", "[FabTmtBlock][dim2]")
 {
     using Point = diy::DynamicPoint<int, 4>;
@@ -917,6 +918,7 @@ TEST_CASE("Check blocks constructor in simplest case-no ghosts", "[FabTmtBlock][
         }
     }
 }
+#endif
 
 
 /*

@@ -1,13 +1,7 @@
-//#define REEBER_COSMOLOGY_INTEGRAL
-// if REEBER_COSMOLOGY_INTEGRAL is defined, we read momentum fields
-// and divide them by mass to get velocity;
-// fields are hard-coded for NyX
-
 // uncomment to switch off sparsification
 //#define REEBER_NO_SPARSIFICATION
 
-//#define DO_DETAILED_TIMING
-//#define REEBER_EXTRA_INTEGRAL
+#define REEBER_DO_DETAILED_TIMING
 
 #include "reeber-real.h"
 
@@ -143,7 +137,7 @@ void read_from_file(std::string infn,
 
     if (ends_with(infn, ".npy"))
     {
-//        read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
+        read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
     } else
     {
         if (split)
@@ -159,14 +153,14 @@ void read_from_file(std::string infn,
 
 void create_fab_cc_blocks(const diy::mpi::communicator& world, int in_memory, int threads, Real rho, bool absolute,
         bool negate, const diy::FileStorage& storage, diy::Master& master_reader, diy::Master& master,
-        const diy::DiscreteBounds& domain)
+        const Real cell_volume, const diy::DiscreteBounds& domain)
 {
     // copy FabBlocks to FabComponentBlocks
     // in FabTmtConstructor mask will be set and local trees will be computed
     // FabBlock can be safely discarded afterwards
 
     master_reader.foreach(
-            [&master, domain, rho, negate, absolute](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
+            [&master, domain, rho, negate, absolute, cell_volume](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
                 auto* l = static_cast<AMRLink*>(cp.link());
                 AMRLink* new_link = new AMRLink(*l);
 
@@ -179,7 +173,7 @@ void create_fab_cc_blocks(const diy::mpi::communicator& world, int in_memory, in
                         new Block(b->fab, b->extra_names_, b->extra_fabs_, local_ref, local_lev, domain,
                                 l->bounds(),
                                 l->core(), cp.gid(),
-                                new_link, rho, negate, absolute),
+                                new_link, rho, negate, absolute, cell_volume),
                         new_link);
 
             });
@@ -221,7 +215,8 @@ int main(int argc, char** argv)
     Real absolute_rho;
     int min_cells = 10;
 
-    std::string fields_to_read;
+    std::string integral_fields = "";
+    std::string function_fields = "";
 
     int n_runs = 1;
 
@@ -237,7 +232,8 @@ int main(int argc, char** argv)
             >> Option('s', "storage", prefix, "storage prefix")
             >> Option('i', "rho", rho, "iso threshold")
             >> Option('x', "mincells", min_cells, "minimal number of cells to output halo")
-            >> Option('f', "fields", fields_to_read, "fields to read separated with ; ")
+            >> Option('f', "function_fields", function_fields, "fields to add for merge tree, separated with , ")
+            >> Option(      "integral_fields", integral_fields, "fields to integrate separated with , ")
             >> Option('r', "runs", n_runs, "number of runs")
             >> Option('p', "profile", profile_path, "path to keep the execution profile")
             >> Option('l', "log", log_level, "log level");
@@ -253,43 +249,6 @@ int main(int argc, char** argv)
     bool print_stats = ops >> opts::Present("stats", "print statistics");
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
 
-    std::vector<std::string> all_var_names = split_by_delim(fields_to_read,
-            ',');  //{"particle_mass_density", "density", "xmom", "ymom", "zmom"};
-
-
-    int n_mt_vars = all_var_names.size();
-
-#ifdef REEBER_COSMOLOGY_INTEGRAL
-    n_mt_vars = std::min((int) all_var_names.size(), 2);
-    bool has_density = std::find(all_var_names.begin(), all_var_names.end(), "density") != all_var_names.end();
-    bool has_particle_mass_density =
-            std::find(all_var_names.begin(), all_var_names.end(), "particle_mass_density") != all_var_names.end();
-    bool has_xmom = std::find(all_var_names.begin(), all_var_names.end(), "xmom") != all_var_names.end();
-    bool has_ymom = std::find(all_var_names.begin(), all_var_names.end(), "ymom") != all_var_names.end();
-    bool has_zmom = std::find(all_var_names.begin(), all_var_names.end(), "zmom") != all_var_names.end();
-
-    if (!read_plotfile)
-    {
-        n_mt_vars = 1;
-        has_density = false;
-        has_xmom = false;
-        has_ymom = false;
-        has_zmom = false;
-    }
-
-    LOG_SEV_IF(world.rank() == 0, info) << "has_density = " << has_density
-                                        << ", has_particle_mass_density = " << has_particle_mass_density
-                                        << ", has_xmom = " << has_xmom
-                                        << ", has_ymom = " << has_ymom
-                                        << ", has_zmom = " << has_zmom;
-    n_mt_vars = has_density ? 2 : 1;
-#endif
-
-    LOG_SEV_IF(world.rank() == 0, info) << "Reading fields: " << fields_to_read << ", vector = "
-                                        << container_to_string(all_var_names)
-                                        << ", fields to sum = " << n_mt_vars;
-    dlog::flush();
-
     if (ops >> Present('h', "help", "show help message") or
             not(ops >> PosOption(input_filename)) or
             not(ops >> PosOption(output_filename)))
@@ -303,17 +262,44 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    bool write_diag = (ops >> PosOption(output_diagrams_filename));
-    if (output_diagrams_filename == "none")
+    std::vector<std::string> all_var_names;
+    std::vector<std::string> integral_var_names;
+    int n_mt_vars;
+    Real cell_volume = 1.0;
+
+    if (read_plotfile)
     {
-        write_diag = false;
+        std::vector<std::string> function_var_names = split_by_delim(function_fields, ',');  //{"particle_mass_density", "density"};
+        n_mt_vars = function_var_names.size();
+        if (integral_fields.empty())
+        {
+            all_var_names = function_var_names;
+        } else
+        {
+            all_var_names = function_var_names;
+            integral_var_names = split_by_delim(integral_fields, ',');  //{"particle_mass_density", "density"};
+            for(std::string i_name : integral_var_names)
+            {
+                if (std::find(function_var_names.begin(), function_var_names.end(), i_name) == function_var_names.end())
+                {
+                    all_var_names.push_back(i_name);
+                }
+            }
+        }
+    } else
+    {
+        // if reading numpy, ignore field names,
+        // pretend that numpy contains particle density, and there are no extra fields
+        all_var_names.clear();
+        all_var_names.push_back("particle_mass_density");
+        n_mt_vars = all_var_names.size();
     }
 
-    bool write_integral = (ops >> PosOption(output_integral_filename));
-    if (output_integral_filename == "none")
-    {
-        write_integral = false;
-    }
+    LOG_SEV_IF(world.rank() == 0, info) << "Reading fields: " << container_to_string(all_var_names) << ", fields to sum = " << n_mt_vars;
+    dlog::flush();
+
+    bool write_diag = (ops >> PosOption(output_diagrams_filename)) and (output_diagrams_filename != "none");
+    bool write_integral = (ops >> PosOption(output_integral_filename)) and (output_integral_filename != "none");
 
     diy::FileStorage storage(prefix);
 
@@ -329,7 +315,7 @@ int main(int argc, char** argv)
                                         << ", rho = " << rho;
     dlog::flush();
 
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
     // detailed timings
     using DurationType = decltype(timer.elapsed());
 
@@ -372,7 +358,9 @@ int main(int argc, char** argv)
 
     if (read_plotfile)
     {
-        read_amr_plotfile(input_filename, all_var_names, n_mt_vars, world, nblocks, master_reader, header, domain);
+        LOG_SEV_IF(world.rank() == 0, info) << "Reading plotfile, all_var_names = " << container_to_string(all_var_names) << ", n_mt_vars = " << n_mt_vars;
+
+        read_amr_plotfile(input_filename, all_var_names, n_mt_vars, world, nblocks, master_reader, header, cell_volume, domain);
     } else
     {
         read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
@@ -396,12 +384,12 @@ int main(int argc, char** argv)
         diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
             &Block::load);
 
-        create_fab_cc_blocks(world, in_memory, threads, rho, absolute, negate, storage, master_reader, master, domain);
+        create_fab_cc_blocks(world, in_memory, threads, rho, absolute, negate, storage, master_reader, master, cell_volume, domain);
 
         auto time_for_local_computation = timer.elapsed();
 
 
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
         time_to_construct_blocks = timer.elapsed();
 #endif
 
@@ -436,7 +424,7 @@ int main(int argc, char** argv)
             mean = total_sum / total_unmasked;
 
             absolute_rho = rho * mean;                                            // now rho contains absolute threshold
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
             time_to_get_average = timer.elapsed();
 #endif
 
@@ -461,23 +449,21 @@ int main(int argc, char** argv)
             timer.restart();
 
             long int local_active = 0;
-            master.foreach([absolute_rho, &local_active](Block* b, const diy::Master::ProxyWithLink& cp) {
+            master.foreach([absolute_rho, &local_active](Block* b, const diy::Master::ProxyWithLink& cp)
+            {
                 AMRLink* l = static_cast<AMRLink*>(cp.link());
                 b->init(absolute_rho, l, true);
                 cp.collectives()->clear();
                 local_active += b->n_active_;
             });
 
-//            LOG_SEV(info) << "rank = " << world.rank() << ", local active = " << local_active;
             dlog::flush();
 
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
             time_to_init_blocks = timer.elapsed();
 #endif
 
-            LOG_SEV_IF(world.rank() == 0, info) <<
-                                                "Time to initialize FabComponentBlocks (low vertices, local trees, components, outgoing edges): "
-                                                << timer.elapsed();
+            LOG_SEV_IF(world.rank() == 0, info) << "Time to initialize FabComponentBlocks (low vertices, local trees, components, outgoing edges): " << timer.elapsed();
             time_for_local_computation += timer.elapsed();
         }
 
@@ -501,7 +487,8 @@ int main(int argc, char** argv)
                                                 << ", sum of low = " << total_sum_low
                                                 << ", total sum = " << total_sum_active + total_sum_low;
 
-            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp)
+            {
                 cp.collectives()->clear();
             });
 
@@ -515,7 +502,7 @@ int main(int argc, char** argv)
         master.exchange();
         master.foreach(&delete_low_edges_cc<Real, DIM>);
 
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
         time_to_delete_low_edges = timer.elapsed();
 #endif
 
@@ -524,7 +511,7 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
 
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
         cc_exchange_2_time = 0;
         cc_exchange_1_time = 0;
         cc_receive_time = 0;
@@ -536,38 +523,38 @@ int main(int argc, char** argv)
         {
             rounds++;
 
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
             timer_send.restart();
 #endif
 
             master.foreach(&amr_cc_send<Real, DIM>);
 
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
             cc_send_time += timer_send.elapsed();
             timer_cc_exchange.restart();
 #endif
 
             master.exchange();
 
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
             cc_exchange_1_time += timer_cc_exchange.elapsed();
             timer_receieve.restart();
 #endif
 
             master.foreach(&amr_cc_receive<Real, DIM>);
 
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
             cc_receive_time += timer_receieve.elapsed();
 #endif
 
             LOG_SEV_IF(world.rank() == 0, info) << "MASTER round " << rounds << ", get OK";
             dlog::flush();
 
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
             timer_cc_exchange.restart();
 #endif
             master.exchange();
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
             cc_exchange_2_time += timer_cc_exchange.elapsed();
 #endif
 
@@ -623,7 +610,8 @@ int main(int argc, char** argv)
             IsAmrVertexLocal test_local;
             master.foreach(
                     [&extra, &test_local, ignore_zero_persistence, absolute_rho](Block* b,
-                            const diy::Master::ProxyWithLink& cp) {
+                            const diy::Master::ProxyWithLink& cp)
+                    {
                         output_persistence(b, cp, extra, test_local, absolute_rho, ignore_zero_persistence);
                         dlog::flush();
                     });
@@ -634,105 +622,19 @@ int main(int argc, char** argv)
         dlog::flush();
         timer.restart();
 
+#ifdef REEBER_EXTRA_INTEGRAL
         if (write_integral)
         {
-            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp)
+            {
                 b->compute_final_connected_components();
                 b->compute_local_integral();
+                b->multiply_integral_by_cell_volume();
             });
 
             LOG_SEV_IF(world.rank() == 0, info) << "Local integrals computed\n";
             dlog::flush();
-
-#ifdef REEBER_EXTRA_INTEGRAL
-#ifdef REEBER_COSMOLOGY_INTEGRAL
-            master.foreach(
-                    [output_integral_filename, domain, min_cells,
-                            mean, total_sum, read_plotfile,
-                            has_density, has_particle_mass_density,
-                            has_xmom, has_ymom, has_zmom](
-                            Block* b,
-                            const diy::Master::ProxyWithLink& cp) {
-
-                        bool must_output = false;
-                        for(const auto& root_values_pair : b->local_integral_)
-                        {
-                            AmrVertexId root = root_values_pair.first;
-
-                            if (root.gid != b->gid)
-                                continue;
-
-                            auto& values = root_values_pair.second;
-                            Real n_vertices_sf = values.at("n_vertices_sf");
-
-                            Real m_gas = has_density ? values.at("density") : 0;
-                            Real m_particles = has_particle_mass_density ? values.at("particle_mass_density") : 0;
-                            Real m_total = m_gas + m_particles;
-
-                            // TODO: add break after getting rid of debug sums
-                            if (n_vertices_sf >= min_cells)
-                            {
-                                must_output = true;
-                                b->sum_gas_big_halos_ += m_gas;
-                                b->sum_particles_big_halos_ += m_particles;
-                                b->sum_total_big_halos_ += m_total;
-                            } else
-                            {
-                                b->sum_gas_small_halos_ += m_gas;
-                                b->sum_particles_small_halos_ += m_particles;
-                                b->sum_total_small_halos_ += m_total;
-                            }
-                        }
-
-                        if (not must_output)
-                            return;
-
-                        std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
-
-                        std::ofstream ofs(integral_local_fname);
-
-                        diy::Point<int, 3> domain_shape;
-                        for(int i = 0; i < 3; ++i)
-                        {
-                            domain_shape[i] = domain.max[i] - domain.min[i] + 1;
-                        }
-
-                        diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
-
-                        // local integral already stores number of vertices (set in init)
-                        // so we add it here just to print it
-                        b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
-
-                        for(const auto& root_values_pair : b->local_integral_)
-                        {
-                            AmrVertexId root = root_values_pair.first;
-                            if (root.gid != b->gid)
-                                continue;
-
-                            auto& values = root_values_pair.second;
-
-                            Real n_vertices = values.at("n_vertices");
-                            Real n_vertices_sf = values.at("n_vertices_sf");
-
-                            Real function_value = read_plotfile ? 0 : values.at("function_value");
-
-                            if (n_vertices_sf < min_cells)
-                                continue;
-
-                            Real vx = has_xmom ? values.at("xmom") / n_vertices_sf : 0;
-                            Real vy = has_ymom ? values.at("ymom") / n_vertices_sf : 0;
-                            Real vz = has_zmom ? values.at("zmom") / n_vertices_sf : 0;
-
-                            Real m_gas = has_density ? values.at("density") : 0;
-                            Real m_particles = has_particle_mass_density ? values.at("particle_mass_density") : 0;
-                            Real m_total = read_plotfile ? (m_gas + m_particles) : function_value;
-                            Real m_total_normed = m_total / mean;
-
-                            fmt::print(ofs, "{} {} {}\n",
-                                    m_total_normed,
-                                    m_total,
-                                    b->local_.global_position(root)
-                            );
+            world.barrier();
 
 //                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {} {} {}\n",
 //                                    n_vertices_sf,
@@ -742,35 +644,27 @@ int main(int argc, char** argv)
 //                                    b->local_.global_position(root),
 //                                    vx, vy, vz,
 //                                    m_gas, m_particles, m_total);
-                        }
-                        ofs.close();
-                    });
 
-            LOG_SEV_IF(world.rank() == 0, info) << "Local integrals printed";
-            dlog::flush();
-#else
             master.foreach(
-                    [output_integral_filename, domain, min_cells](Block* b, const diy::Master::ProxyWithLink& cp) {
-
-                        std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
-
+                    [&world, output_integral_filename, domain, min_cells, integral_var_names](Block* b, const diy::Master::ProxyWithLink& cp)
+                    {
                         bool must_output = false;
 
                         for(const auto& root_values_pair : b->local_integral_)
                         {
-                            AmrVertexId root = root_values_pair.first;
-                            if (root.gid != b->gid)
+                            if (root_values_pair.first.gid != b->gid)
                                 continue;
-                            auto& values = root_values_pair.second;
-                            Real n_vertices = values.at("n_vertices");
-                            if (n_vertices >= min_cells) {
+                            if (root_values_pair.second.at("n_cells") >= min_cells)
+                            {
                                 must_output = true;
                                 break;
                             }
                         }
+
                         if (not must_output)
                             return;
 
+                        std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
                         std::ofstream ofs(integral_local_fname);
 
                         diy::Point<int, 3> domain_shape;
@@ -781,9 +675,29 @@ int main(int argc, char** argv)
 
                         diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
 
+
                         // local integral already stores number of vertices (set in init)
                         // so we add it here to the list of fields just to print it
-                        b->extra_names_.insert(b->extra_names_.begin(), std::string("n_vertices"));
+
+                        std::vector<std::string> integral_vars = b->extra_names_;
+
+                        integral_vars.insert(integral_vars.begin(), std::string("total_mass"));
+                        integral_vars.insert(integral_vars.begin(), std::string("n_vertices"));
+                        integral_vars.insert(integral_vars.begin(), std::string("n_cells"));
+
+                        bool print_header = false;
+                        if (print_header)
+                        {
+                            std::string integral_header = "# id x y z  ";
+                            for(auto s : integral_vars)
+                            {
+                                integral_header += s;
+                                integral_header += " ";
+                            }
+                            integral_header += "\n";
+
+                            fmt::print(ofs, integral_header);
+                        }
 
                         for(const auto& root_values_pair : b->local_integral_)
                         {
@@ -793,26 +707,29 @@ int main(int argc, char** argv)
 
                             auto& values = root_values_pair.second;
 
-                            Real n_vertices = values.at("n_vertices");
-                            Real n_vertices_sf = values.at("n_vertices_sf");
+                            Real n_cells = values.at("n_cells");
 
-                            if (n_vertices_sf < min_cells)
+                            if (n_cells < min_cells)
                                 continue;
 
-                            fmt::print(ofs, "{} {}\n",
-                                    b->local_.global_position(root),
-                                    values.at(b->extra_names_.back()));
-
-//                            fmt::print(ofs, "{} {} {} {}\n",
-//                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
+//                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {} {} {}\n",
+//                                    n_vertices_sf,
 //                                    n_vertices,
+//                                    root,
+//                                    domain_box.index(b->local_.global_position(root)), // TODO: fix for non-flat AMR
 //                                    b->local_.global_position(root),
-//                                    values.at(b->extra_names_.back()));
+//                                    vx, vy, vz,
+//                                    m_gas, m_particles, m_total);
+
+                            auto root_position = coarsen_point(b->local_.global_position(root), b->refinement(), 1);
+
+                            fmt::print(ofs, "{} {} {}\n",
+                                    domain_box.index(root_position),
+                                    root_position,
+                                    b->pretty_integral(root, integral_vars));
                         }
                         ofs.close();
                     });
-#endif
-#endif
 
             LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
                                                 << dlog::clock_to_string(timer.elapsed());
@@ -822,67 +739,51 @@ int main(int argc, char** argv)
         }
 
         // for debug
-        {
-            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-                cp.collectives()->clear();
-                cp.all_reduce(b->sum_gas_big_halos_, std::plus<Real>());
-                cp.all_reduce(b->sum_particles_big_halos_, std::plus<Real>());
-                cp.all_reduce(b->sum_total_big_halos_, std::plus<Real>());
-
-                cp.all_reduce(b->sum_gas_small_halos_, std::plus<Real>());
-                cp.all_reduce(b->sum_particles_small_halos_, std::plus<Real>());
-                cp.all_reduce(b->sum_total_small_halos_, std::plus<Real>());
-
-            });
-
-            master.exchange();
-
-            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
-
-            Real total_sum_gas_big = proxy.get<Real>();
-            Real total_sum_particles_big = proxy.get<Real>();
-            Real total_sum_mass_big = proxy.get<Real>();
-
-            Real total_sum_gas_small = proxy.get<Real>();
-            Real total_sum_particles_small = proxy.get<Real>();
-            Real total_sum_mass_small = proxy.get<Real>();
-
-            LOG_SEV_IF(world.rank() == 0, info) << "Big gas sum = " << total_sum_gas_big
-                                                << ", big particles sum = " << total_sum_particles_big
-                                                << ", big mass sum = " << total_sum_mass_big;
-
-            LOG_SEV_IF(world.rank() == 0, info) << "Small gas sum = " << total_sum_gas_small
-                                                << ", small particles sum = " << total_sum_particles_small
-                                                << ", small mass sum = " << total_sum_mass_small;
-
-            LOG_SEV_IF(world.rank() == 0, info) << "Big + small gas sum = " << total_sum_gas_small + total_sum_gas_big
-                                                << ", big + small particles sum = "
-                                                << total_sum_particles_small + total_sum_particles_big
-                                                << ", big + small mass sum = "
-                                                << total_sum_mass_small + total_sum_mass_big;
-
-            world.barrier();
-        }
-
-//    master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
-//        auto sum_n_vertices_pair = b->get_local_stats();
-//        cp.collectives()->clear();
-//        cp.all_reduce(sum_n_vertices_pair.first, std::plus<Real>());
-//        cp.all_reduce(sum_n_vertices_pair.second, std::plus<size_t>());
+//#ifdef REEBER_COSMOLOGY_INTEGRAL
+//        {
+//            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp) {
+//                cp.collectives()->clear();
+//                cp.all_reduce(b->sum_gas_big_halos_, std::plus<Real>());
+//                cp.all_reduce(b->sum_particles_big_halos_, std::plus<Real>());
+//                cp.all_reduce(b->sum_total_big_halos_, std::plus<Real>());
 //
-//    });
+//                cp.all_reduce(b->sum_gas_small_halos_, std::plus<Real>());
+//                cp.all_reduce(b->sum_particles_small_halos_, std::plus<Real>());
+//                cp.all_reduce(b->sum_total_small_halos_, std::plus<Real>());
 //
-//    master.exchange();
+//            });
 //
-//    world.barrier();
+//            master.exchange();
 //
-//    const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
+//            const diy::Master::ProxyWithLink& proxy = master.proxy(master.loaded_block());
 //
-//    Real total_value = proxy.get<Real>();
-//    size_t total_vertices = proxy.get<size_t>();
+//            Real total_sum_gas_big = proxy.get<Real>();
+//            Real total_sum_particles_big = proxy.get<Real>();
+//            Real total_sum_mass_big = proxy.get<Real>();
 //
-//    LOG_SEV_IF(world.rank() == 0, info) << "Total value = " << total_value << ", total # vertices = " << total_vertices
-//                                                            << ", mean = " << mean;
+//            Real total_sum_gas_small = proxy.get<Real>();
+//            Real total_sum_particles_small = proxy.get<Real>();
+//            Real total_sum_mass_small = proxy.get<Real>();
+//
+//            LOG_SEV_IF(world.rank() == 0, info) << "Big gas sum = " << total_sum_gas_big
+//                                                << ", big particles sum = " << total_sum_particles_big
+//                                                << ", big mass sum = " << total_sum_mass_big;
+//
+//            LOG_SEV_IF(world.rank() == 0, info) << "Small gas sum = " << total_sum_gas_small
+//                                                << ", small particles sum = " << total_sum_particles_small
+//                                                << ", small mass sum = " << total_sum_mass_small;
+//
+//            LOG_SEV_IF(world.rank() == 0, info) << "Big + small gas sum = " << total_sum_gas_small + total_sum_gas_big
+//                                                << ", big + small particles sum = "
+//                                                << total_sum_particles_small + total_sum_particles_big
+//                                                << ", big + small mass sum = "
+//                                                << total_sum_mass_small + total_sum_mass_big;
+//
+//            world.barrier();
+//        }
+//#endif
+
+#endif
         dlog::flush();
 
         world.barrier();
@@ -893,7 +794,7 @@ int main(int argc, char** argv)
         LOG_SEV_IF(world.rank() == 0, info) << final_timings;
 
         dlog::flush();
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
         std::string final_detailed_timings = fmt::format(
                 "run: {} construct_blocks = {} init_blocks = {} average = {} delete_low_edges = {} cc_send = {} cc_receive = {} cc_exchange_1 = {} cc_exchange_2 = {}\n",
                 n_run, time_to_construct_blocks, time_to_init_blocks, time_to_get_average, time_to_delete_low_edges,
@@ -901,10 +802,6 @@ int main(int argc, char** argv)
         LOG_SEV_IF(world.rank() == 0, info) << final_detailed_timings;
 #endif
 
-        //LOG_SEV_IF(world.rank() == 0, info) << "max_n_gids = [ 0 for i in range(20000) ]";
-        //LOG_SEV_IF(world.rank() == 0, info) << "total_n_gids = [ 0 for i in range(20000) ]";
-
-        world.barrier();
         if (print_stats)
         {
             std::size_t max_n_gids = 0;
@@ -973,7 +870,7 @@ int main(int argc, char** argv)
             timer.restart();
         }
 
-#ifdef DO_DETAILED_TIMING
+#ifdef REEBER_DO_DETAILED_TIMING
         if (n_run == n_runs - 1 or n_run == 0)
         {
 
@@ -1004,6 +901,13 @@ int main(int argc, char** argv)
 
                         cp.all_reduce(b->global_receive_time, diy::mpi::maximum<DurationType>());
 
+                        cp.all_reduce(b->original_sparsify_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(b->set_low_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(b->original_components_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(b->local_tree_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(b->out_edges_time, diy::mpi::maximum<DurationType>());
+                        cp.all_reduce(b->integral_init_time, diy::mpi::maximum<DurationType>());
+
                     });
 
             master.exchange();
@@ -1031,6 +935,13 @@ int main(int argc, char** argv)
             min_time_to_copy_nodes = proxy.get<DurationType>();
 
             DurationType max_block_receive_time = proxy.get<DurationType>();
+
+            DurationType max_original_sparsify_time = proxy.get<DurationType>();
+            DurationType max_set_low_time = proxy.get<DurationType>();
+            DurationType max_original_components_time = proxy.get<DurationType>();
+            DurationType max_local_tree_time = proxy.get<DurationType>();
+            DurationType max_out_edges_time = proxy.get<DurationType>();
+            DurationType max_integral_init_time = proxy.get<DurationType>();
 
 
 
@@ -1073,6 +984,14 @@ int main(int argc, char** argv)
             LOG_SEV_IF(world.rank() == 0, info) << "---------------------------------------";
 
             LOG_SEV_IF(world.rank() == 0, info) << "max_block_receive_time = " << max_block_receive_time;
+
+            LOG_SEV_IF(world.rank() == 0, info) << "max_original_sparsify_time = " << max_original_sparsify_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "max_set_low_time = " << max_set_low_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "max_original_components_time = " << max_original_components_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "max_local_tree_time = " << max_local_tree_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "max_out_edges_time = " << max_out_edges_time;
+            LOG_SEV_IF(world.rank() == 0, info) << "max_integral_init_time = " << max_integral_init_time;
+
 
             if (cc_exchange_2_time == max_cc_exchange_2_time or
                 cc_exchange_2_time == min_cc_exchange_1_time or

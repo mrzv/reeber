@@ -43,6 +43,7 @@ void read_amr_plotfile(std::string infile,
         int nblocks,
         diy::Master& master_reader,
         diy::MemoryBuffer& header,
+        Real& cell_volume,
         diy::DiscreteBounds& domain_diy)
 {
     amrex::Initialize(world);
@@ -54,15 +55,21 @@ void read_amr_plotfile(std::string infile,
     const int n_levels = plotfile.finestLevel() + 1;
     const int finest_level = plotfile.finestLevel();
 
+    cell_volume = 1.0;
+    for(size_t i = 0; i < DIY_DIM; ++i)
+    {
+        cell_volume *= plotfile.cellSize(0)[i];
+    }
+
     // TODO: fix wrap
     int periodic = 0;
-    std::array<bool, 3> is_periodic;
-    for(int i = 0; i < 3; ++i)
+    std::array<bool, DIY_DIM> is_periodic;
+    for(int i = 0; i < DIY_DIM; ++i)
         is_periodic[i] = 1; // periodic & (1 << i);
 
     const Box& domain = plotfile.probDomain(0);
 
-    for(int i = 0; i < 3; ++i)
+    for(int i = 0; i < DIY_DIM; ++i)
     {
         domain_diy.min[i] = domain.loVect()[i];
         domain_diy.max[i] = domain.hiVect()[i];
@@ -105,9 +112,7 @@ void read_amr_plotfile(std::string infile,
 
     std::map<int, Real*> gid_to_fab;
 
-#ifdef REEBER_EXTRA_INTEGRAL
     std::map<int, std::vector<Real*>> gid_to_extra_pointers;
-#endif
 
     for(int var_idx = 0; var_idx < all_var_names.size(); ++var_idx)
     {
@@ -169,7 +174,6 @@ void read_amr_plotfile(std::string infile,
                     gid_to_fab[gid] = fab_ptr_copy;
                     memcpy(fab_ptr_copy, fab_ptr, sizeof(Real) * fab_size);
 
-#ifdef REEBER_EXTRA_INTEGRAL
                     // allocate memory for all fields that we store in FabBlock
                     // actual copying for next fields will happen later
                     std::vector<Real*> extra_pointers;
@@ -182,7 +186,6 @@ void read_amr_plotfile(std::string infile,
 
                     gid_to_extra_pointers[gid] = extra_pointers;
                     memcpy(extra_pointers[0], fab_ptr, sizeof(Real) * fab_size);
-#endif
 
                     for(int i = 0; i < fab_size; ++i)
                     {
@@ -198,11 +201,8 @@ void read_amr_plotfile(std::string infile,
                     }
                     if (debug) { fmt::print("FIELD 0 rank = {}, gid = {}, sum = {}, fabs_size = {}, avg_in_fab = {}, n_nans = {}, n_infs = {}, n_negs = {}, n_wo = {}, avg_wo = {}\n", world.rank(), gid, total_sum, fab_size, total_sum / fab_size, n_nans, n_infs, n_negs, n_wo, total_sum_wo / n_wo); }
 
-#ifdef REEBER_EXTRA_INTEGRAL
                     master_reader.add(gid, new Block(fab_ptr_copy, all_var_names, extra_pointers, a_shape), link);
-#else
-                    master_reader.add(gid, new Block(fab_ptr_copy, a_shape), link);
-#endif
+
                     // record wrap
                     for(int dir_x : {-1, 0, 1})
                     {
@@ -281,9 +281,8 @@ void read_amr_plotfile(std::string infile,
                     }
                 } else
                 {
-#ifdef REEBER_EXTRA_INTEGRAL
                     Real* block_extra_ptr = gid_to_extra_pointers.at(gid).at(var_idx);
-#endif
+
                     Real* block_fab_ptr = gid_to_fab.at(gid);
                     bool add_to_fab = var_idx < n_mt_vars;
                     if (debug) fmt::print("Adding next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}, fab_size = {}\n", (void*) block_fab_ptr, (void*) fab_ptr, gid, fab_size);
@@ -304,9 +303,7 @@ void read_amr_plotfile(std::string infile,
                             n_additions += 1;
                         }
 
-#ifdef REEBER_EXTRA_INTEGRAL
                         block_extra_ptr[i] = fab_ptr[i];
-#endif
                     }
                     if (debug) fmt::print( "Added next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}, n_nans_1 = {}, n_negs_1 = {}, n_infs_1 = {}, totao_sum_1 = {}\n", (void*) block_fab_ptr, (void*) fab_ptr, gid, n_nans_1, n_negs_1, n_infs_1, total_sum_1);
                 }
@@ -314,16 +311,60 @@ void read_amr_plotfile(std::string infile,
         } // loop over all_var_names
     } // loop over levels
 
+
+
+
     if (debug) fmt::print("ADDED n_additions = {}\n", n_additions);
     if (debug) fmt::print("SHAPE_TOT  total_a_vertices = {}\n", total_a_vertices);
     // fill dynamic assigner and fix links
     diy::DynamicAssigner assigner(master_reader.communicator(), master_reader.communicator().size(), nblocks);
     diy::fix_links(master_reader, assigner);
 
-    master_reader.foreach([debug](Block* b, const diy::Master::ProxyWithLink& cp) {
-                auto* l = static_cast<diy::AMRLink*>(cp.link());
-                auto receivers = link_unique(l, cp.gid());
-//                if (debug) fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n", cp.gid(), l->level(), b->fab.shape(), l->core().min, l->core().max, l->bounds().min, l->bounds().max, container_to_string(receivers));
+#ifdef REEBER_COMPUTE_GAS_VELOCITIES
+
+    // find index of gas density
+    auto d_iter = std::find(all_var_names.begin(), all_var_names.end(), "density");
+    if (d_iter == all_var_names.end())
+    {
+        return;
+    }
+    auto d_idx = d_iter - all_var_names.begin();
+
+    // divide momenta by density to get velocities
+    master_reader.foreach([d_idx](Block* b, const diy::Master::ProxyWithLink& cp)
+    {
+        for(size_t i = 0; i < b->extra_names_.size(); ++i)
+        {
+            if (b->extra_names_[i] == "xmom" or b->extra_names_[i] == "ymom" or b->extra_names_[i] == "zmom")
+            {
+                Real* momentum_ptr = b->extra_fabs_[i].data();
+                Real* density_ptr = b->extra_fabs_[d_idx].data();
+                for(size_t j = 0; j < b->extra_fabs_[i].size(); ++j)
+                {
+                    if (density_ptr[j] > 0)
+                    {
+                        momentum_ptr[j] /= density_ptr[j];
+                    }
+                }
+                std::string vel_name = "gas_v_";
+                vel_name.append(b->extra_names_[i], 0, 1);
+                b->extra_names_[i] = vel_name;
+                amrex::Print() << "Velocities computed, names = " << container_to_string(b->extra_names_) << std::endl;
             }
-    );
+        }
+    });
+
+#endif
+
+
+
+    if (debug)
+    {
+        master_reader.foreach([debug](Block* b, const diy::Master::ProxyWithLink& cp)
+        {
+            auto* l = static_cast<diy::AMRLink*>(cp.link());
+            auto receivers = link_unique(l, cp.gid());
+            fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n", cp.gid(), l->level(), b->fab.shape(), l->core().min, l->core().max, l->bounds().min, l->bounds().max, container_to_string(receivers));
+        });
+    }
 }

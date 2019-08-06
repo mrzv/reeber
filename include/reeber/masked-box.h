@@ -215,11 +215,13 @@ namespace reeber {
          */
         MaskValue mask(const Position& p_mask) const
         {
+#ifdef REEBER_ENABLE_CHECKS
             if (not is_valid_mask_position(p_mask))
             {
                 fmt::print("error in mask, p_mask = {}\n", p_mask);
                 throw std::runtime_error("bad p_mask");
             }
+#endif
             //assert(is_valid_mask_position(p_bounds));
             return mask_(p_mask);
         }
@@ -317,7 +319,7 @@ namespace reeber {
          * @param v index of cell (AmrVertexId)
          * @return cell in global coordinates
          */
-         Position global_position(const Vertex& v) const
+        Position global_position(const Vertex& v) const
         {
             Position p = local_box_.vertex(static_cast<size_t>(v));
             return global_position_from_local(p);
@@ -500,11 +502,13 @@ namespace reeber {
             if (not is_valid_mask_position(p_mask))
                 return false;
 
+#ifdef REEBER_ENABLE_CHECKS
             if ((mask_(p_mask) == ACTIVE or mask_(p_mask) == LOW) and is_outer(p_mask))
             {
                 fmt::print("Error in is_outer_edge_start, p_global = {}, p_mask = {}, this = {}, is outer\n", p_global, p_mask, *this);
                 throw std::runtime_error("Error in is_outer_edge_start-2");
             }
+#endif
 
             return mask_(p_mask) != ACTIVE and mask_(p_mask) != LOW;
         }
@@ -556,7 +560,6 @@ namespace reeber {
         const int refinement_ { 0 };
         const int level_ { -1 };
         const int gid_ { -1 };
-
     };
 
 }
