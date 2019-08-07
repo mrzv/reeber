@@ -369,9 +369,10 @@ int main(int argc, char** argv)
 
 #endif
 
+    Real cell_volume = 1;
     if (read_plotfile)
     {
-        read_amr_plotfile(input_filename, all_var_names, n_mt_vars, world, nblocks, master_reader, header, domain);
+        read_amr_plotfile(input_filename, all_var_names, n_mt_vars, world, nblocks, master_reader, header, cell_volume, domain);
     } else
     {
         read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);

@@ -291,6 +291,7 @@ void FabTmtBlock<Real, D>::init(Real absolute_rho, diy::AMRLink* amr_link)
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::sparsify_prune_original_tree()
 {
+#ifndef REEBER_NO_SPARSIFICATION
     std::unordered_set<AmrVertexId> special;
     for(const AmrEdge& out_edge : get_all_outgoing_edges())
     {
@@ -298,14 +299,17 @@ void FabTmtBlock<Real, D>::sparsify_prune_original_tree()
     }
 //    r::remove_degree_two(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
     r::sparsify(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
+#endif
 }
 
 template<class Real, unsigned D>
 void FabTmtBlock<Real, D>::sparsify_local_tree(const FabTmtBlock::AmrVertexSet& keep)
 {
+#ifndef REEBER_NO_SPARSIFICATION
     r::sparsify(current_merge_tree_,
             [this, &keep](AmrVertexId u)
             { return u.gid == this->gid or keep.find(u) != keep.end(); });
+#endif
 }
 template<unsigned D>
 r::AmrEdgeContainer

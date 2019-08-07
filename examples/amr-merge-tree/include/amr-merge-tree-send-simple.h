@@ -164,7 +164,7 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
     std::vector<std::vector<AmrVertexId>> received_deepest_vertices;
     std::vector<std::vector<int>> received_original_gids;
     
-    AmrVertexSet keep;
+    AmrVertexSet keep; // for sparsification
 
     LinkVector received_links;
 
@@ -256,12 +256,14 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
 #ifdef DO_DETAILED_TIMING
         merge_timer.restart();
 #endif
-        
+
+#ifndef REEBER_NO_SPARSIFICATION
         for(auto e : received_edges[i])
         {
             keep.insert(std::get<0>(e));
             keep.insert(std::get<1>(e));
         }
+#endif
 
         r::merge(b->current_merge_tree_, rt, received_edges[i], true);
 
@@ -359,7 +361,9 @@ void amr_tmt_receive(FabTmtBlock<Real, D>* b, const diy::Master::ProxyWithLink& 
     timer.restart();
 #endif
 
+#ifndef REEBER_NO_SPARSIFICATION
     b->sparsify_local_tree(keep);
+#endif
 
 #ifdef DO_DETAILED_TIMING
     b->sparsify_time += timer.elapsed();

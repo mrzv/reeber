@@ -64,12 +64,12 @@ void read_amr_plotfile(std::string infile,
     // TODO: fix wrap
     int periodic = 0;
     std::array<bool, DIY_DIM> is_periodic;
-    for(int i = 0; i < DIY_DIM; ++i)
+    for(size_t i = 0; i < DIY_DIM; ++i)
         is_periodic[i] = 1; // periodic & (1 << i);
 
     const Box& domain = plotfile.probDomain(0);
 
-    for(int i = 0; i < DIY_DIM; ++i)
+    for(size_t i = 0; i < DIY_DIM; ++i)
     {
         domain_diy.min[i] = domain.loVect()[i];
         domain_diy.max[i] = domain.hiVect()[i];
@@ -114,7 +114,7 @@ void read_amr_plotfile(std::string infile,
 
     std::map<int, std::vector<Real*>> gid_to_extra_pointers;
 
-    for(int var_idx = 0; var_idx < all_var_names.size(); ++var_idx)
+    for(size_t var_idx = 0; var_idx < all_var_names.size(); ++var_idx)
     {
         for(int level = 0; level < n_levels; ++level)
         {
@@ -177,7 +177,7 @@ void read_amr_plotfile(std::string infile,
                     // allocate memory for all fields that we store in FabBlock
                     // actual copying for next fields will happen later
                     std::vector<Real*> extra_pointers;
-                    for(int i = 0; i < all_var_names.size(); ++i)
+                    for(size_t i = 0; i < all_var_names.size(); ++i)
                     {
                         Real* extra_ptr_copy = new Real[fab_size];
                         if (debug) fmt::print("amr-plot-reader: gid = {}, size of Real = {}, allocated memory for {}\n", gid, sizeof(Real), all_var_names[var_idx]);
@@ -284,7 +284,7 @@ void read_amr_plotfile(std::string infile,
                     Real* block_extra_ptr = gid_to_extra_pointers.at(gid).at(var_idx);
 
                     Real* block_fab_ptr = gid_to_fab.at(gid);
-                    bool add_to_fab = var_idx < n_mt_vars;
+                    bool add_to_fab = (static_cast<decltype(n_mt_vars)>(var_idx) < n_mt_vars);
                     if (debug) fmt::print("Adding next field, block_fab_ptr = {}, fab_ptr = {}, gid = {}, fab_size = {}\n", (void*) block_fab_ptr, (void*) fab_ptr, gid, fab_size);
                     for(int i = 0; i < fab_size; ++i)
                     {
