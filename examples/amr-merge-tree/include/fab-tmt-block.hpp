@@ -297,6 +297,10 @@ void FabTmtBlock<Real, D>::sparsify_prune_original_tree()
     {
         special.insert(std::get<0>(out_edge));
     }
+    for(AmrVertexId od : original_deepest_)
+    {
+        special.insert(od);
+    }
 //    r::remove_degree_two(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
     r::sparsify(original_tree_, [&special](AmrVertexId u) { return special.find(u) != special.end(); });
 #endif
