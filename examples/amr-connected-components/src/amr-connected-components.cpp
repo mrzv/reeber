@@ -1,7 +1,8 @@
 // uncomment to switch off sparsification
 //#define REEBER_NO_SPARSIFICATION
 
-#define REEBER_DO_DETAILED_TIMING
+//#define REEBER_DO_DETAILED_TIMING
+#define REEBER_EXTRA_INTEGRAL
 
 #include "reeber-real.h"
 
