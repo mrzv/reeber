@@ -17,14 +17,15 @@ if                          (NOT CMAKE_BUILD_TYPE)
 endif                       (NOT CMAKE_BUILD_TYPE)
 
 # Debugging
-if                          (${CMAKE_BUILD_TYPE} STREQUAL "Debug" OR
-                             ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
+if                          (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     add_definitions         (-DDEBUG)
 endif                       ()
 
 # Find everything that's always required
 find_package                (Boost)
+
 find_package                (MPI REQUIRED)
+
 find_package                (Threads)
 
 # TBB
@@ -42,7 +43,7 @@ find_library                (TBB_MALLOC_LIBRARY NAMES tbbmalloc)
    endif                    (TBB_INCLUDE_DIRS AND TBB_LIBRARY AND TBB_MALLOC_LIBRARY)
 endif                       (use-tbb)
 
-set                         (CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+set                         (CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
 
 if                          (profile)
     add_definitions         (-DPROFILE)
@@ -91,11 +92,6 @@ set                         (libraries
                              ${TBB_MALLOC_LIBRARY}
                              ${MPI_C_LIBRARIES}
                              ${MPI_CXX_LIBRARIES})
-
-# Sources
-add_library                 (format ${CMAKE_SOURCE_DIR}/src/format.cpp)
-set                         (libraries ${libraries} format)
-
 
 # backwards.hpp
 if                          (debug)

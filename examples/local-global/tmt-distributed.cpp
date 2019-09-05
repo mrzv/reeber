@@ -17,23 +17,11 @@
 #include <diy/partners/swap.hpp>
 #include <diy/io/block.hpp>
 
-#include "format.h"
 #include "memory.h"
 
 #include "reader-interfaces.h"
 #include "triplet-merge-tree-block.h"
 #include <reeber/distributed-tmt.h>
-
-void record_stats(const char* message, const char* format, fmt::ArgList args)
-{
-    fmt::print(dlog::stats, "{:<25} ", message);
-    fmt::print(dlog::stats, format, args);
-    fmt::print(dlog::stats, " (hwm = {})", proc_status_value("VmHWM"));
-    fmt::print(dlog::stats, "\n");
-    dlog::prof.flush();
-    dlog::stats.flush();
-}
-FMT_VARIADIC(void, record_stats, const char*, const char*)
 
 // debug only
 void save_grids(void* b_, const diy::Master::ProxyWithLink& cp, void*)

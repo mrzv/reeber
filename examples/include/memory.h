@@ -8,6 +8,9 @@
 #include <string>
 #include <sstream>
 
+#include <format.h>
+#include <dlog/stats.h>
+
 // From http://stackoverflow.com/questions/669438/how-to-get-memory-usage-at-run-time-in-c
 
 //////////////////////////////////////////////////////////////////////////////
@@ -83,5 +86,17 @@ inline size_t proc_status_value(const std::string& field)
 #endif
     return 0;
 }
+
+template<class... Args>
+void record_stats(const char* message, const char* format, Args&&... args)
+{
+    fmt::print(dlog::stats, "{:<25} ", message);
+    fmt::print(dlog::stats, format, args...);
+    fmt::print(dlog::stats, " (hwm = {})", proc_status_value("VmHWM"));
+    fmt::print(dlog::stats, "\n");
+    dlog::prof.flush();
+    dlog::stats.flush();
+}
+
 
 #endif
