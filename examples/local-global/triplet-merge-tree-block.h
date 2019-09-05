@@ -23,7 +23,6 @@ struct TripletMergeTreeBlock
     typedef     Grid::Value                       Value;
     typedef     r::Box<3>                         Box;
     typedef     r::TripletMergeTree<Index, Value> TripletMergeTree;
-    typedef     TripletMergeTree::Neighbor        Neighbor;
     typedef     std::vector<Real>                 Size;
 
     typedef     std::tuple<Index, Index>          Edge;
@@ -31,16 +30,12 @@ struct TripletMergeTreeBlock
     using EdgeMap  = reeber::EdgeMap<Index, Value>;
     using EdgeMaps = reeber::EdgeMaps<Index, Value>;
 
-    using RealType = Real;
-
     static void*            create()                                        { return new TripletMergeTreeBlock; }
     static void             destroy(void* b)                                { delete static_cast<TripletMergeTreeBlock*>(b); }
     static void             save(const void* b, diy::BinaryBuffer& bb)      { diy::save(bb, *static_cast<const TripletMergeTreeBlock*>(b)); }
     static void             load(      void* b, diy::BinaryBuffer& bb)      { diy::load(bb, *static_cast<TripletMergeTreeBlock*>(b)); }
 
     inline void             compute_average(const diy::Master::ProxyWithLink& cp, void*);
-
-    const TripletMergeTree& get_merge_tree()          const                  { return mt; }
 
     int                     gid;
     Box                     local;

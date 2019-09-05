@@ -19,27 +19,7 @@
 #include "reader-interfaces.h"
 #include "ghosts.h"
 #include "merge-tree-block.h"
-#include "output-persistence.h"
 #include "prune.h"
-
-typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
-
-struct LocalFunctorDecomposer
-{
-    using Block = MergeTreeBlock;
-    using Neighbor = Block::MergeTree::Neighbor;
-
-    LocalFunctorDecomposer(const Decomposer& _decomposer) : decomposer(_decomposer)
-    {}
-
-    bool operator()(const Block& b, const Neighbor &from) const
-    {
-        auto from_position = b.global.position(from->vertex);
-        return decomposer.lowest_gid(from_position) == b.gid;
-    }
-
-    const Decomposer& decomposer;
-};
 
 // Load the specified chunk of data, compute local merge tree, add block to diy::Master
 struct LoadAdd
@@ -314,15 +294,12 @@ int main(int argc, char** argv)
     std::string profile_path;
     std::string log_level = "info";
 
-    Real rho = 81.66;
-
     Options ops(argc, argv);
     ops
         >> Option('b', "blocks",    nblocks,      "number of blocks to use")
         >> Option('m', "memory",    in_memory,    "maximum blocks to store in memory")
         >> Option('j', "jobs",      threads,      "threads to use during the computation")
         >> Option('s', "storage",   prefix,       "storage prefix")
-        >> Option('t', "threshold", rho,          "threshold")
         >> Option('p', "profile",   profile_path, "path to keep the execution profile")
         >> Option('l', "log",       log_level,    "log level")
     ;
@@ -330,10 +307,8 @@ int main(int argc, char** argv)
     bool        wrap_       = ops >> Present('w', "wrap",   "periodic boundary conditions");
     bool        split       = ops >> Present(     "split",  "use split IO");
     bool        compact     = ops >> Present('c', "compact", "compute compact representation (store only local minima)");
-    bool        absolute    = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
 
-
-    std::string infn, outfn, outdiag;
+    std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
         !(ops >> PosOption(infn) >> PosOption(outfn)))
     {
@@ -349,8 +324,6 @@ int main(int argc, char** argv)
         }
         return 1;
     }
-
-    bool write_diag = (ops >> PosOption(outdiag));
 
     dlog::add_stream(std::cerr, dlog::severity(log_level))
         << dlog::stamp() << dlog::aux_reporter(world.rank()) << dlog::color_pre() << dlog::level() << dlog::color_post() >> dlog::flush();
@@ -370,7 +343,7 @@ int main(int argc, char** argv)
 
     world.barrier();
     dlog::Timer timer;
-    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, infn = " << infn;
+    LOG_SEV_IF(world.rank() == 0, info) << "Starting computation";
 
     diy::FileStorage            storage(prefix);
 
@@ -456,18 +429,6 @@ int main(int argc, char** argv)
     world.barrier();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to output trees:    " << dlog::clock_to_string(timer.elapsed());
     timer.restart();
-
-
-    if (write_diag) {
-        // output persistence
-        bool verbose = false;
-        bool ignore_zero_persistence = true;
-        LocalFunctorDecomposer local_functor(decomposer);
-        OutputPairs<MergeTreeBlock, LocalFunctorDecomposer>::ExtraInfo extra(outdiag, verbose, world);
-        master.foreach([&extra, &local_functor, ignore_zero_persistence, rho](MergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
-            output_persistence(b, cp, extra, local_functor, rho, ignore_zero_persistence);
-        });
-    }
 
     dlog::prof.flush();     // TODO: this is necessary because the profile file will close before
                             //       the global dlog::prof goes out of scope and flushes the events.

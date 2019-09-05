@@ -23,26 +23,6 @@
 #include "reader-interfaces.h"
 #include "edges.h"
 #include "triplet-merge-tree-block.h"
-#include "output-persistence.h"
-
-typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
-
-struct LocalFunctorDecomposer
-{
-    using Block = TripletMergeTreeBlock;
-    using Neighbor = Block::TripletMergeTree::Neighbor;
-
-    LocalFunctorDecomposer(const Decomposer& _decomposer) : decomposer(_decomposer)
-    {}
-
-    bool operator()(const Block& b, const Neighbor &from) const
-    {
-        auto from_position = b.global.position(from->vertex);
-        return decomposer.lowest_gid(from_position) == b.gid;
-    }
-
-    const Decomposer& decomposer;
-};
 
 // Load the specified chunk of data, compute local merge tree, add block to diy::Master
 struct LoadAdd
@@ -292,16 +272,6 @@ void test_link(void* b_, const diy::Master::ProxyWithLink& cp, void*)
         fmt::print("  {} -> {}\n", u, b->local.position(u));
 }
 
-void print_persistence(void* b_, const diy::Master::ProxyWithLink& cp)
-{
-    using Neighbor = TripletMergeTreeBlock::TripletMergeTree::Neighbor;
-    TripletMergeTreeBlock* b = static_cast<TripletMergeTreeBlock*>(b_);
-    reeber::traverse_persistence(b->mt, [](Neighbor from, Neighbor through, Neighbor to) {
-        fmt::print("{} {}\n", from->value, through->value);
-    });
-}
-
-
 int main(int argc, char** argv)
 {
     diy::mpi::environment   env(argc, argv);
@@ -321,15 +291,12 @@ int main(int argc, char** argv)
     std::string log_level = "info";
     int         threads = r::task_scheduler_init::automatic;
 
-    Real rho = 81.66;
-
     Options ops(argc, argv);
     ops
         >> Option('b', "blocks",    nblocks,      "number of blocks to use")
         >> Option('m', "memory",    in_memory,    "maximum blocks to store in memory")
         >> Option('j', "jobs",      jobs,         "threads to use during the computation")
         >> Option('s', "storage",   prefix,       "storage prefix")
-        >> Option('t', "threshold", rho, "threshold")
         >> Option('p', "profile",   profile_path, "path to keep the execution profile")
         >> Option('l', "log",       log_level,    "log level")
         >> Option('t', "threads",   threads,      "number of threads to use (with TBB)")
@@ -337,9 +304,8 @@ int main(int argc, char** argv)
     bool        negate      = ops >> Present('n', "negate", "sweep superlevel sets");
     bool        wrap_       = ops >> Present('w', "wrap",   "periodic boundary conditions");
     bool        split       = ops >> Present(     "split",  "use split IO");
-//    bool     absolute       = ops >> Present('a', "absolute", "use absolute values for thresholds (instead of multiples of mean)");
 
-    std::string infn, outfn, outdiag;
+    std::string infn, outfn;
     if (  ops >> Present('h', "help", "show help message") ||
         !(ops >> PosOption(infn) >> PosOption(outfn)))
     {
@@ -355,8 +321,6 @@ int main(int argc, char** argv)
         }
         return 1;
     }
-
-    bool write_diag = (ops >> PosOption(outdiag));
 
     r::task_scheduler_init init(threads);
 
@@ -488,22 +452,4 @@ int main(int argc, char** argv)
                             //       the global dlog::prof goes out of scope and flushes the events.
                             //       Need to eventually fix this.
     dlog::stats.flush();
-
-    master.foreach([](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
-        fmt::print("--------------------\n", b->gid, b->mt.size());
-        fmt::print("Block {} done, #nodes = {}\n", b->gid, b->mt.size());
-        fmt::print("--------------------\n", b->gid, b->mt.size());
-    });
-
-    if (write_diag)
-    {
-        // output persistence
-        bool verbose = false;
-        bool ignore_zero_persistence = true;
-        LocalFunctorDecomposer local_functor(decomposer);
-        OutputPairs<TripletMergeTreeBlock, LocalFunctorDecomposer>::ExtraInfo extra(outdiag, verbose, world);
-        master.foreach([&extra, &local_functor, ignore_zero_persistence, rho](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
-            output_persistence(b, cp, extra, local_functor, rho, ignore_zero_persistence);
-        });
-    }
 }

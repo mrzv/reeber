@@ -25,7 +25,7 @@
 #include "fab-tmt-block.h"
 #include "reader-interfaces.h"
 
-#include "../../local-global/output-persistence.h"
+#include <output-persistence.h>
 
 #include "read-npy.h"
 

@@ -11,28 +11,61 @@
 #include "format.h"
 
 #include "triplet-merge-tree-block.h"
-#include "output-persistence.h"
 
 typedef diy::RegularDecomposer<diy::DiscreteBounds>                 Decomposer;
 
-struct IsLocalTest
+struct OutputPairs
 {
-    using Position = TripletMergeTreeBlock::Box::Position;
-    using Neighbor = TripletMergeTreeBlock::TripletMergeTree::Neighbor;
-
-    const Decomposer& decomposer;
-
-    IsLocalTest(const Decomposer& decomposer_) : decomposer(decomposer_) {}
-
-    bool operator()(const TripletMergeTreeBlock& block, Neighbor from) const
+    struct ExtraInfo
     {
-        Position from_position = block.global.position(from->vertex);
-        return decomposer.lowest_gid(from_position) == block.gid;
+                            ExtraInfo(const std::string& outfn_, const Decomposer& decomposer_, bool verbose_):
+                                outfn(outfn_), decomposer(decomposer_), verbose(verbose_)   {}
+        std::string         outfn;
+        const Decomposer&   decomposer;
+        bool                verbose;
+    };
+
+    typedef TripletMergeTreeBlock::TripletMergeTree::Neighbor  Neighbor;
+    typedef TripletMergeTreeBlock::Box                         Box;
+
+            OutputPairs(const TripletMergeTreeBlock& block_, const ExtraInfo& extra_):
+                block(block_),
+                extra(extra_)
+    {
+        std::string   dgm_fn = fmt::format("{}-b{}.dgm", extra.outfn, block.gid);
+        ofs.open(dgm_fn.c_str());
     }
+
+    void    operator()(Neighbor from, Neighbor through, Neighbor to) const
+    {
+        Box::Position from_position = block.global.position(from->vertex);
+        if (extra.decomposer.lowest_gid(from_position) != block.gid)
+            return;
+
+        if (extra.verbose)
+        {
+            if (from != to)
+                fmt::print(ofs, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
+            else
+                fmt::print(ofs, "{} {} {} --\n",       from->vertex,  from->value, (block.mt.negate() ? "-inf" : "inf"));
+        } else
+            fmt::print(ofs, "{} {}\n", from->value, through->value);
+    }
+
+    const TripletMergeTreeBlock&       block;
+    const ExtraInfo&                   extra;
+    mutable std::ofstream              ofs;
 };
 
+void output_persistence(TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp, const OutputPairs::ExtraInfo& extra)
+{
+    LOG_SEV(debug) << "Block:   " << cp.gid();
+    LOG_SEV(debug) << " Tree:   " << b->mt.size();
+    LOG_SEV(debug) << " Local:  " << b->local.from()  << " - " << b->local.to();
+    LOG_SEV(debug) << " Global: " << b->global.from() << " - " << b->global.to();
 
-using OutputPairsR = OutputPairs<TripletMergeTreeBlock, IsLocalTest>;
+    r::traverse_persistence(b->mt, OutputPairs(*b, extra));
+}
 
 int main(int argc, char** argv)
 {
@@ -47,12 +80,10 @@ int main(int argc, char** argv)
 
     std::string profile_path;
     std::string log_level = "info";
-    Real rho;
     Options ops(argc, argv);
     ops
         >> Option('m', "memory",    in_memory,    "maximum blocks to store in memory")
         >> Option('j', "jobs",      threads,      "threads to use during the computation")
-        >> Option('t', "threshold", rho, "threshold")
         >> Option('s', "storage",   prefix,       "storage prefix")
         >> Option('p', "profile",   profile_path, "path to keep the execution profile")
         >> Option('l', "log",       log_level,    "log level")
@@ -110,15 +141,11 @@ int main(int argc, char** argv)
         domain.min[i] = global.from()[i];
         domain.max[i] = global.to()[i];
     }
+    diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner.nblocks());
 
     // output persistence
-    diy::RegularDecomposer<diy::DiscreteBounds>     decomposer(3, domain, assigner.nblocks());
-    IsLocalTest test_local(decomposer);
-
-    bool ignore_zero_persistence = false;
-    OutputPairsR::ExtraInfo extra(outfn, verbose, world);
-    master.foreach([&extra, &test_local, rho, ignore_zero_persistence] (TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) {
-        output_persistence(b, cp, extra, test_local, rho, ignore_zero_persistence); });
+    OutputPairs::ExtraInfo extra(outfn, decomposer, verbose);
+    master.foreach([&extra](TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp) { output_persistence(b,cp,extra); });
 
     dlog::prof.flush();
 }

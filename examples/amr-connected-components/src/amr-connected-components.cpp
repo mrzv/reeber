@@ -28,7 +28,7 @@
 #include "fab-cc-block.h"
 #include "reader-interfaces.h"
 
-#include "../../local-global/output-persistence.h"
+#include <output-persistence.h>
 
 #include "../../amr-merge-tree/include/read-npy.h"
 

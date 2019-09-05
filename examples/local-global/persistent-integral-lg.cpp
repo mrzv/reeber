@@ -342,7 +342,7 @@ int main(int argc, char** argv)
     diy::ContiguousAssigner     assigner(world.size(), 0);
 
     // load the trees
-    LOG_SEV_IF(world.rank() == 0, info) << "Reading blocks from " << infn;
+    LOG_SEV_IF(world.rank() == 0, debug) << "Reading blocks from " << infn;
     if (!split)
         diy::io::read_blocks(infn, world, assigner, mt_master);
     else
