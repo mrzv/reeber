@@ -101,11 +101,6 @@ set                         (libraries
                              ${MPI_C_LIBRARIES}
                              ${MPI_CXX_LIBRARIES})
 
-# Sources
-add_library                 (format ${CMAKE_SOURCE_DIR}/src/format.cpp)
-set                         (libraries ${libraries} format)
-
-
 # backwards.hpp
 if                          (debug)
     find_library            (LIBDW_LIBRARY NAMES dw)

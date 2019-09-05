@@ -30,6 +30,8 @@
 
 #include <diy/thread.hpp>
 
+#include <format.h>
+
 namespace dlog
 {
 
@@ -154,13 +156,11 @@ std::string
 dlog::
 clock_to_string(time_type time)
 {
-    char buf[13];       // +1 for the trailing null
-    sprintf(buf, "%02d:%02d:%02d.%03d",
-            (unsigned) time/1000/60/60,
-            (unsigned) time/1000/60 % 60,
-            (unsigned) time/1000 % 60,
-            (unsigned) time % 1000);
-    return buf;
+    return fmt::format("{:2d}:{:2d}:{:2d}.{:3d}",
+                        (unsigned) time/1000/60/60,
+                        (unsigned) time/1000/60 % 60,
+                        (unsigned) time/1000 % 60,
+                        (unsigned) time % 1000);
 }
 
 dlog::time_type

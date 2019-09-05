@@ -107,17 +107,6 @@ struct LoadAdd
     bool                    wrap;
 };
 
-void record_stats(const char* message, const char* format, fmt::ArgList args)
-{
-    fmt::print(dlog::stats, "{:<25} ", message);
-    fmt::print(dlog::stats, format, args);
-    fmt::print(dlog::stats, " (hwm = {})", proc_status_value("VmHWM"));
-    fmt::print(dlog::stats, "\n");
-    dlog::prof.flush();
-    dlog::stats.flush();
-}
-FMT_VARIADIC(void, record_stats, const char*, const char*)
-
 void compute_tree(MergeTreeBlock* b, const diy::Master::ProxyWithLink& cp, bool compact)
 {
     record_stats("Local box:", "{}", b->local);
