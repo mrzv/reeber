@@ -45,11 +45,11 @@ struct OutputPairs
         if (extra.verbose)
         {
             if (from != to)
-                fmt::print(ofs, "{} {} {} {} {} {}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
+                fmt::print(ofs, "{} {:g} {} {:g} {} {:g}\n", from->vertex, from->value, through->vertex, through->value, to->vertex, to->value);
             else
-                fmt::print(ofs, "{} {} {} --\n",       from->vertex,  from->value, (block.mt.negate() ? "-inf" : "inf"));
+                fmt::print(ofs, "{} {:g} {} --\n",       from->vertex,  from->value, (block.mt.negate() ? "-inf" : "inf"));
         } else
-            fmt::print(ofs, "{} {}\n", from->value, through->value);
+            fmt::print(ofs, "{:g} {:g}\n", from->value, through->value);
     }
 
     const TripletMergeTreeBlock&       block;
