@@ -58,6 +58,8 @@ target_link_libraries(amr_merge_tree_simple_${real} PUBLIC ${libraries})
 target_link_libraries(amr_merge_tree_test_${real} PUBLIC ${libraries})
 target_link_libraries(write_refined_amr_${real} PUBLIC ${libraries})
 
+add_test(amr-merge-tree-test-${real} amr_merge_tree_test_${real})
+
 if (MPI_COMPILE_FLAGS)
     set_target_properties(amr_merge_tree_simple_${real} PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
     set_target_properties(write_refined_amr_${real} PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
