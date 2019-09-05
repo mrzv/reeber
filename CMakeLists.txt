@@ -17,21 +17,13 @@ if                          (NOT CMAKE_BUILD_TYPE)
 endif                       (NOT CMAKE_BUILD_TYPE)
 
 # Debugging
-if                          (${CMAKE_BUILD_TYPE} STREQUAL "Debug" 
-                             #OR ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo"
-                             )
+if                          (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     add_definitions         (-DDEBUG)
 endif                       ()
-
-if                          (${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
-    add_definitions         (-DNDEBUG)
-endif                       ()
-
 
 # Find everything that's always required
 find_package                (Boost)
 
-set(MPI_EXECUTABLE_SUFFIX ".openmpi")
 find_package                (MPI REQUIRED)
 
 find_package                (Threads)
