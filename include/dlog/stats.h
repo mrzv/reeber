@@ -156,7 +156,7 @@ std::string
 dlog::
 clock_to_string(time_type time)
 {
-    return fmt::format("{:2d}:{:2d}:{:2d}.{:3d}",
+    return fmt::format("{:02d}:{:02d}:{:02d}.{:03d}",
                         (unsigned) time/1000/60/60,
                         (unsigned) time/1000/60 % 60,
                         (unsigned) time/1000 % 60,
