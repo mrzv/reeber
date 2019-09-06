@@ -66,7 +66,7 @@ class TripletMergeTree
     public:
                     TripletMergeTree(bool negate = false):
                         negate_(negate)                 {}
-                    ~TripletMergeTree()                 { if (is_node_owner_) for (auto n : nodes_) delete_node(n.second); }
+                    ~TripletMergeTree()                 { for (auto n : nodes_) delete_node(n.second); }
 
         // It's Ok to move the tree; it's not Ok to copy it (because of the dynamically allocated nodes)
                     TripletMergeTree(const TripletMergeTree&)   =delete;
@@ -81,7 +81,6 @@ class TripletMergeTree
         Neighbor    add(const Vertex& x, Value v);
         Neighbor    find_or_add(const Vertex& x, Value v);
         Neighbor    add_or_update(const Vertex& x, Value v);
-        void        make_shallow_copy(TripletMergeTree& other);
         void        make_deep_copy(TripletMergeTree& other);
         void        link(const Neighbor u, const Neighbor s, const Neighbor v)
                                                         { u->parent_ = Node::make_parent(s, v); }
@@ -166,7 +165,6 @@ class TripletMergeTree
         bool                        negate_;
         VertexNeighborMap           nodes_;
         allocator<Node>             alloc_;
-        bool                        is_node_owner_ { true };
 };
 
 /**

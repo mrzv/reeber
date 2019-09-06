@@ -29,38 +29,6 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
 
     bool is_ghost = local_.is_outer(v_mask);
 
-
-    // TODO: get rid of this!
-//    if (is_in_core and is_on_boundary)
-//    {
-//        Real new_value = 0;
-//        int n = 0;
-//        for(auto internal_v_global : local_.inside_link(v_global))
-//        {
-//            auto internal_v = local_.local_position_from_global(internal_v_global);
-////            if (debug) fmt::print("HERE: internal_v = {}, internal_v_global = {}, v_global = {}\n", internal_v, internal_v_global, v_global);
-//            new_value += fab_(internal_v);
-//            ++n;
-//        }
-//
-//        if (n  == 0)
-//            throw std::runtime_error("zero division in correction code");
-//        new_value /= n;
-//
-//        if (debug)
-//        {
-//            Real old_value = fab_(v_local);
-//            fab_(v_local) = new_value;
-//            if (debug)
-//            {
-//                fmt::print(
-//                        "gid = {}, in set_mask, v_mask = {}, old_value = {}, new_value = {}, is_ghost = {}, is_on_boundary = {}, is_in_core = {}\n",
-//                        debug_gid, v_mask,
-//                        old_value, new_value, is_ghost, is_on_boundary, is_in_core);
-//            }
-//        }
-//    }
-
     Real value = std::numeric_limits<Real>::infinity();
     if (is_in_core)
     {
