@@ -730,6 +730,8 @@ int main(int argc, char** argv)
 
                 bool debug = false;
 
+                cp.collectives()->clear();
+
                 if (debug) fmt::print("PI gid = {}, started final_cc\n", b->gid);
                 b->compute_final_connected_components();
                 if (debug) fmt::print("PI gid = {}, final_cc done\n", b->gid);
