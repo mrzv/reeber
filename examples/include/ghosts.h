@@ -40,7 +40,7 @@ struct EnqueueGhosts
         {
             unsigned side = spread_bits(i, 2);      // spread the bits into even positions
 
-            int nbr = l->direction(diy::Direction(side));
+            int nbr = l->direction(diy::Direction(Box::dimension(), side));
             if (nbr == -1)
                 continue;
 
@@ -83,7 +83,7 @@ struct DequeueGhosts
         {
             unsigned side = spread_bits(i, 2) << 1;      // spread the bits into odd positions
 
-            int nbr = l->direction(diy::Direction(side));
+            int nbr = l->direction(diy::Direction(Box::dimension(), side));
             if (nbr == -1)
                 continue;
 

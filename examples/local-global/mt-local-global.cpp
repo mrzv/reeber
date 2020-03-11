@@ -260,7 +260,7 @@ int main(int argc, char** argv)
     Reader* reader_ptr = Reader::create(infn, world);
     Reader& reader  = *reader_ptr;
 
-    diy::DiscreteBounds domain;
+    diy::DiscreteBounds domain(0);
     domain.min[0] = domain.min[1] = domain.min[2] = 0;
     for (unsigned i = 0; i < reader.shape().size(); ++i)
       domain.max[i] = reader.shape()[i] - 1;

@@ -898,7 +898,7 @@ void FabComponentBlock<Real, D>::save(const void* b, diy::BinaryBuffer& bb)
     diy::save(bb, block->vertex_to_deepest_);
     diy::save(bb, block->merge_tree_);
     diy::save(bb, block->local_diagrams_);
-    diy::save(bb, block->components_);
+    //diy::save(bb, block->components_);
 }
 
 template<class Real, unsigned D>
@@ -913,6 +913,6 @@ void FabComponentBlock<Real, D>::load(void* b, diy::BinaryBuffer& bb)
     diy::load(bb, block->vertex_to_deepest_);
     diy::load(bb, block->merge_tree_);
     diy::load(bb, block->local_diagrams_);
-    diy::load(bb, block->components_);
+    //diy::load(bb, block->components_);
 }
 

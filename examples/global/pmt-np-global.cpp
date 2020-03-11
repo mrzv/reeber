@@ -108,7 +108,7 @@ int main(int argc, char** argv)
     Reader* reader_ptr = Reader::create(infn, world);
     Reader& reader  = *reader_ptr;
 
-    diy::DiscreteBounds box;
+    diy::DiscreteBounds box(0);
     for (unsigned i = 0; i < 3; ++i)
     {
         box.min[i] = 0;
@@ -188,7 +188,7 @@ int main(int argc, char** argv)
             {
                 for (const Index& v : edges_domain.link(u))
                 {
-                    if (domain2.contains(v)) edges.push_back(std::make_tuple(u, v)); 
+                    if (domain2.contains(v)) edges.push_back(std::make_tuple(u, v));
                 }
             }
             ++it;

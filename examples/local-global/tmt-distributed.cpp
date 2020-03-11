@@ -24,16 +24,16 @@
 #include "triplet-merge-tree-block.h"
 #include <reeber/distributed-tmt.h>
 
-void record_stats(const char* message, const char* format, fmt::ArgList args)
-{
-    fmt::print(dlog::stats, "{:<25} ", message);
-    fmt::print(dlog::stats, format, args);
-    fmt::print(dlog::stats, " (hwm = {})", proc_status_value("VmHWM"));
-    fmt::print(dlog::stats, "\n");
-    dlog::prof.flush();
-    dlog::stats.flush();
-}
-FMT_VARIADIC(void, record_stats, const char*, const char*)
+//void record_stats(const char* message, const char* format, fmt::ArgListMine args)
+//{
+//    fmt::print(dlog::stats, "{:<25} ", message);
+//    fmt::print(dlog::stats, format, args);
+//    fmt::print(dlog::stats, " (hwm = {})", proc_status_value("VmHWM"));
+//    fmt::print(dlog::stats, "\n");
+//    dlog::prof.flush();
+//    dlog::stats.flush();
+//}
+//FMT_VARIADIC(void, record_stats, const char*, const char*)
 
 // debug only
 void save_grids(void* b_, const diy::Master::ProxyWithLink& cp, void*)
@@ -44,7 +44,7 @@ void save_grids(void* b_, const diy::Master::ProxyWithLink& cp, void*)
     diy::mpi::io::file  f(cp.master()->communicator(), outfn, diy::mpi::io::file::create | diy::mpi::io::file::wronly);
     diy::io::NumPy writer(f);
     writer.write_header<Real,TripletMergeTreeBlock::Vertex>(b->grid.shape());
-    diy::DiscreteBounds bounds;
+    diy::DiscreteBounds bounds(0);
     for (unsigned i = 0; i < 3; ++i)
     {
         bounds.min[i] = 0;
@@ -152,7 +152,7 @@ int main(int argc, char** argv)
     Reader* reader_ptr = Reader::create(infn, world);
     Reader& reader  = *reader_ptr;
 
-    diy::DiscreteBounds domain;
+    diy::DiscreteBounds domain(0);
     domain.min[0] = domain.min[1] = domain.min[2] = 0;
     for (unsigned i = 0; i < reader.shape().size(); ++i)
       domain.max[i] = reader.shape()[i] - 1;

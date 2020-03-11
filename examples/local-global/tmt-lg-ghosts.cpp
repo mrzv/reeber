@@ -90,24 +90,24 @@ struct LoadAdd
     bool                    wrap;
 };
 
-void record_stats(const char* message, const char* format, fmt::ArgList args)
-{
-    fmt::print(dlog::stats, "{:<25} ", message);
-    fmt::print(dlog::stats, format, args);
-    fmt::print(dlog::stats, " (hwm = {})", proc_status_value("VmHWM"));
-    fmt::print(dlog::stats, "\n");
-    dlog::prof.flush();
-    dlog::stats.flush();
-}
-FMT_VARIADIC(void, record_stats, const char*, const char*)
+//void record_stats(const char* message, const char* format, fmt::ArgList args)
+//{
+//    fmt::print(dlog::stats, "{:<25} ", message);
+//    fmt::print(dlog::stats, format, args);
+//    fmt::print(dlog::stats, " (hwm = {})", proc_status_value("VmHWM"));
+//    fmt::print(dlog::stats, "\n");
+//    dlog::prof.flush();
+//    dlog::stats.flush();
+//}
+//FMT_VARIADIC(void, record_stats, const char*, const char*)
 
 void compute_tree(TripletMergeTreeBlock* b, const diy::Master::ProxyWithLink& cp)
 {
-    record_stats("Local box:", "{}", b->local);
+    //record_stats("Local box:", "{}", b->local);
     r::compute_merge_tree2(b->mt, b->local, b->grid);
 
     LOG_SEV(debug) << "[" << b->gid << "] " << "Initial tree size: " << b->mt.size();
-    record_stats("Initial tree size:", "{}", b->mt.size());
+    //record_stats("Initial tree size:", "{}", b->mt.size());
 
     TripletMergeTreeBlock::OffsetGrid().swap(b->grid);     // clear out the grid, we don't need it anymore
 }
@@ -190,7 +190,7 @@ struct MergeSparsify
             LOG_SEV(debug) << "  boxes merged: " << b->global.from() << " - " << b->global.to() << " (" << b->global.grid_shape() << ')';
 
             // merge trees and move vertices
-            record_stats("Merging trees:", "{} and {}", trees[0].size(), trees[1].size());
+            //record_stats("Merging trees:", "{} and {}", trees[0].size(), trees[1].size());
 
             dlog::prof << "compute edges";
 
@@ -219,7 +219,7 @@ struct MergeSparsify
 
             trees.clear();
             LOG_SEV(debug) << "  trees merged: " << b->mt.size();
-            record_stats("Trees merged:", "{}", b->mt.size());
+            //record_stats("Trees merged:", "{}", b->mt.size());
         }
 
         dlog::prof << "compute edge_vertices";
@@ -238,7 +238,7 @@ struct MergeSparsify
         if (in_size)
         {
             r::sparsify(b->mt, [b, &edge_vertices](Index u) { return b->local.contains(u) || edge_vertices.find(u) != edge_vertices.end(); });
-            record_stats("Trees sparsified:", "{}", b->mt.size());
+            //record_stats("Trees sparsified:", "{}", b->mt.size());
         }
 
         // send (without the vertices) to the neighbors
@@ -247,14 +247,14 @@ struct MergeSparsify
         {
             LOG_SEV(debug) << "Sparsifying final tree of size: " << b->mt.size();
             r::sparsify(b->mt, b->local.bounds_test());
-            record_stats("Final sparsified:", "{}", b->mt.size());
+            //record_stats("Final sparsified:", "{}", b->mt.size());
             LOG_SEV(debug) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
             return;
         }
 
         TripletMergeTree mt_out(b->mt.negate());
         r::sparsify(mt_out, b->mt, [&edge_vertices](Index u) { return edge_vertices.find(u) != edge_vertices.end(); });
-        record_stats("Outgoing tree:", "{}", mt_out.size());
+        //record_stats("Outgoing tree:", "{}", mt_out.size());
 
         dlog::prof << "enqueue";
 
@@ -284,7 +284,7 @@ void save_grids(void* b_, const diy::Master::ProxyWithLink& cp, void*)
     diy::mpi::io::file  f(cp.master()->communicator(), outfn, diy::mpi::io::file::create | diy::mpi::io::file::wronly);
     diy::io::NumPy writer(f);
     writer.write_header<Real,TripletMergeTreeBlock::Vertex>(b->grid.shape());
-    diy::DiscreteBounds bounds;
+    diy::DiscreteBounds bounds(0);
     for (unsigned i = 0; i < 3; ++i)
     {
         bounds.min[i] = 0;
@@ -408,7 +408,7 @@ int main(int argc, char** argv)
     Reader* reader_ptr = Reader::create(infn, world);
     Reader& reader  = *reader_ptr;
 
-    diy::DiscreteBounds domain;
+    diy::DiscreteBounds domain(0);
     domain.min[0] = domain.min[1] = domain.min[2] = 0;
     for (unsigned i = 0; i < reader.shape().size(); ++i)
       domain.max[i] = reader.shape()[i] - 1;

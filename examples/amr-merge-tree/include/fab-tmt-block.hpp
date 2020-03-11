@@ -199,8 +199,8 @@ void FabTmtBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
         sum_ += value;
         if (debug)
             fmt::print(
-                    "FAB INFO gid = {}, sum = {}, v_mask = {}, v_local = {}, f(v) = {}, index(v) = {} ,stride = {}, shape = {}, data = {}, size = {}\n",
-                    gid, sum_, v_mask, v_local, fab_(v_local), fab_.index(v_local), fab_.stride_, fab_.shape(),
+                    "FAB INFO gid = {}, sum = {}, v_mask = {}, v_local = {}, f(v) = {}, index(v) = {}, shape = {}, data = {}, size = {}\n",
+                    gid, sum_, v_mask, v_local, fab_(v_local), fab_.index(v_local), fab_.shape(),
                     (void*) fab_.data(), sizeof(fab_.data()[fab_.index(v_local)]));
     }
 

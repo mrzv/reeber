@@ -1,5 +1,6 @@
 option                      (persistent-integral-trace-vertices  "Record vertices belonging to persistent integral components" OFF)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 foreach                     (real   float double)
 
 add_executable              (mt-local-global-${real}   mt-local-global.cpp ${DEBUG_SOURCES} ${SOURCES})

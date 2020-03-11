@@ -220,7 +220,7 @@ class OutputIntegrals {
 
            std::string   dgm_fn = fmt::format("{}-b{}.comp", outfn, block.gid);
            std::ofstream ofs(dgm_fn.c_str());
- 
+
            MergeTreeBlock::OffsetGrid::GridProxy gp(0, block.global.shape());
            for(MinIntegral &mi : block.persistent_integrals)
            {
@@ -355,7 +355,7 @@ int main(int argc, char** argv)
 
     // get the domain bounds from any block that's in memory (they are all the same) and set up a decomposer
     MergeTreeBlock::Box global = static_cast<MergeTreeBlock*>(((const diy::Master&) mt_master).block(mt_master.loaded_block()))->global;
-    diy::DiscreteBounds domain;
+    diy::DiscreteBounds domain(0);
     for (unsigned i = 0; i < 3; ++i)
     {
         domain.min[i] = global.from()[i];
@@ -382,7 +382,7 @@ int main(int argc, char** argv)
     }
 
     // Compute and combine persistent integrals
-    diy::DiscreteBounds divs;
+    diy::DiscreteBounds divs(0);
     for (unsigned i = 0; i < 3; ++i)
     {
         divs.min[i] = 0;

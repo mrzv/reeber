@@ -232,7 +232,7 @@ struct OutputIntegrals
 
            std::string   dgm_fn = fmt::format("{}-b{}.comp", outfn, block.gid);
            std::ofstream ofs(dgm_fn.c_str());
- 
+
            for(MinIntegral &mi : block.persistent_integrals)
            {
                Vertex v = block.global.position(mi.min_vtx);
@@ -370,7 +370,7 @@ int main(int argc, char** argv)
 
     // get the domain bounds from any block that's in memory (they are all the same) and set up a decomposer
     MergeTreeBlock::Box global = static_cast<MergeTreeBlock*>(((const diy::Master&) mt_master).block(mt_master.loaded_block()))->global;
-    diy::DiscreteBounds domain;
+    diy::DiscreteBounds domain(0);
     for (unsigned i = 0; i < 3; ++i)
     {
         domain.min[i] = global.from()[i];

@@ -107,26 +107,26 @@ struct LoadAdd
     bool                    wrap;
 };
 
-void record_stats(const char* message, const char* format, fmt::ArgList args)
-{
-    fmt::print(dlog::stats, "{:<25} ", message);
-    fmt::print(dlog::stats, format, args);
-    fmt::print(dlog::stats, " (hwm = {})", proc_status_value("VmHWM"));
-    fmt::print(dlog::stats, "\n");
-    dlog::prof.flush();
-    dlog::stats.flush();
-}
-FMT_VARIADIC(void, record_stats, const char*, const char*)
+//void record_stats(const char* message, const char* format, fmt::ArgList args)
+//{
+//    fmt::print(dlog::stats, "{:<25} ", message);
+//    fmt::print(dlog::stats, format, args);
+//    fmt::print(dlog::stats, " (hwm = {})", proc_status_value("VmHWM"));
+//    fmt::print(dlog::stats, "\n");
+//    dlog::prof.flush();
+//    dlog::stats.flush();
+//}
+//FMT_VARIADIC(void, record_stats, const char*, const char*)
 
 void compute_tree(MergeTreeBlock* b, const diy::Master::ProxyWithLink& cp, bool compact)
 {
-    record_stats("Local box:", "{}", b->local);
+    //record_stats("Local box:", "{}", b->local);
     r::compute_merge_tree(b->mt, b->local, b->grid, PruneInitial(b, b->grid), !compact);
     if (compact)    // remove map entries that aren't nodes themselves
         b->mt.prune_indirect();
     AssertMsg(b->mt.count_roots() == 1, "The tree can have only one root, not " << b->mt.count_roots());
     LOG_SEV(debug) << "[" << b->gid << "] " << "Initial tree size: " << b->mt.size();
-    record_stats("Initial tree size:", "{}", b->mt.size());
+    //record_stats("Initial tree size:", "{}", b->mt.size());
 
     MergeTreeBlock::OffsetGrid().swap(b->grid);     // clear out the grid, we don't need it anymore
 }
@@ -230,20 +230,20 @@ struct MergeSparsify
             LOG_SEV(debug) << "  boxes merged: " << b->global.from() << " - " << b->global.to() << " (" << b->global.grid_shape() << ')';
 
             // merge trees and move vertices
-            record_stats("Merging trees:", "{} and {}", trees[0].size(), trees[1].size());
+            //record_stats("Merging trees:", "{} and {}", trees[0].size(), trees[1].size());
             r::merge(b->mt, trees);
             for(Neighbor n : static_cast<const MergeTree&>(trees[in_pos]).nodes() | r::range::map_values)
                 if (!n->vertices.empty())
                     b->mt[n->vertex]->vertices.swap(n->vertices);
             trees.clear();
             LOG_SEV(debug) << "  trees merged: " << b->mt.size();
-            record_stats("Trees merged:", "{}", b->mt.size());
+            //record_stats("Trees merged:", "{}", b->mt.size());
 
             // sparsify
             sparsify(b->mt, LocalOrGlobalBoundary(b->local, b->global, wrap));
-            record_stats("Trees sparsified:", "{}", b->mt.size());
+            //record_stats("Trees sparsified:", "{}", b->mt.size());
             remove_degree2(b->mt, b->core.bounds_test(), GlobalBoundary(b->global, wrap));
-            record_stats("Degree-2 removed:", "{}", b->mt.size());
+            //record_stats("Degree-2 removed:", "{}", b->mt.size());
         }
 
         // send (without the vertices) to the neighbors
@@ -252,18 +252,18 @@ struct MergeSparsify
         {
             //LOG_SEV(debug) << "Sparsifying final tree of size: " << b->mt.size();
             sparsify(b->mt, b->local.bounds_test());
-            record_stats("Final sparsified:", "{}", b->mt.size());
+            //record_stats("Final sparsified:", "{}", b->mt.size());
             remove_degree2(b->mt, b->core.bounds_test());
-            record_stats("Final degree-2 removed:", "{}", b->mt.size());
+            //record_stats("Final degree-2 removed:", "{}", b->mt.size());
             redistribute_vertices(b->mt);
-            record_stats("Vertices redistributed:", "{}", b->mt.size());
+            //record_stats("Vertices redistributed:", "{}", b->mt.size());
             LOG_SEV(debug) << "[" << b->gid << "] " << "Final tree size: " << b->mt.size();
             return;
         }
 
         MergeTree mt_out(b->mt.negate());       // tree sparsified w.r.t. global boundary (dropping internal nodes)
         sparsify(mt_out, b->mt, GlobalBoundary(b->global, wrap));
-        record_stats("Outgoing tree:", "{}", mt_out.size());
+        //record_stats("Outgoing tree:", "{}", mt_out.size());
 
         for (int i = 0; i < out_size; ++i)
         {
@@ -288,7 +288,7 @@ void save_grids(void* b_, const diy::Master::ProxyWithLink& cp, void*)
     diy::mpi::io::file  f(cp.master()->communicator(), outfn, diy::mpi::io::file::create | diy::mpi::io::file::wronly);
     diy::io::NumPy writer(f);
     writer.write_header<Real,MergeTreeBlock::Vertex>(b->grid.shape());
-    diy::DiscreteBounds bounds;
+    diy::DiscreteBounds bounds(0);
     for (unsigned i = 0; i < 3; ++i)
     {
         bounds.min[i] = 0;
@@ -400,7 +400,7 @@ int main(int argc, char** argv)
     Reader* reader_ptr = Reader::create(infn, world);
     Reader& reader  = *reader_ptr;
 
-    diy::DiscreteBounds domain;
+    diy::DiscreteBounds domain(0);
     domain.min[0] = domain.min[1] = domain.min[2] = 0;
     for (unsigned i = 0; i < reader.shape().size(); ++i)
       domain.max[i] = reader.shape()[i] - 1;
