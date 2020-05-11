@@ -39,7 +39,7 @@ set(libraries ${libraries} ${CMAKE_THREAD_LIBS_INIT})
 #foreach(real   float double)
 foreach(real   float)
 # AMR
-find_package(AMReX 18 REQUIRED HINTS ${AMREX_INSTALL_DIR})
+find_package(AMReX REQUIRED HINTS ${AMREX_INSTALL_DIR})
 
 #if (DEFINED ENV{NERSC_HOST})
 #    set(AMREX_HOME "/global/homes/g/greynarn/code/amrex")
