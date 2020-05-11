@@ -2,7 +2,7 @@
 foreach(real   float )
 
 # AMR
-find_package(AMReX 18 REQUIRED HINTS ${AMREX_INSTALL_DIR})
+find_package(AMReX REQUIRED HINTS ${AMREX_INSTALL_DIR})
 
 set (libraries ${libraries}
         ${CMAKE_THREAD_LIBS_INIT}
