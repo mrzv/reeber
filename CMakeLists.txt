@@ -1,5 +1,5 @@
 project                     (Reeber)
-cmake_minimum_required      (VERSION 3.0)
+cmake_minimum_required      (VERSION 3.1)
 
 option                      (amrex              "Build Reeber with AMReX support"               OFF)
 option                      (trace              "Enable trace log"                              OFF)
@@ -43,7 +43,7 @@ find_library                (TBB_MALLOC_LIBRARY NAMES tbbmalloc)
    endif                    (TBB_INCLUDE_DIRS AND TBB_LIBRARY AND TBB_MALLOC_LIBRARY)
 endif                       (use-tbb)
 
-set                         (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+set                         (CMAKE_CXX_STANDARD 14)
 
 if                          (profile)
     add_definitions         (-DPROFILE)
