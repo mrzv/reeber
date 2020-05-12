@@ -188,7 +188,7 @@ int main(int argc, char** argv)
             {
                 for (const Index& v : edges_domain.link(u))
                 {
-                    if (domain2.contains(v)) edges.push_back(std::make_tuple(u, v)); 
+                    if (domain2.contains(v)) edges.push_back(std::make_tuple(u, v));
                 }
             }
             ++it;

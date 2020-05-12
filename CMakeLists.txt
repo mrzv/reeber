@@ -43,7 +43,7 @@ find_library                (TBB_MALLOC_LIBRARY NAMES tbbmalloc)
    endif                    (TBB_INCLUDE_DIRS AND TBB_LIBRARY AND TBB_MALLOC_LIBRARY)
 endif                       (use-tbb)
 
-set                         (CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
+set                         (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 
 if                          (profile)
     add_definitions         (-DPROFILE)

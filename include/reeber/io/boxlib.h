@@ -166,7 +166,7 @@ namespace BoxLib
                       Array<int> proc_for_box(communicator_.size() + 1); // + 1 is for historic reasons
                       for (size_t i = 0; i < buffer_vector.size(); ++i)
                       {
-                          diy::DiscreteBounds bnds;
+                          diy::DiscreteBounds bnds(0);
                           diy::MemoryBuffer bb; bb.buffer.swap(buffer_vector[i]);
                           diy::load(bb, bnds);
                           IntVect from(&bnds.min[0]), to(&bnds.max[0]);
@@ -266,7 +266,7 @@ namespace BoxLib
                       Array<int> proc_for_box(communicator_.size() + 1); // + 1 is for historic reasons
                       for (size_t i = 0; i < buffer_vector.size(); ++i)
                       {
-                          diy::DiscreteBounds bnds;
+                          diy::DiscreteBounds bnds(0);
                           diy::MemoryBuffer bb; bb.buffer.swap(buffer_vector[i]);
                           diy::load(bb, bnds);
                           IntVect from(&bnds.min[0]), to(&bnds.max[0]);
