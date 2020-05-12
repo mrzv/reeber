@@ -6,7 +6,6 @@ find_package(AMReX REQUIRED HINTS ${AMREX_INSTALL_DIR})
 set (libraries ${libraries}
         ${CMAKE_THREAD_LIBS_INIT}
         AMReX::amrex
-        gfortran            # ????
         )
 
 # includes
@@ -14,7 +13,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
         ${DIY_PATH}/include
         ${AMREX_HOME}/Src/Base
         ${AMREX_HOME}/Src/Extern/amrdata
-        #${AMREX_HOME}/Src/AmrCore
         )
 
 add_executable(amr_merge_tree_simple_${real} ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-merge-tree.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/amr-plot-reader.cpp)

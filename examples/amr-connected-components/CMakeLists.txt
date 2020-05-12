@@ -5,10 +5,9 @@ foreach(real   float )
 find_package(AMReX REQUIRED HINTS ${AMREX_INSTALL_DIR})
 
 set (libraries ${libraries}
-        ${CMAKE_THREAD_LIBS_INIT}
-        AMReX::amrex
-        gfortran            # what's the correct way to do this?
-        )
+     ${CMAKE_THREAD_LIBS_INIT}
+     AMReX::amrex
+     )
 
 # include files
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
