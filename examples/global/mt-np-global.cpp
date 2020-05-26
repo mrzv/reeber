@@ -5,6 +5,7 @@
 #include <dlog/log.h>
 #include <opts/opts.h>
 
+#include <diy/mpi.hpp>
 #include <diy/io/numpy.hpp>
 
 #include <reeber/merge-tree.h>
