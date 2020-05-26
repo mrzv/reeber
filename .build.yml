@@ -1,0 +1,30 @@
+image: archlinux
+triggers:
+  - action: email
+    condition: failure
+    to: Dmitriy Morozov <dmitriy@mrzv.org>
+packages:
+  - cmake
+  - boost
+  - openmpi
+  - gcc-fortran
+secrets:
+  - 51347cbf-5b71-4861-9b85-f92b6deb93b7
+sources:
+  - git@github.com:mrzv/Reeber2
+  - git@github.com:diatomic/diy
+tasks:
+  - checkout-diy: |
+      cd diy
+      git checkout $DIY_REV
+  - configure: |
+      cd Reeber2
+      mkdir build
+      cd build
+      cmake .. -DDIY_INCLUDE_DIR=~/diy/include -Dslow-tests=on
+  - build: |
+      cd Reeber2/build
+      make
+  - test: |
+      cd Reeber2/build
+      make test
