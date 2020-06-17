@@ -62,6 +62,9 @@ endif                       (counters)
 # DIY
 find_path                   (DIY_INCLUDE_DIR        diy/master.hpp)
 
+# HighFive
+add_subdirectory            (ext/HighFive)
+
 # Set includes
 include_directories         (${CMAKE_CURRENT_SOURCE_DIR}/include
                              SYSTEM ${DIY_INCLUDE_DIR}
