@@ -8,7 +8,7 @@
 #include <diy/decomposition.hpp>
 #include <diy/io/block.hpp>
 
-#include "format.h"
+#include <reeber/format.h>
 
 #include "merge-tree-block.h"
 

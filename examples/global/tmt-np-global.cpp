@@ -14,7 +14,7 @@
 #include <reeber/triplet-merge-tree-serialization.h>
 namespace r = reeber;
 
-#include "format.h"
+#include <reeber/format.h>
 
 #include "reader-interfaces.h"
 

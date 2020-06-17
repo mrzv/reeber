@@ -9,9 +9,10 @@
 #include <diy/assigner.hpp>
 #include <diy/decomposition.hpp>
 #include <diy/link.hpp>
-#include <diy/fmt/format.h>
 #include <diy/io/block.hpp>         // for saving blocks in DIY format
 #include <diy/io/numpy.hpp>
+
+#include <reeber/format.h>
 
 #include <dlog/stats.h>
 #include <dlog/log.h>

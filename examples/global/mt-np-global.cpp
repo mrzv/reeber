@@ -15,7 +15,7 @@
 #include <reeber/range/map.h>
 namespace r = reeber;
 
-#include "format.h"
+#include <reeber/format.h>
 
 typedef     REEBER_REAL                     Real;
 

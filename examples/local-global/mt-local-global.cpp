@@ -14,7 +14,7 @@
 #include <diy/io/numpy.hpp>
 #include <diy/io/block.hpp>
 
-#include "format.h"
+#include <reeber/format.h>
 
 #include "reader-interfaces.h"
 #include "merge-tree-block.h"

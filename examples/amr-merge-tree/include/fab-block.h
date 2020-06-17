@@ -3,8 +3,7 @@
 #include <diy/serialization.hpp>
 #include <diy/grid.hpp>
 #include <diy/vertices.hpp>
-#include <diy/fmt/format.h>
-#include <diy/fmt/ostream.h>
+#include <reeber/format.h>
 #include <reeber/amr_helper.h>
 
 

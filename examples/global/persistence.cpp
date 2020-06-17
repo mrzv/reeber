@@ -9,7 +9,7 @@
 #include <reeber/merge-tree-serialization.h>
 namespace r = reeber;
 
-#include "format.h"
+#include <reeber/format.h>
 
 typedef     REEBER_REAL                     Real;
 typedef     r::GridRef<void*, 3>            GridRef;

@@ -8,11 +8,10 @@
 #include "diy/serialization.hpp"
 #include "diy/grid.hpp"
 #include "diy/link.hpp"
-#include "diy/fmt/format.h"
-#include "diy/fmt/ostream.h"
 #include "diy/point.hpp"
 #include <diy/master.hpp>
 
+#include <reeber/format.h>
 #include "reeber/amr-vertex.h"
 #include "reeber/triplet-merge-tree.h"
 #include "reeber/triplet-merge-tree-serialization.h"

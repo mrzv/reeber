@@ -15,7 +15,7 @@
 #include <diy/partners/swap.hpp>
 #include <diy/io/block.hpp>
 
-#include "format.h"
+#include <reeber/format.h>
 
 #include "reader-interfaces.h"
 

@@ -1,7 +1,8 @@
 #include <iostream>
 
 #include <opts/opts.h>
-#include <format.h>
+
+#include <reeber/format.h>
 
 #include <reeber/grid.h>
 #include <reeber/path-merge-tree.h>

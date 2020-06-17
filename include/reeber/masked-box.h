@@ -9,7 +9,7 @@
 #include "range/utility.h"
 
 #include "diy/vertices.hpp"
-#include "diy/fmt/format.h"
+#include "format.h"
 
 #include "grid.h"
 #include "box.h"
