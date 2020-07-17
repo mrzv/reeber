@@ -35,6 +35,15 @@ struct FabBlock
         }
     }
 
+    ~FabBlock()
+    {
+        for (auto& fab : extra_fabs_)
+            delete[] fab.data();
+
+        if (fab.data() != fab_storage_.data())
+            delete[] fab.data();
+    }
+
     static void* create()
     {
         return new FabBlock;
