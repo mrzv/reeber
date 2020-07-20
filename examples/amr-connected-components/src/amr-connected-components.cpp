@@ -275,7 +275,7 @@ int main(int argc, char** argv)
     int n_mt_vars;
     Real cell_volume = 1.0;
 
-    if (read_plotfile)
+    if (read_plotfile || (ends_with(input_filename, ".h5") || ends_with(input_filename, ".hdf5")))
     {
         std::vector<std::string> function_var_names = split_by_delim(function_fields, ',');  //{"particle_mass_density", "density"};
         n_mt_vars = function_var_names.size();
