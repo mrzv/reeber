@@ -8,6 +8,7 @@ packages:
   - boost
   - openmpi
   - gcc-fortran
+  - hdf5
 secrets:
   - 51347cbf-5b71-4861-9b85-f92b6deb93b7
 sources:
