@@ -31,6 +31,7 @@
 #include <output-persistence.h>
 
 #include "../../amr-merge-tree/include/read-npy.h"
+#include "../../amr-merge-tree/include/read-hdf5.h"
 
 #include "amr-plot-reader.h"
 #include "amr-connected-components-complex.h"
@@ -123,6 +124,9 @@ inline bool ends_with(const std::string& s, const std::string& suffix)
 }
 
 void read_from_file(std::string infn,
+        std::vector<std::string> all_var_names, // HDF5 only: all fields that will be read from plotfile
+        int n_mt_vars,                          // sum of first n_mt_vars in all_var_names will be stored in fab of FabBlock,
+                                                // for each variable listed in all_var_names FabBlock will have an extra GridRef
         diy::mpi::communicator& world,
         diy::Master& master_reader,
         diy::ContiguousAssigner& assigner,
@@ -139,6 +143,9 @@ void read_from_file(std::string infn,
     if (ends_with(infn, ".npy"))
     {
         read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
+    } else if (ends_with(infn, ".h5") || ends_with(infn, ".hdf5"))
+    {
+        read_from_hdf5_file(infn, all_var_names, n_mt_vars, world, nblocks, master_reader, assigner, header, domain);
     } else
     {
         if (split)
@@ -268,7 +275,7 @@ int main(int argc, char** argv)
     int n_mt_vars;
     Real cell_volume = 1.0;
 
-    if (read_plotfile)
+    if (read_plotfile || (ends_with(input_filename, ".h5") || ends_with(input_filename, ".hdf5")))
     {
         std::vector<std::string> function_var_names = split_by_delim(function_fields, ',');  //{"particle_mass_density", "density"};
         n_mt_vars = function_var_names.size();
@@ -364,7 +371,7 @@ int main(int argc, char** argv)
         read_amr_plotfile(input_filename, all_var_names, n_mt_vars, world, nblocks, master_reader, header, cell_volume, domain);
     } else
     {
-        read_from_file(input_filename, world, master_reader, assigner, header, domain, split, nblocks);
+        read_from_file(input_filename, all_var_names, n_mt_vars, world, master_reader, assigner, header, domain, split, nblocks);
     }
 
     auto time_to_read_data = timer.elapsed();
