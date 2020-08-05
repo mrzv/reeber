@@ -74,19 +74,19 @@ void read_from_hdf5_file(std::string infn,
         b->fab_storage_ = decltype(b->fab_storage_)(shape, c_order);
         b->fab = decltype(b->fab)(b->fab_storage_.data(), shape, c_order);
 
-#ifdef ZARIJA
-        // pretend that the 1st and only field is particle_mass_density
-        // for compatability with integral printing code
-        b->extra_names_.push_back("particle_mass_density");
-        b->extra_fabs_.push_back(b->fab);
-#endif
+//#ifdef ZARIJA
+//        // pretend that the 1st and only field is particle_mass_density
+//        // for compatability with integral printing code
+//        b->extra_names_.push_back("particle_mass_density");
+//        b->extra_fabs_.push_back(b->fab);
+//#endif
 
         auto core_shape_4d = core.max - core.min + one;
         typename FabBlockR::Shape core_shape(&core_shape_4d[0]);
 
         diy::Grid<Real, D> core_grid(core_shape);
 
-        std::vector<size_t> from, size;
+        std::vector<size_t> from(D), size(D);
         for (unsigned i = 0; i < D; ++i)
         {
             from[i] = core.min[i];
