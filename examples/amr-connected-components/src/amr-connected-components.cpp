@@ -377,7 +377,7 @@ int main(int argc, char** argv)
     auto time_to_read_data = timer.elapsed();
     dlog::flush();
 
-   LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master_reader.size();
+    LOG_SEV_IF(world.rank() == 0, info) << "Data read, local size = " << master_reader.size();
     LOG_SEV_IF(world.rank() == 0, info) << "Time to read data:       " << dlog::clock_to_string(timer.elapsed());
     dlog::flush();
 
@@ -620,7 +620,7 @@ int main(int argc, char** argv)
                     [&extra, &test_local, ignore_zero_persistence, absolute_rho](Block* b,
                             const diy::Master::ProxyWithLink& cp)
                     {
-                        output_persistence(b, cp, extra, test_local, absolute_rho, ignore_zero_persistence);
+                        output_persistence(b, cp, &extra, test_local, absolute_rho, ignore_zero_persistence);
                         dlog::flush();
                     });
         }
@@ -644,6 +644,9 @@ int main(int argc, char** argv)
             dlog::flush();
             world.barrier();
 
+
+            diy::io::SharedOutFile ofs(output_integral_filename, world);
+
 //                            fmt::print(ofs, "{} {} {} {} {} {} {} {} {} {} {}\n",
 //                                    n_vertices_sf,
 //                                    n_vertices,
@@ -654,27 +657,8 @@ int main(int argc, char** argv)
 //                                    m_gas, m_particles, m_total);
 
             master.foreach(
-                    [&world, output_integral_filename, domain, min_cells, integral_var_names](Block* b, const diy::Master::ProxyWithLink& cp)
+                    [&world, &ofs, domain, min_cells, integral_var_names](Block* b, const diy::Master::ProxyWithLink& cp)
                     {
-                        bool must_output = false;
-
-                        for(const auto& root_values_pair : b->local_integral_)
-                        {
-                            if (root_values_pair.first.gid != b->gid)
-                                continue;
-                            if (root_values_pair.second.at("n_cells") >= min_cells)
-                            {
-                                must_output = true;
-                                break;
-                            }
-                        }
-
-                        if (not must_output)
-                            return;
-
-                        std::string integral_local_fname = fmt::format("{}-b{}.comp", output_integral_filename, b->gid);
-                        std::ofstream ofs(integral_local_fname);
-
                         diy::Point<int, 3> domain_shape;
                         for(int i = 0; i < 3; ++i)
                         {
@@ -682,7 +666,6 @@ int main(int argc, char** argv)
                         }
 
                         diy::GridRef<void*, 3> domain_box(nullptr, domain_shape, /* c_order = */ false);
-
 
                         // local integral already stores number of vertices (set in init)
                         // so we add it here to the list of fields just to print it
@@ -692,6 +675,8 @@ int main(int argc, char** argv)
                         integral_vars.insert(integral_vars.begin(), std::string("total_mass"));
                         integral_vars.insert(integral_vars.begin(), std::string("n_vertices"));
                         integral_vars.insert(integral_vars.begin(), std::string("n_cells"));
+
+                        LOG_SEV_IF(world.rank() == 0, debug) << "integral_vars:  " << container_to_string(integral_vars);
 
                         bool print_header = false;
                         if (print_header)
@@ -736,7 +721,6 @@ int main(int argc, char** argv)
                                     root_position,
                                     b->pretty_integral(root, integral_vars));
                         }
-                        ofs.close();
                     });
 
             LOG_SEV_IF(world.rank() == 0, info) << "Time to compute and write integral:  "
