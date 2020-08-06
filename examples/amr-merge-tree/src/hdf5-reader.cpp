@@ -48,11 +48,12 @@ void read_from_hdf5_file(std::string infn,
         domain.min[i] = 0;
         domain.max[i] = dimensions[i] - 1;
     }
+
     Decomposer::BoolVector wrap { true, true, true };               // TODO
     Decomposer decomposer(D, domain, nblocks,
                           Decomposer::BoolVector { false, false, false },   // share_face
                           wrap,
-                          Decomposer::CoordinateVector { 1, 1, 1 });        // ghosts
+                          Decomposer::CoordinateVector { 0, 0, 0 });        // ghosts
 
     decomposer.decompose(world.rank(), assigner, [&master_reader, &wrap, &datasets, &all_var_names, n_mt_vars, one]
                                                                       (int gid,
@@ -62,12 +63,9 @@ void read_from_hdf5_file(std::string infn,
                                                                        const Decomposer::Link& link) {
         auto* b = new FabBlockR;
 
+        // we never want ghosts
         auto my_bounds = core;
 
-        my_bounds.max += one;
-        my_bounds.min -= one;
-
-        // we always want ghosts
         auto shape_4d = my_bounds.max - my_bounds.min + one;
         typename FabBlockR::Shape shape(&shape_4d[0]);       // quick and hacky
         bool c_order = true;
@@ -81,10 +79,7 @@ void read_from_hdf5_file(std::string infn,
 //        b->extra_fabs_.push_back(b->fab);
 //#endif
 
-        auto core_shape_4d = core.max - core.min + one;
-        typename FabBlockR::Shape core_shape(&core_shape_4d[0]);
-
-        diy::Grid<Real, D> core_grid(core_shape);
+        diy::Grid<Real, D> core_grid(shape);
 
         std::vector<size_t> from(D), size(D);
         for (unsigned i = 0; i < D; ++i)
@@ -101,18 +96,18 @@ void read_from_hdf5_file(std::string infn,
             datasets[i].select(from, size).read(core_grid.data());
 
             auto& g = b->extra_fabs_.back();
-            diy::for_each(core_shape, [&](const typename FabBlockR::Shape& p) {
-                g(p + FabBlockR::Shape::one()) = core_grid(p);
+            diy::for_each(shape, [&](const typename FabBlockR::Shape& p) {
+                g(p) = core_grid(p);
             });
         }
 
         // fill the field for MT computation
-        diy::for_each(core_shape, [&](const typename FabBlockR::Shape& p) {
-            b->fab(p + FabBlockR::Shape::one()) = 0;
+        diy::for_each(shape, [&](const typename FabBlockR::Shape& p) {
+            b->fab(p) = 0;
         });
         for (int i = 0; i < n_mt_vars; ++i)
-            diy::for_each(core_shape, [&](const typename FabBlockR::Shape& p) {
-                b->fab(p + FabBlockR::Shape::one()) += b->extra_fabs_[i](p);
+            diy::for_each(shape, [&](const typename FabBlockR::Shape& p) {
+                b->fab(p) += b->extra_fabs_[i](p);
             });
 
         // copy link
@@ -123,8 +118,6 @@ void read_from_hdf5_file(std::string infn,
             // shrink core from bounds, since it's not stored in the RegularLink explicitly
             auto nbr_core = link.bounds(i);
             auto nbr_bounds = link.bounds(i);
-            nbr_bounds.min -= one;
-            nbr_bounds.max += one;
             amr_link->add_bounds(0, 1, nbr_core, nbr_bounds);
         }
 
