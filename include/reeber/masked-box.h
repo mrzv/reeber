@@ -192,6 +192,7 @@ namespace reeber {
         operator<<(std::basic_ostream<C_, T_>& out, const MaskedBox& b)
         {
             out << "MaskedBox: " << b.core_from_ << " - " << b.core_to_ << ", mask_shape: " << b.mask_shape();
+            out << ", bounds_from_: " << b.bounds_from_ << ", bounds_to_: " << b.bounds_to_;
             out << ", mask_from_: " << b.mask_from_ << ", mask_to_: " << b.mask_to_;
             out << ", ghost_adjustement = " << b.ghost_adjustment_ << ", mask_adjustment = " << b.mask_adjustment_;
             return out;
