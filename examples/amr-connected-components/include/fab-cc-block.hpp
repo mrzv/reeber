@@ -319,13 +319,10 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
             }
         }
 
-#ifdef REEBER_ENABLE_CHECKS
         if (not link_idx_found)
         {
-            fmt::print("Error here: masking_gid = {}\n", local.pretty_mask_value(masking_gid));
             throw std::runtime_error("masking_gid not found in link");
         }
-#endif
 
         auto nb_level = l->level(link_idx);
         Position nb_from = point_from_dynamic_point<D>(l->bounds(link_idx).min);
@@ -459,6 +456,7 @@ void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContain
     std::set<AmrEdge> neighbor_edges{edges_from_sender.begin(), edges_from_sender.end()};
 
     int old_n_edges = my_edges.size();
+    (void) old_n_edges; // suppress warning
 
     iter->second.clear();
 
@@ -466,6 +464,7 @@ void FabComponentBlock<Real, D>::delete_low_edges(int sender_gid, AmrEdgeContain
             std::back_inserter(iter->second));
 
     int new_n_edges = iter->second.size();
+    (void)new_n_edges; // suppress warning
 
 #ifdef REEBER_ENABLE_CHECKS
     assert(old_n_edges >= new_n_edges);
