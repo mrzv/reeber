@@ -715,7 +715,7 @@ int main(int argc, char** argv)
             master.foreach(
                     [&extra, &test_local, ignore_zero_persistence, absolute_rho](Block* b,
                             const diy::Master::ProxyWithLink& cp) {
-                        output_persistence(b, cp, extra, test_local, absolute_rho, ignore_zero_persistence);
+                        output_persistence(b, cp, &extra, test_local, absolute_rho, ignore_zero_persistence);
                     });
         }
 
