@@ -64,7 +64,8 @@ class Box
         VertexRange         vertices() const                                        { return range::iterator_range<VI>(VI::begin(from_, to_), VI::end(from_, to_))
                                                                                                 | range::transformed(position_to_vertex()); }
 
-        decltype(auto)      positions() const                                       { return range::iterator_range<VI>(VI::begin(from_, to_), VI::end(from_, to_));}
+        range::iterator_range<VI>
+        positions() const                                                           { return range::iterator_range<VI>(VI::begin(from_, to_), VI::end(from_, to_)); }
 
         Link                link(const Position& p) const                           { return position_link(p)
                                                                                                 | range::transformed(position_to_vertex()); }
