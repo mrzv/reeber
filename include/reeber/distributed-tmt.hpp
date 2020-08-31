@@ -212,8 +212,8 @@ resolve_edges(diy::Master&                            master,
 
                 ++edge_count;
 
-                relabel[v_gid][u] = { f_u, u_ };
-                auto it = new_edge_map.find({ u_, v });
+                relabel[v_gid][u] = ValueVertex{ f_u, u_ };
+                auto it = new_edge_map.find(std::tuple<Vertex, Vertex>{ u_, v });
                 if (it == new_edge_map.end())
                     new_edge_map.emplace(std::make_tuple(u_, v), uval);
                 else if (tmt.cmp(uval, it->second))
