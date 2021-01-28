@@ -2,6 +2,9 @@
 
 #include <vector>
 
+#include <dlog/stats.h>
+#include <dlog/log.h>
+
 #include <diy/link.hpp>
 #include <reeber/box.h>
 #include <reeber/amr_helper.h>
@@ -233,10 +236,21 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
             received_root_to_components[received_original_deepest] = received_current_neighbors;
 
 #ifdef REEBER_EXTRA_INTEGRAL
-            if (!b->local_integral_.count(received_original_deepest))
-                b->local_integral_[received_original_deepest] = received_extra_values;
-            else
-                assert(b->local_integral_[received_original_deepest] == received_extra_values);
+            if (received_n_trees) {
+                if (!b->local_integral_.count(received_original_deepest))
+                    b->local_integral_[received_original_deepest] = received_extra_values;
+                else {
+                    if (b->local_integral_[received_original_deepest] != received_extra_values) {
+                        for(auto k_rev : b->local_integral_[received_original_deepest]) {
+                            fmt::print("{} -> {}\n", k_rev.first, k_rev.second);
+                        }
+                        fmt::print("{} local integral size:  {}, received size: {}\n",
+                                received_original_deepest, b->local_integral_[received_original_deepest].size(), received_extra_values.size());
+                        throw std::runtime_error("here");
+                    }
+                    assert(b->local_integral_[received_original_deepest] == received_extra_values);
+                }
+            }
 #endif
         } // loop over all components sent from sender
     } // loop over senders
