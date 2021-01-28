@@ -240,14 +240,6 @@ void amr_cc_receive(FabComponentBlock<Real, D>* b, const diy::Master::ProxyWithL
                 if (!b->local_integral_.count(received_original_deepest))
                     b->local_integral_[received_original_deepest] = received_extra_values;
                 else {
-                    if (b->local_integral_[received_original_deepest] != received_extra_values) {
-                        for(auto k_rev : b->local_integral_[received_original_deepest]) {
-                            fmt::print("{} -> {}\n", k_rev.first, k_rev.second);
-                        }
-                        fmt::print("{} local integral size:  {}, received size: {}\n",
-                                received_original_deepest, b->local_integral_[received_original_deepest].size(), received_extra_values.size());
-                        throw std::runtime_error("here");
-                    }
                     assert(b->local_integral_[received_original_deepest] == received_extra_values);
                 }
             }
