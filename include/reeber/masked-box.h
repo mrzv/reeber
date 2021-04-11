@@ -38,7 +38,8 @@ namespace reeber {
         static constexpr MaskValue ACTIVE = -3;
         // indicates vertex was never touched
         static constexpr MaskValue UNINIT = -4;
-
+        // if wrap is false, then some mask cells don't correspond to any domain cells
+        static constexpr MaskValue NOT_IN_DOMAIN = -5;
         class FreudenthalLinkIterator;
 
         using FreudenthalLinkRange = range::iterator_range<FreudenthalLinkIterator>;
@@ -97,6 +98,7 @@ namespace reeber {
 
                 bool is_valid = (m == ACTIVE and not is_outer(p_mask)) or
                                 (is_in_core(p_core) and m == LOW) or
+                                (is_outer(p_mask) and m == NOT_IN_DOMAIN) or
                                 (m >= 0 and m <= max_gid and m != this->gid());
 
                 if (not is_valid)
@@ -272,6 +274,8 @@ namespace reeber {
                     return "LOW";
                 case UNINIT:
                     return "UNINIT";
+                case NOT_IN_DOMAIN:
+                    return "NOT_IN_DOMAIN";
                 default:
                     return std::to_string(a);
             };

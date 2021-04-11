@@ -40,6 +40,8 @@
 // block-independent types
 using AMRLink = diy::AMRLink;
 
+using BoolVector = diy::RegularDecomposer<diy::DiscreteBounds>::BoolVector;
+
 using Bounds = diy::DiscreteBounds;
 using AmrVertexId = r::AmrVertexId;
 using AmrEdge = reeber::AmrEdge;
@@ -133,7 +135,8 @@ void read_from_file(std::string infn,
         diy::MemoryBuffer& header,
         diy::DiscreteBounds& domain,
         bool split,
-        int nblocks)
+        int nblocks,
+        BoolVector wrap)
 {
     if (not file_exists(infn))
     {
@@ -142,7 +145,7 @@ void read_from_file(std::string infn,
 
     if (ends_with(infn, ".npy"))
     {
-        read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
+        read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain, wrap);
     } else if (ends_with(infn, ".h5") || ends_with(infn, ".hdf5"))
     {
         read_from_hdf5_file(infn, all_var_names, n_mt_vars, world, nblocks, master_reader, assigner, header, domain);
@@ -160,7 +163,7 @@ void read_from_file(std::string infn,
 }
 
 void create_fab_cc_blocks(const diy::mpi::communicator& world, int in_memory, int threads, Real rho, bool absolute,
-        bool negate, const diy::FileStorage& storage, diy::Master& master_reader, diy::Master& master,
+        bool negate, bool wrap, const diy::FileStorage& storage, diy::Master& master_reader, diy::Master& master,
         const Real cell_volume, const diy::DiscreteBounds& domain)
 {
     // copy FabBlocks to FabComponentBlocks
@@ -168,7 +171,7 @@ void create_fab_cc_blocks(const diy::mpi::communicator& world, int in_memory, in
     // FabBlock can be safely discarded afterwards
 
     master_reader.foreach(
-            [&master, domain, rho, negate, absolute, cell_volume](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
+            [&master, domain, rho, negate, wrap, absolute, cell_volume](FabBlockR* b, const diy::Master::ProxyWithLink& cp) {
                 auto* l = static_cast<AMRLink*>(cp.link());
                 AMRLink* new_link = new AMRLink(*l);
 
@@ -181,7 +184,7 @@ void create_fab_cc_blocks(const diy::mpi::communicator& world, int in_memory, in
                         new Block(b->fab, b->extra_names_, b->extra_fabs_, local_ref, local_lev, domain,
                                 l->bounds(),
                                 l->core(), cp.gid(),
-                                new_link, rho, negate, absolute, cell_volume),
+                                new_link, rho, negate, wrap, absolute, cell_volume),
                         new_link);
 
             });
@@ -253,6 +256,8 @@ int main(int argc, char** argv)
     // ignored for now, wrap is always assumed
     bool wrap = ops >> opts::Present('w', "wrap", "wrap");
     bool split = ops >> opts::Present("split", "use split IO");
+
+    BoolVector wrap_vec { wrap, wrap, wrap };
 
     bool print_stats = ops >> opts::Present("stats", "print statistics");
     std::string input_filename, output_filename, output_diagrams_filename, output_integral_filename;
@@ -371,7 +376,7 @@ int main(int argc, char** argv)
         read_amr_plotfile(input_filename, all_var_names, n_mt_vars, world, nblocks, master_reader, header, cell_volume, domain);
     } else
     {
-        read_from_file(input_filename, all_var_names, n_mt_vars, world, master_reader, assigner, header, domain, split, nblocks);
+        read_from_file(input_filename, all_var_names, n_mt_vars, world, master_reader, assigner, header, domain, split, nblocks, wrap_vec);
     }
 
     auto time_to_read_data = timer.elapsed();
@@ -392,7 +397,7 @@ int main(int argc, char** argv)
         diy::Master master(world, threads, in_memory, &Block::create, &Block::destroy, &storage, &Block::save,
             &Block::load);
 
-        create_fab_cc_blocks(world, in_memory, threads, rho, absolute, negate, storage, master_reader, master, cell_volume, domain);
+        create_fab_cc_blocks(world, in_memory, threads, rho, absolute, negate, wrap, storage, master_reader, master, cell_volume, domain);
 
         auto time_for_local_computation = timer.elapsed();
 

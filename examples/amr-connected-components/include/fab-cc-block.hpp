@@ -11,6 +11,7 @@ FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
         diy::AMRLink* amr_link,
         Real rho,                                           // threshold for LOW value
         bool _negate,
+        bool _wrap,
         bool is_absolute_threshold,
         Real cell_volume)
         :
@@ -21,6 +22,7 @@ FabComponentBlock<Real, D>::FabComponentBlock(diy::GridRef<Real, D>& fab_grid,
         domain_(_domain),
         cell_volume_(cell_volume),
         negate_(_negate),
+        wrap_(_wrap),
         merge_tree_(negate_)
 #ifdef REEBER_EXTRA_INTEGRAL
         , extra_names_(extra_names),
@@ -72,6 +74,14 @@ void FabComponentBlock<Real, D>::set_mask(const diy::Point<int, D>& v_mask,
     int debug_gid = local_.gid();
 
     bool debug = false;
+
+    bool is_in_domain = wrap_ or point_in_domain(v_mask + local_.mask_from(), domain(), local_.refinement());
+
+    if (not is_in_domain)
+    {
+        local_.set_mask(v_mask, MaskedBox::NOT_IN_DOMAIN);
+        return;
+    }
 
     bool is_ghost = local_.is_outer(v_mask);
 
@@ -271,7 +281,7 @@ void FabComponentBlock<Real, D>::sparsify_prune_original_tree(const VertexEdgesM
 template<unsigned D>
 r::AmrEdgeContainer
 get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& local, diy::AMRLink* l,
-        const diy::DiscreteBounds& domain)
+        const diy::DiscreteBounds& domain, bool wrap)
 {
     using Position = diy::Point<int, D>;
 
@@ -286,6 +296,11 @@ get_vertex_edges(const diy::Point<int, D>& v_glob, const reeber::MaskedBox<D>& l
 
     for(const Position& neighb_v_glob : local.outer_edge_link(v_glob))
     {
+        // TODO: add wrap to MaskedBox and return only domain vertices in outer_edge_link?
+        if (not wrap and not point_in_domain(neighb_v_glob, domain, local.refinement())) {
+            if (debug) { fmt::print("neighb_v_glob = {} not in domain, continue\n", v_glob, v_glob_idx, local); }
+            continue;
+        }
 
         Position neighb_v_bounds = neighb_v_glob - local.bounds_from();
 
@@ -417,7 +432,7 @@ void FabComponentBlock<Real, D>::compute_outgoing_edges(diy::AMRLink* l, VertexE
     bool debug = false;
     for(const Vertex& v_glob : local_.active_global_positions())
     {
-        AmrEdgeContainer out_edges = get_vertex_edges(v_glob, local_, l, domain());
+        AmrEdgeContainer out_edges = get_vertex_edges(v_glob, local_, l, domain(), wrap_);
         if (debug) for(auto&& e : out_edges) fmt::print("outogoing edge e = {} {}\n", std::get<0>(e), std::get<1>(e));
 
         if (not out_edges.empty())

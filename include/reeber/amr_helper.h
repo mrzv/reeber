@@ -84,6 +84,18 @@ inline diy::Point<C, D> coarsen_point(const diy::Point<C, D>& p, int point_refin
 // take point p from level with get_refinement ref and domain (not refined; domains is assumed to start from origin)
 // return wrapped point
 template<class C, unsigned int D>
+inline bool point_in_domain(const diy::Point<C, D>& p, const diy::DiscreteBounds& domain, int ref)
+{
+    for(unsigned i = 0; i < D; ++i)
+        if (p[i] < ref * domain.min[i] or p[i] >= ref * (domain.max[i] + 1))
+            return false;
+    return true;
+}
+
+
+// take point p from level with get_refinement ref and domain (not refined; domains is assumed to start from origin)
+// return wrapped point
+template<class C, unsigned int D>
 inline diy::Point<C, D>
 wrap_point(const diy::Point<C, D>& p, const diy::DiscreteBounds& domain, int ref, bool is_debug = false)
 {

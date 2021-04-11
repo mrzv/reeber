@@ -124,6 +124,7 @@ struct FabComponentBlock {
     std::unordered_map<AmrVertexId, Diagram> local_diagrams_;
 
     bool negate_;
+    bool wrap_;
 
     TripletMergeTree merge_tree_;
 
@@ -197,6 +198,7 @@ struct FabComponentBlock {
                       diy::AMRLink *amr_link,
                       Real rho,                                           // threshold for LOW value
                       bool _negate,
+                      bool _wrap,
                       bool is_absolute_threshold,
                       Real cell_volume);
 

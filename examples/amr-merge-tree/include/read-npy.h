@@ -16,7 +16,7 @@
 
 #include <dlog/stats.h>
 #include <dlog/log.h>
-#
+
 #include "fab-block.h"
 
 template<unsigned D>
@@ -26,7 +26,8 @@ void read_from_npy_file(std::string infn,
                         diy::Master& master_reader,
                         diy::ContiguousAssigner& assigner,
                         diy::MemoryBuffer& header,
-                        diy::DiscreteBounds& domain)
+                        diy::DiscreteBounds& domain,
+                        diy::RegularDecomposer<diy::DiscreteBounds>::BoolVector wrap)
 {
     using FabBlockR = FabBlock<Real, D>;
 
@@ -47,18 +48,18 @@ void read_from_npy_file(std::string infn,
     domain.max = { 0, 0, 0, 0 };
     Point one = Point::one(D);
 
-    for(unsigned i = D; i < DIY_MAX_DIM; ++i)
-        one[i] = 0;
+//    for(unsigned i = D; i < DIY_MAX_DIM; ++i)
+//        one[i] = 0;
 
     for(unsigned i = 0; i < D; ++i)
     {
         domain.max[i] = reader.shape()[i] - 1;
     }
-    Decomposer::BoolVector wrap { true, true, true };               // TODO
+
     Decomposer decomposer(D, domain, nblocks,
                           Decomposer::BoolVector { false, false, false },   // share_face
                           wrap,
-                          Decomposer::CoordinateVector { 1, 1, 1 });        // ghosts
+                          Decomposer::CoordinateVector { 0, 0, 0 });        // no ghosts -- cannot read ghost data correctly
 
     decomposer.decompose(world.rank(), assigner, [&master_reader, &wrap, &reader, one](int gid,
                                                                        const Decomposer::Bounds& core,
@@ -67,13 +68,7 @@ void read_from_npy_file(std::string infn,
                                                                        const Decomposer::Link& link) {
         auto* b = new FabBlockR;
 
-        auto my_bounds = core;
-
-        my_bounds.max += one;
-        my_bounds.min -= one;
-
-        // we always want ghosts
-        auto shape_4d = my_bounds.max - my_bounds.min + one;
+        auto shape_4d = bounds.max - bounds.min + one;
         typename FabBlockR::Shape shape(&shape_4d[0]);       // quick and hacky
         bool c_order = true;
         b->fab_storage_ = decltype(b->fab_storage_)(shape, c_order);
@@ -86,26 +81,15 @@ void read_from_npy_file(std::string infn,
         b->extra_fabs_.push_back(b->fab);
 #endif
 
-        auto core_shape_4d = core.max - core.min + one;
-        typename FabBlockR::Shape core_shape(&core_shape_4d[0]);
-
-        diy::Grid<Real, D> core_grid(core_shape);
-
-        reader.read(core, core_grid.data());
-        diy::for_each(core_shape, [&](const typename FabBlockR::Shape& p) {
-            b->fab_storage_(p + FabBlockR::Shape::one()) = core_grid(p);
-        });
+        reader.read(core, b->fab.data());
 
         // copy link
-        diy::AMRLink* amr_link = new diy::AMRLink(D, 0, 1, link.core(), my_bounds);
+        diy::AMRLink* amr_link = new diy::AMRLink(D, 0, 1, link.core(), bounds);
         for (int i = 0; i < link.size(); ++i)
         {
             amr_link->add_neighbor(link.target(i));
-            // shrink core from bounds, since it's not stored in the RegularLink explicitly
             auto nbr_core = link.bounds(i);
             auto nbr_bounds = link.bounds(i);
-            nbr_bounds.min -= one;
-            nbr_bounds.max += one;
             amr_link->add_bounds(0, 1, nbr_core, nbr_bounds);
         }
 
