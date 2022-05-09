@@ -23,7 +23,7 @@ namespace {  // unnamed
 inline DataTypeClass convert_type_class(const H5T_class_t& tclass);
 inline std::string type_class_string(DataTypeClass);
 inline hid_t create_string(std::size_t length);
-}
+}  // namespace
 
 inline bool DataType::empty() const noexcept {
     return _hid == H5I_INVALID_HID;
@@ -48,8 +48,7 @@ inline bool DataType::operator!=(const DataType& other) const {
 inline bool DataType::isVariableStr() const {
     auto var_value = H5Tis_variable_str(_hid);
     if (var_value < 0) {
-         HDF5ErrMapper::ToException<DataTypeException>(
-            "Unable to define datatype size to variable");
+        HDF5ErrMapper::ToException<DataTypeException>("Unable to define datatype size to variable");
     }
     return static_cast<bool>(var_value);
 }
@@ -74,7 +73,7 @@ inline AtomicType<char>::AtomicType() {
 
 template <>
 inline AtomicType<signed char>::AtomicType() {
-    _hid = H5Tcopy(H5T_NATIVE_CHAR);
+    _hid = H5Tcopy(H5T_NATIVE_SCHAR);
 }
 
 template <>
@@ -126,7 +125,7 @@ inline AtomicType<unsigned long long>::AtomicType() {
     _hid = H5Tcopy(H5T_NATIVE_ULLONG);
 }
 
-// float and double mapping
+// float, double and long double mapping
 template <>
 inline AtomicType<float>::AtomicType() {
     _hid = H5Tcopy(H5T_NATIVE_FLOAT);
@@ -135,6 +134,11 @@ inline AtomicType<float>::AtomicType() {
 template <>
 inline AtomicType<double>::AtomicType() {
     _hid = H5Tcopy(H5T_NATIVE_DOUBLE);
+}
+
+template <>
+inline AtomicType<long double>::AtomicType() {
+    _hid = H5Tcopy(H5T_NATIVE_LDOUBLE);
 }
 
 // boolean mapping
@@ -152,20 +156,35 @@ inline AtomicType<std::string>::AtomicType() {
 // Fixed-Length strings
 // require class specialization templated for the char length
 template <size_t StrLen>
-class AtomicType<char[StrLen]> : public DataType {
+class AtomicType<char[StrLen]>: public DataType {
   public:
-    inline AtomicType() : DataType(create_string(StrLen)) {}
+    inline AtomicType()
+        : DataType(create_string(StrLen)) {}
 };
 
 template <size_t StrLen>
-class AtomicType<FixedLenStringArray<StrLen>> : public DataType {
+class AtomicType<FixedLenStringArray<StrLen>>: public DataType {
   public:
-    inline AtomicType() : DataType(create_string(StrLen)) {}
+    inline AtomicType()
+        : DataType(create_string(StrLen)) {}
 };
 
 template <>
-inline AtomicType<std::complex<double> >::AtomicType() {
-    static struct ComplexType : public Object {
+inline AtomicType<std::complex<float>>::AtomicType() {
+    static struct ComplexType: public Object {
+        ComplexType() {
+            _hid = H5Tcreate(H5T_COMPOUND, sizeof(std::complex<float>));
+            // h5py/numpy compatible datatype
+            H5Tinsert(_hid, "r", 0, H5T_NATIVE_FLOAT);
+            H5Tinsert(_hid, "i", sizeof(float), H5T_NATIVE_FLOAT);
+        };
+    } complexType;
+    _hid = H5Tcopy(complexType.getId());
+}
+
+template <>
+inline AtomicType<std::complex<double>>::AtomicType() {
+    static struct ComplexType: public Object {
         ComplexType() {
             _hid = H5Tcreate(H5T_COMPOUND, sizeof(std::complex<double>));
             // h5py/numpy compatible datatype
@@ -179,47 +198,45 @@ inline AtomicType<std::complex<double> >::AtomicType() {
 // Other cases not supported. Fail early with a user message
 template <typename T>
 AtomicType<T>::AtomicType() {
-    static_assert(details::array_dims<T>::value == 0,
-                  "Atomic types cant be arrays, except for char[] (fixed-len strings)");
-    static_assert(details::array_dims<T>::value > 0, "Type not supported");
+    static_assert(details::inspector<T>::recursive_ndim == 0,
+                  "Atomic types cant be arrays, except for char[] (fixed-length strings)");
+    static_assert(details::inspector<T>::recursive_ndim > 0, "Type not supported");
 }
 
 
 // class FixedLenStringArray<N>
 
 template <std::size_t N>
-inline FixedLenStringArray<N>
-::FixedLenStringArray(const char array[][N], std::size_t length) {
+inline FixedLenStringArray<N>::FixedLenStringArray(const char array[][N], std::size_t length) {
     datavec.resize(length);
     std::memcpy(datavec[0].data(), array[0].data(), N * length);
 }
 
 template <std::size_t N>
-inline FixedLenStringArray<N>
-::FixedLenStringArray(const std::string* iter_begin, const std::string* iter_end) {
+inline FixedLenStringArray<N>::FixedLenStringArray(const std::string* iter_begin,
+                                                   const std::string* iter_end) {
     datavec.resize(static_cast<std::size_t>(iter_end - iter_begin));
-    for (auto& dst_array : datavec) {
+    for (auto& dst_array: datavec) {
         const char* src = (iter_begin++)->c_str();
-        const size_t length = std::min(N - 1 , std::strlen(src));
+        const size_t length = std::min(N - 1, std::strlen(src));
         std::memcpy(dst_array.data(), src, length);
         dst_array[length] = 0;
     }
 }
 
 template <std::size_t N>
-inline FixedLenStringArray<N>
-::FixedLenStringArray(const std::vector<std::string> & vec)
+inline FixedLenStringArray<N>::FixedLenStringArray(const std::vector<std::string>& vec)
     : FixedLenStringArray(&vec.front(), &vec.back()) {}
 
 template <std::size_t N>
-inline FixedLenStringArray<N>
-::FixedLenStringArray(const std::initializer_list<std::string>& init_list)
+inline FixedLenStringArray<N>::FixedLenStringArray(
+    const std::initializer_list<std::string>& init_list)
     : FixedLenStringArray(init_list.begin(), init_list.end()) {}
 
 template <std::size_t N>
 inline void FixedLenStringArray<N>::push_back(const std::string& src) {
     datavec.emplace_back();
-    const size_t length = std::min(N - 1 , src.length());
+    const size_t length = std::min(N - 1, src.length());
     std::memcpy(datavec.back().data(), src.c_str(), length);
     datavec.back()[length] = 0;
 }
@@ -242,47 +259,72 @@ inline AtomicType<Reference>::AtomicType() {
     _hid = H5Tcopy(H5T_STD_REF_OBJ);
 }
 
+inline size_t find_first_atomic_member_size(hid_t hid) {
+    // Recursive exit condition
+    if (H5Tget_class(hid) != H5T_COMPOUND) {
+        return H5Tget_size(hid);
+    }
+
+    auto number_of_members = H5Tget_nmembers(hid);
+    if (number_of_members == -1) {
+        throw DataTypeException("Cannot get members of CompoundType with hid: " +
+                                std::to_string(hid));
+    }
+    if (number_of_members == 0) {
+        throw DataTypeException("No members defined for CompoundType with hid: " +
+                                std::to_string(hid));
+    }
+
+    auto member_type = H5Tget_member_type(hid, 0);
+    auto size = find_first_atomic_member_size(member_type);
+    H5Tclose(member_type);
+    return size;
+}
 
 // Calculate the padding required to align an element of a struct
-#define _H5_STRUCT_PADDING(current_size, member_size) (((member_size) - (current_size)) % (member_size))
+#define _H5_STRUCT_PADDING(current_size, member_size) \
+    ((std::max(member_size, current_size) - std::min(member_size, current_size)) % (member_size))
 
 inline void CompoundType::create(size_t size) {
     if (size == 0) {
-        size_t current_size = 0, max_type_size = 0;
+        size_t current_size = 0, max_atomic_size = 0;
 
         // Do a first pass to find the total size of the compound datatype
         for (auto& member: members) {
             size_t member_size = H5Tget_size(member.base_type.getId());
+
             if (member_size == 0) {
                 throw DataTypeException("Cannot get size of DataType with hid: " +
                                         std::to_string(member.base_type.getId()));
             }
 
+            size_t first_atomic_size = find_first_atomic_member_size(member.base_type.getId());
+
             // Set the offset of this member within the struct according to the
-            // standard alignment rules
-            member.offset = current_size + _H5_STRUCT_PADDING(current_size, member_size);
+            // standard alignment rules. The c++ standard specifies that:
+            // > objects have an alignment requirement of which their size is a multiple
+            member.offset = current_size + _H5_STRUCT_PADDING(current_size, first_atomic_size);
 
             // Set the current size to the end of the new member
             current_size = member.offset + member_size;
 
-            max_type_size = std::max(max_type_size, member_size);
+            // Keep track of the highest atomic member size because it's needed
+            // for the padding of the complete compound type.
+            max_atomic_size = std::max(max_atomic_size, first_atomic_size);
         }
 
-        size = current_size + _H5_STRUCT_PADDING(current_size, max_type_size);
+        size = current_size + _H5_STRUCT_PADDING(current_size, max_atomic_size);
     }
 
     // Create the HDF5 type
-    if((_hid = H5Tcreate(H5T_COMPOUND, size)) < 0) {
-        HDF5ErrMapper::ToException<DataTypeException>(
-            "Could not create new compound datatype");
+    if ((_hid = H5Tcreate(H5T_COMPOUND, size)) < 0) {
+        HDF5ErrMapper::ToException<DataTypeException>("Could not create new compound datatype");
     }
 
     // Loop over all the members and insert them into the datatype
     for (const auto& member: members) {
-        if(H5Tinsert(_hid, member.name.c_str(), member.offset, member.base_type.getId()) < 0) {
-            HDF5ErrMapper::ToException<DataTypeException>(
-                "Could not add new member to datatype"
-            );
+        if (H5Tinsert(_hid, member.name.c_str(), member.offset, member.base_type.getId()) < 0) {
+            HDF5ErrMapper::ToException<DataTypeException>("Could not add new member to datatype");
         }
     }
 }
@@ -293,36 +335,33 @@ inline void CompoundType::commit(const Object& object, const std::string& name) 
     H5Tcommit2(object.getId(), name.c_str(), getId(), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 }
 
-template<typename T>
+template <typename T>
 inline void EnumType<T>::create() {
     // Create the HDF5 type
-    if((_hid = H5Tenum_create(AtomicType<typename std::underlying_type<T>::type>{}.getId())) < 0) {
-        HDF5ErrMapper::ToException<DataTypeException>(
-            "Could not create new enum datatype");
+    if ((_hid = H5Tenum_create(AtomicType<typename std::underlying_type<T>::type>{}.getId())) < 0) {
+        HDF5ErrMapper::ToException<DataTypeException>("Could not create new enum datatype");
     }
 
     // Loop over all the members and insert them into the datatype
     for (const auto& member: members) {
-        if(H5Tenum_insert(_hid, member.name.c_str(), &(member.value)) < 0) {
+        if (H5Tenum_insert(_hid, member.name.c_str(), &(member.value)) < 0) {
             HDF5ErrMapper::ToException<DataTypeException>(
-                "Could not add new member to this enum datatype"
-            );
+                "Could not add new member to this enum datatype");
         }
     }
 }
 
-template<typename T>
+template <typename T>
 inline void EnumType<T>::commit(const Object& object, const std::string& name) const {
     H5Tcommit2(object.getId(), name.c_str(), getId(), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 }
 
 namespace {
 
-inline hid_t create_string(size_t length){
+inline hid_t create_string(size_t length) {
     hid_t _hid = H5Tcopy(H5T_C_S1);
     if (H5Tset_size(_hid, length) < 0) {
-        HDF5ErrMapper::ToException<DataTypeException>(
-            "Unable to define datatype size to variable");
+        HDF5ErrMapper::ToException<DataTypeException>("Unable to define datatype size to variable");
     }
     // define encoding to UTF-8 by default
     H5Tset_cset(_hid, H5T_CSET_UTF8);
@@ -331,63 +370,63 @@ inline hid_t create_string(size_t length){
 
 
 inline DataTypeClass convert_type_class(const H5T_class_t& tclass) {
-    switch(tclass) {
-        case H5T_TIME:
-            return DataTypeClass::Time;
-        case H5T_INTEGER:
-            return DataTypeClass::Integer;
-        case H5T_FLOAT:
-            return DataTypeClass::Float;
-        case H5T_STRING:
-            return DataTypeClass::String;
-        case H5T_BITFIELD:
-            return DataTypeClass::BitField;
-        case H5T_OPAQUE:
-            return DataTypeClass::Opaque;
-        case H5T_COMPOUND:
-            return DataTypeClass::Compound;
-        case H5T_REFERENCE:
-            return DataTypeClass::Reference;
-        case H5T_ENUM:
-            return DataTypeClass::Enum;
-        case H5T_VLEN:
-            return DataTypeClass::VarLen;
-        case H5T_ARRAY:
-            return DataTypeClass::Array;
-        case H5T_NO_CLASS:
-        case H5T_NCLASSES:
-        default:
-            return DataTypeClass::Invalid;
+    switch (tclass) {
+    case H5T_TIME:
+        return DataTypeClass::Time;
+    case H5T_INTEGER:
+        return DataTypeClass::Integer;
+    case H5T_FLOAT:
+        return DataTypeClass::Float;
+    case H5T_STRING:
+        return DataTypeClass::String;
+    case H5T_BITFIELD:
+        return DataTypeClass::BitField;
+    case H5T_OPAQUE:
+        return DataTypeClass::Opaque;
+    case H5T_COMPOUND:
+        return DataTypeClass::Compound;
+    case H5T_REFERENCE:
+        return DataTypeClass::Reference;
+    case H5T_ENUM:
+        return DataTypeClass::Enum;
+    case H5T_VLEN:
+        return DataTypeClass::VarLen;
+    case H5T_ARRAY:
+        return DataTypeClass::Array;
+    case H5T_NO_CLASS:
+    case H5T_NCLASSES:
+    default:
+        return DataTypeClass::Invalid;
     }
 }
 
 
 inline std::string type_class_string(DataTypeClass tclass) {
-    switch(tclass) {
-        case DataTypeClass::Time:
-            return "Time";
-        case DataTypeClass::Integer:
-            return "Integer";
-        case DataTypeClass::Float:
-            return "Float";
-        case DataTypeClass::String:
-            return "String";
-        case DataTypeClass::BitField:
-            return "BitField";
-        case DataTypeClass::Opaque:
-            return "Opaque";
-        case DataTypeClass::Compound:
-            return "Compound";
-        case DataTypeClass::Reference:
-            return "Reference";
-        case DataTypeClass::Enum:
-            return "Enum";
-        case DataTypeClass::VarLen:
-            return "Varlen";
-        case DataTypeClass::Array:
-            return "Array";
-        default:
-            return "(Invalid)";
+    switch (tclass) {
+    case DataTypeClass::Time:
+        return "Time";
+    case DataTypeClass::Integer:
+        return "Integer";
+    case DataTypeClass::Float:
+        return "Float";
+    case DataTypeClass::String:
+        return "String";
+    case DataTypeClass::BitField:
+        return "BitField";
+    case DataTypeClass::Opaque:
+        return "Opaque";
+    case DataTypeClass::Compound:
+        return "Compound";
+    case DataTypeClass::Reference:
+        return "Reference";
+    case DataTypeClass::Enum:
+        return "Enum";
+    case DataTypeClass::VarLen:
+        return "Varlen";
+    case DataTypeClass::Array:
+        return "Array";
+    default:
+        return "(Invalid)";
     }
 }
 
@@ -404,18 +443,24 @@ inline DataType create_datatype() {
 /// \brief Create a DataType instance representing type T and perform a sanity check on its size
 template <typename T>
 inline DataType create_and_check_datatype() {
-
     DataType t = create_datatype<T>();
+    if (t.empty()) {
+        throw DataTypeException("Type given to create_and_check_datatype is not valid");
+    }
+
     // Skip check if the base type is a variable length string
     if (t.isVariableStr()) {
         return t;
     }
+
     // Check that the size of the template type matches the size that HDF5 is
     // expecting.
-    if(!t.isReference() && (sizeof(T) != t.getSize())) {
+    if (t.isReference() || t.isFixedLenStr()) {
+        return t;
+    }
+    if (sizeof(T) != t.getSize()) {
         std::ostringstream ss;
-        ss << "Size of array type " << sizeof(T)
-           << " != that of memory datatype " << t.getSize()
+        ss << "Size of array type " << sizeof(T) << " != that of memory datatype " << t.getSize()
            << std::endl;
         throw DataTypeException(ss.str());
     }
@@ -426,4 +471,4 @@ inline DataType create_and_check_datatype() {
 }  // namespace HighFive
 
 
-#endif // H5DATATYPE_MISC_HPP
+#endif  // H5DATATYPE_MISC_HPP

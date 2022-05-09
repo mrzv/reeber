@@ -15,17 +15,6 @@
 #include <type_traits>
 #include <initializer_list>
 
-#ifdef H5_USE_BOOST
-// starting Boost 1.64, serialization header must come before ublas
-#include <boost/serialization/vector.hpp>
-#include <boost/multi_array.hpp>
-#include <boost/numeric/ublas/matrix.hpp>
-#endif
-
-#ifdef H5_USE_EIGEN
-#include <Eigen/Eigen>
-#endif
-
 #include "H5Object.hpp"
 #include "bits/H5_definitions.hpp"
 
@@ -34,17 +23,16 @@ namespace HighFive {
 ///
 /// \brief Class representing the space (dimensions) of a dataset
 ///
-class DataSpace : public Object {
+class DataSpace: public Object {
   public:
-
     const static ObjectType type = ObjectType::DataSpace;
 
     static const size_t UNLIMITED = SIZE_MAX;
 
     /// dataspace type
     enum DataspaceType {
-        datascape_scalar,
-        datascape_null
+        dataspace_scalar,
+        dataspace_null
         // simple dataspace are handle directly from their dimensions
     };
 
@@ -55,6 +43,10 @@ class DataSpace : public Object {
     ///  etc...
     explicit DataSpace(const std::vector<size_t>& dims);
 
+    // create a dataspace of N-dimensions
+    template <size_t N>
+    explicit DataSpace(const std::array<size_t, N>& dims);
+
     /// Make sure that DataSpace({1,2,3}) works on GCC. This is
     /// the shortcut form of the vector initializer, but one some compilers (gcc)
     /// this does not resolve correctly without this constructor.
@@ -62,21 +54,20 @@ class DataSpace : public Object {
 
     /// Allow directly listing 1 or more dimensions to initialize,
     /// that is, DataSpace(1,2) means DataSpace(std::vector<size_t>{1,2}).
-    template<typename... Args>
+    template <typename... Args>
     explicit DataSpace(size_t dim1, Args... dims);
 
     /// Create a dataspace from an iterator pair
     ///
     /// Explicitly disable DataSpace(int_like, int_like) from trying to use this constructor
-    template <typename IT, typename = typename std::enable_if<!std::is_integral<IT>::value,IT>::type>
-    DataSpace(const IT begin,
-              const IT end);
+    template <typename IT,
+              typename = typename std::enable_if<!std::is_integral<IT>::value, IT>::type>
+    DataSpace(const IT begin, const IT end);
 
     /// \brief Create a resizable N-dimensional dataspace
     /// \param dims Initial size of dataspace
     /// \param maxdims Maximum size of the dataspace
-    explicit DataSpace(const std::vector<size_t>& dims,
-                       const std::vector<size_t>& maxdims);
+    explicit DataSpace(const std::vector<size_t>& dims, const std::vector<size_t>& maxdims);
 
     ///
     /// \brief DataSpace create a scalar dataspace or a null dataset
@@ -107,50 +98,12 @@ class DataSpace : public Object {
     /// associated dataset maximum dimension
     std::vector<size_t> getMaxDimensions() const;
 
-    /// Create a dataspace matching a single element of a basic type
-    ///  supported type are integrals (int,long), floating points (float,double)
-    ///  and std::string
-    template <typename ScalarValue>
-    static DataSpace From(const ScalarValue& scalar_value);
-
-    /// Create a dataspace matching the container dimensions and size
-    /// Supported Containers are:
-    ///  - vector of fundamental types
-    ///  - vector of std::string
-    ///  - boost::multi_array (with H5_USE_BOOST defined)
-    template <typename Value>
-    static DataSpace From(const std::vector<Value>& container);
-
-    /// Create a dataspace matching the container dimensions for a
-    /// std::array.
-    template <typename Value, std::size_t N>
-    static DataSpace From(const std::array<Value, N>&);
-
-    template <typename ValueT, std::size_t N>
-    static DataSpace From(const ValueT(&container)[N]);
+    /// Create a dataspace matching a type accepted by details::inspector
+    template <typename T>
+    static DataSpace From(const T& value);
 
     template <std::size_t N, std::size_t Width>
-    static DataSpace FromCharArrayStrings(const char(&)[N][Width]);
-
-#ifdef H5_USE_BOOST
-    template <typename Value, std::size_t Dims>
-    static DataSpace From(const boost::multi_array<Value, Dims>& container);
-
-    template <typename Value>
-    static DataSpace From(const boost::numeric::ublas::matrix<Value>& mat);
-#endif
-
-#ifdef H5_USE_EIGEN
-    template <typename Value, int M, int N>
-    static DataSpace From(const Eigen::Matrix<Value, M, N>& mat);
-
-    template <typename Value, int M, int N>
-    static DataSpace From(const std::vector<Eigen::Matrix<Value, M, N>>& vec);
-#ifdef H5_USE_BOOST
-    template <typename Value, int M, int N, size_t Dims>
-    static DataSpace From(const boost::multi_array<Eigen::Matrix<Value, M, N>, Dims>& vec);
-#endif
-#endif
+    static DataSpace FromCharArrayStrings(const char (&)[N][Width]);
 
   protected:
     DataSpace() = default;
@@ -165,4 +118,4 @@ class DataSpace : public Object {
 // We include bits right away since DataSpace is user-constructible
 #include "bits/H5Dataspace_misc.hpp"
 
-#endif // H5DATASPACE_HPP
+#endif  // H5DATASPACE_HPP

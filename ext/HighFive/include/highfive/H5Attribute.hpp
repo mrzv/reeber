@@ -14,15 +14,15 @@
 #include "H5DataSpace.hpp"
 #include "H5DataType.hpp"
 #include "H5Object.hpp"
+#include "bits/H5Path_traits.hpp"
 
 namespace HighFive {
 
 ///
 /// \brief Class representing an attribute of a dataset or group
 ///
-class Attribute : public Object {
+class Attribute: public Object, public PathTraits<Attribute> {
   public:
-
     const static ObjectType type = ObjectType::Attribute;
 
     ///
@@ -65,7 +65,7 @@ class Attribute : public Object {
     /// Read the attribute into a buffer
     ///
     template <typename T>
-    void read(T* array) const;
+    void read(T* array, const DataType& dtype = DataType()) const;
 
     ///
     /// Write the integrality N-dimension buffer to this attribute
@@ -81,15 +81,19 @@ class Attribute : public Object {
     /// Write a buffer to this attribute
     ///
     template <typename T>
-    void write_raw(const T& buffer);
+    void write_raw(const T* buffer, const DataType& dtype = DataType());
+
+    // No empty attributes
+    Attribute() = delete;
 
   private:
-    Attribute() = default;
+    using Object::Object;
 
-    template <typename Derivate> friend class ::HighFive::AnnotateTraits;
+    template <typename Derivate>
+    friend class ::HighFive::AnnotateTraits;
 };
 
 }  // namespace HighFive
 
 
-#endif // H5ATTRIBUTE_HPP
+#endif  // H5ATTRIBUTE_HPP

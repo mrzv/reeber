@@ -22,7 +22,6 @@ Used e.g. for scalars.
 */
 template <typename T, typename = void>
 struct io_impl {
-
     inline static DataSet dump(File& file,
                                const std::string& path,
                                const T& data,
@@ -77,7 +76,9 @@ struct io_impl {
             std::vector<size_t> dims = dataset.getDimensions();
             std::vector<size_t> shape = dims;
             if (dims.size() != idx.size()) {
-                throw detail::error(file, path,
+                throw detail::error(
+                    file,
+                    path,
                     "H5Easy::dump: Dimension of the index and the existing field do not match");
             }
             for (size_t i = 0; i < dims.size(); ++i) {
@@ -93,7 +94,6 @@ struct io_impl {
             return dataset;
         }
 
-        detail::createGroupsToDataSet(file, path);
         std::vector<size_t> shape = idx;
         const size_t unlim = DataSpace::UNLIMITED;
         std::vector<size_t> unlim_shape(idx.size(), unlim);
@@ -104,13 +104,13 @@ struct io_impl {
                 throw error(file, path, "H5Easy::dump: Incorrect dimension ChunkSize");
             }
         }
-        for (size_t& i : shape) {
+        for (size_t& i: shape) {
             i++;
         }
         DataSpace dataspace = DataSpace(shape, unlim_shape);
         DataSetCreateProps props;
         props.add(Chunking(chunks));
-        DataSet dataset = file.createDataSet(path, dataspace, AtomicType<T>(), props);
+        DataSet dataset = file.createDataSet(path, dataspace, AtomicType<T>(), props, {}, true);
         dataset.select(idx, ones).write(data);
         if (options.flush()) {
             file.flush();
