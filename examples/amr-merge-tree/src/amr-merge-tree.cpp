@@ -137,7 +137,10 @@ void read_from_file(std::string infn,
 
     if (ends_with(infn, ".npy"))
     {
-        read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain);
+        diy::RegularDecomposer<diy::DiscreteBounds>::BoolVector wrap;
+        for(int i = 0; i < DIM; ++i)
+            wrap.push_back(true);
+        read_from_npy_file<DIM>(infn, world, nblocks, master_reader, assigner, header, domain, wrap);
     } else
     {
         if (split)
