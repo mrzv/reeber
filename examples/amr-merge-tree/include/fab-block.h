@@ -20,14 +20,16 @@ struct FabBlock
     {
     }
 
-    FabBlock(T* data, const Shape& shape) :
-            fab(data, shape, /* c_order = */ false)
+    FabBlock(T* data, const Shape& shape, bool owns_data=false) :
+            fab(data, shape, /* c_order = */ false),
+            owns_data_(owns_data)
     {
     }
 
-    FabBlock(T* data, const std::vector<std::string>& extra_names, const std::vector<T*>& extra_data, const Shape& shape) :
+    FabBlock(T* data, const std::vector<std::string>& extra_names, const std::vector<T*>& extra_data, const Shape& shape, bool owns_data=false) :
             fab(data, shape, /* c_order = */ false),
-            extra_names_(extra_names)
+            extra_names_(extra_names),
+            owns_data_(owns_data)
     {
         for(T* extra_ptr : extra_data)
         {
@@ -37,6 +39,9 @@ struct FabBlock
 
     ~FabBlock()
     {
+        if (!owns_data_)
+            return;
+
         for (auto& fab : extra_fabs_)
             delete[] fab.data();
 
@@ -66,6 +71,7 @@ struct FabBlock
     std::vector<std::string> extra_names_; // vector of names additional components
     std::vector<diy::GridRef<T, D>> extra_fabs_; // vector of additional components' data
 
+    bool owns_data_ { false };
 };
 
 template<class T, unsigned D>

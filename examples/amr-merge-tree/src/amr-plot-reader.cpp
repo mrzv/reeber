@@ -363,7 +363,7 @@ void read_amr_plotfile(std::string infile,
         {
             auto* l = static_cast<diy::AMRLink*>(cp.link());
             auto receivers = link_unique(l, cp.gid());
-            fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}, neighbors = {}\n", cp.gid(), l->level(), b->fab.shape(), l->core().min, l->core().max, l->bounds().min, l->bounds().max, container_to_string(receivers));
+            fmt::print("{}: level = {}, shape = {}, core = {} - {}, bounds = {} - {}\n", cp.gid(), l->level(), b->fab.shape(), l->core().min, l->core().max, l->bounds().min, l->bounds().max);
         });
     }
 }
