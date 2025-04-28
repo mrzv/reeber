@@ -231,6 +231,7 @@ int main(int argc, char** argv)
     // threshold
     Real rho = 81.66;
     Real absolute_rho;
+    Real extrema_threshold = 0;
     int min_cells = 10;
 
     std::string integral_fields = "";
@@ -249,6 +250,7 @@ int main(int argc, char** argv)
             >> Option('j', "jobs", threads, "threads to use during the computation")
             >> Option('s', "storage", prefix, "storage prefix")
             >> Option('i', "rho", rho, "iso threshold")
+            >> Option('e', "mindensest", extrema_threshold, "extrema threshold (default: 0)")
             >> Option('x', "mincells", min_cells, "minimal number of cells to output halo")
             >> Option('f', "function_fields", function_fields, "fields to add for merge tree, separated with , ")
             >> Option(      "integral_fields", integral_fields, "fields to integrate separated with , ")
@@ -332,7 +334,7 @@ int main(int argc, char** argv)
     dlog::Timer timer_all;
     LOG_SEV_IF(world.rank() == 0, info) << "Starting computation, input_filename = " << input_filename << ", nblocks = "
                                         << nblocks
-                                        << ", rho = " << rho;
+                                        << ", rho = " << rho  << ", extrema threshold = " << extrema_threshold;
     dlog::flush();
 
 #ifdef REEBER_DO_DETAILED_TIMING
@@ -448,6 +450,7 @@ int main(int argc, char** argv)
             mean = total_sum / total_unmasked;
 
             absolute_rho = rho * mean;                                            // now rho contains absolute threshold
+            extrema_threshold *= mean;                                            // update extrema treshold accordingly
 #ifdef REEBER_DO_DETAILED_TIMING
             time_to_get_average = timer.elapsed();
 #endif
@@ -651,10 +654,10 @@ int main(int argc, char** argv)
 #ifdef REEBER_EXTRA_INTEGRAL
         if (write_integral)
         {
-            master.foreach([](Block* b, const diy::Master::ProxyWithLink& cp)
+            master.foreach([extrema_threshold](Block* b, const diy::Master::ProxyWithLink& cp)
             {
                 b->compute_final_connected_components();
-                b->compute_local_integral();
+                b->compute_local_integral(extrema_threshold);
                 b->multiply_integral_by_cell_volume();
             });
 

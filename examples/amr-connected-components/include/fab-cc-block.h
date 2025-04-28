@@ -140,7 +140,7 @@ struct FabComponentBlock {
     // grids of additional fields
     std::vector<diy::GridRef<Real, D>> extra_grids_;
 
-    void compute_local_integral();
+    void compute_local_integral(Real extrema_threshold);
     void multiply_integral_by_cell_volume();
 #endif
 

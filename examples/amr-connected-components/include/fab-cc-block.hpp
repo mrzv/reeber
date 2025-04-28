@@ -692,7 +692,7 @@ void FabComponentBlock<Real, D>::compute_final_connected_components()
 
 #ifdef REEBER_EXTRA_INTEGRAL
 template<class Real, unsigned D>
-void FabComponentBlock<Real, D>::compute_local_integral()
+void FabComponentBlock<Real, D>::compute_local_integral(Real extrema_treshold)
 {
     // remove integrals whose root is not local;
     // if root is local, accumulate values at root
@@ -715,6 +715,17 @@ void FabComponentBlock<Real, D>::compute_local_integral()
             li_iter = local_integral_.erase(li_iter);
         } else
         {
+            ++li_iter;
+        }
+    }
+
+    // remove halos whose root is not dense enough
+    for(auto li_iter = local_integral_.begin(); li_iter != local_integral_.end(); ) {
+        AmrVertexId root = li_iter->first;
+
+        if (cmp(extrema_treshold, fab_(root.vertex))) {
+            li_iter = local_integral_.erase(li_iter);
+        } else {
             ++li_iter;
         }
     }
