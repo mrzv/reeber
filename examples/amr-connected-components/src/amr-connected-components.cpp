@@ -11,7 +11,9 @@
 #include <execinfo.h>
 #include <cxxabi.h>
 
+#if defined(REEBER_USE_AMREX)
 #include <AMReX.H>
+#endif
 
 #include <diy/master.hpp>
 #include <diy/io/block.hpp>
@@ -21,8 +23,11 @@
 #include <dlog/stats.h>
 #include <dlog/log.h>
 #include <opts/opts.h>
+
+#if defined(REEBER_USE_AMREX)
 #include <error.h>
 #include <AMReX_Geometry.H>
+#endif
 
 #include "../../amr-merge-tree/include/fab-block.h"
 #include "fab-cc-block.h"
@@ -33,7 +38,9 @@
 #include "../../amr-merge-tree/include/read-npy.h"
 #include "../../amr-merge-tree/include/read-hdf5.h"
 
+#if defined(REEBER_USE_AMREX)
 #include "amr-plot-reader.h"
+#endif
 #include "amr-connected-components-complex.h"
 
 
@@ -373,7 +380,11 @@ int main(int argc, char** argv)
     {
         LOG_SEV_IF(world.rank() == 0, info) << "Reading plotfile, all_var_names = " << container_to_string(all_var_names) << ", n_mt_vars = " << n_mt_vars;
 
+#if defined(REEBER_USE_AMREX)
         read_amr_plotfile(input_filename, all_var_names, n_mt_vars, world, nblocks, master_reader, header, cell_volume, domain);
+#else
+        LOG_SEV_IF(world.rank() == 0, error) << "Built without AMReX support";
+#endif
     } else
     {
         read_from_file(input_filename, all_var_names, n_mt_vars, world, master_reader, assigner, header, domain, split, nblocks, wrap_vec);
@@ -452,8 +463,10 @@ int main(int argc, char** argv)
             if (mean < 0 or std::isnan(mean) or std::isinf(mean) or mean > 1e+40)
             {
                 LOG_SEV_IF(world.rank() == 0, error) << "Bad average = " << mean << ", do not proceed";
+#if defined(REEBER_USE_AMREX)
                 if (read_plotfile)
                     amrex::Finalize();
+#endif
                 return 1;
             }
 
@@ -1056,10 +1069,10 @@ int main(int argc, char** argv)
 #endif
     } // loop over runs
 
+#if defined(REEBER_USE_AMREX)
     if (read_plotfile)
-    {
         amrex::Finalize();
-    }
+#endif
 
     return 0;
 }

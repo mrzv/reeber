@@ -5,5 +5,5 @@ add_subdirectory    (local-global)
 
 if                  (amrex)
     add_subdirectory(amr-merge-tree)
-    add_subdirectory(amr-connected-components)
 endif()
+add_subdirectory(amr-connected-components)
