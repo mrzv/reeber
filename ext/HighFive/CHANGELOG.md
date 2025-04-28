@@ -1,3 +1,167 @@
+# Changes
+## Version 3.0.0-beta2 - 2024-12-04
+### New Features
+    - Support `boost::span`. (#1025)
+
+### Bug Fix
+    - Fix for not-quite null-terminated, fixed-length strings. (#1056)
+    - Guard target creation in `*Config.cmake`. (#1053)
+
+## Version 3.0.0-beta1 - 2024-07-16
+This version is a major one and is breaking some usage compare to v2.
+Read the migration guide from the documentation: https://bluebrain.github.io/HighFive/md__2home_2runner_2work_2_high_five_2_high_five_2doc_2migration__guide.html
+
+The minimum version for C++ has been moved to `C++14`.
+
+### Removed
+    - Removed `read(T*, ...)`, use explicit `read_raw(T*, ...)` for `Slice` or `Attribute`. (#928)
+    - Removed `FixedLenStringArray`, use any container with strings instead. (#932)
+    - Removed `FileDriver` and `MPIOFileDriver`, use file access properties instead. (#949)
+    - Removed default constructor for `Group` and `DataSet`. (#947, #948)
+    - Broadcasting have been removed. Use `squeeze` and `reshape` feature instead. (#992)
+    - `ObjectCreateProps` and `ObjectAccessProps` those don't map well to HighFive and are unused. (#1002)
+
+### New Features
+    - Added support for `std::span`. (#987)
+    - Added `squeezeMemSpace` and `reshapeMemSpace` for `Attribute` and `Slice` to reshape the memory space. (#991)
+    - Added `ProductSet` to select a Cartesian products of (generalized) slices. (#842)
+
+### Improvements
+    - Optimized chained hyperslab selection. (#1031)
+    - Type `T[N]` or `T[N][M]` will work better. (#929)
+    - `DataspaceType` is now an enum class for `dataspace_scalar` or `dataspace_null`. (#900)
+    - `File::AccessMode` is now an enum class. (#1020)
+
+## Version 2.9.0 - 2024-01-25
+### New Features
+    - Add named ctors for scalar and null dataspaces. (#899)
+    - Named ctor for empty property lists. (#904)
+
+### Improvements
+    - Enable running tests in parallel. (#849)
+    - Wrap all used HDF5 function calls and always check status codes. (#863)
+    - Utilities for writing tests in a container independent manner. (#871)
+    - Improve test rigour.
+
+### Bug Fix
+    - Log messages were slightly misformatted. (#854)
+    - Fix bug in `enforce_ascii_hack`. (#856)
+    - Fix `create_datatype<bool>()`. (#869)
+    - Guard functionality introduced in 1.10.0. (#905)
+    - `inspector` guard for empty containers. (#913)
+    - Avoid non-collective behaviour. (#912)
+
+
+## Version 2.8.0 - 2023-11-02
+### Important Change
+    - `Eigen::Matrix` is (by default) stored with column-major index ordering. Under
+      certain conditions `Eigen::Matrix` was written and read as row-major.
+      Due to code duplication H5Easy isn't affected by this bug. Starting
+      `2.8.0` HighFive will now throw an exception whenever prior versions would
+      have read with incorrect assumptions about the index ordering. (#731)
+
+### New Features
+    - Improve reading and writing `std::string` as fixed and variable length HDF5 strings (#744).
+    - Implement creation of hard links (#765). Thanks to @Quark-X10.
+    - Get the size of file and amound of tracked unused space (#764). Thanks to @Quark-X10.
+    - `class DataType` has a new ctor to open a commited `DataType` (#796). Thanks to @Quark-X10.
+    - Allow user-specified `mem_space` for hyperslabs. (#740)
+    - New properties: `AttributePhaseChange`. (#785)
+    - New options to link against HDF5 statically (#823). Thanks @HunterBelanger.
+    - Add support for `std::complex<integral_type>` valid with C++23 (#828). Thanks @unbtorsten.
+    - Add a top-level header to include all compononents (#818).
+
+### Improvements
+    - Add concept checks to `Property` if C++20 for better errors (#811). Thanks @antonysigma.
+    - Add parallel HDF5 test in CI (#760).
+    - Simplify github workflow (#761).
+    - Move inspectors in their own file to be able to better implements strings (#759).
+
+### Bug Fix
+    - Fix vector constructor ambiguity in H5DataType.hpp (#775). Thanks to @hn-sl.
+    - `getElementCount()` fixed. (#787)
+    - Remove leak when calling dtor of `CompoundType`. (#798)
+
+## Version 2.7.1 - 2023-04-04
+### Bug Fix
+    - Revert removing `#include "H5FileDriver.hpp"` from `H5File.hpp` (#711).
+    - Change relative import to "../H5Utility.hpp" (#726).
+    - Fix nameclash with macros on Windows (#717 #722 #723).
+    - Add workaround for MSVC bug (#728).
+    - Don't downgrade the requested C++ standard (#729).
+
+## Version 2.7.0 - 2023-03-31
+### New Features
+    - Properties can now be read (#684).
+    - Adding a property for LinkCreationOrder (#683).
+    - Adding a logging infrastructure (#690).
+    - Support of bool in the way of h5py (#654).
+    - Support `std::bool` in C++17 mode (#698).
+
+### Improvements
+    - Catch2 move to v3 (#655).
+
+### Bug Fix
+    - To avoid build failure in certain circumstances, user can not set `Boost_NO_BOOST_CMAKE` (#687).
+    - Fix leak when reading variable length strings (#660).
+    - Use `H5free_memory` instead of `free` in error handler (#665). Thanks to Moritz Koenemann.
+    - Fix a bug with old GCC due to templated friend classes (#688).
+    - Fix regression in broadcasting support (#697).
+    - Fix bug related to zero-length datasets (#702).
+
+## Version 2.6.2 - 2022-11-10
+### Bug Fix
+    - Allow CMake to use Config mode to find HDF5.
+
+## Version 2.6.1 - 2022-11-08
+### Bug Fix
+    - Version bump in `CMakeLists.txt`.
+
+## Version 2.6.0 - 2022-11-08
+### New Features
+    - Enable page buffered reading (#639).
+
+### Improvements
+    - Warn when detecting lossy reads or write of floating point data (#636).
+
+## Version 2.5.1 - 2022-11-07
+### Bug Fix
+    - Fix missing `inline` for collective metadata properties.
+
+## Version 2.5.0 - 2022-11-03
+### New Features
+    - Enable collective MPI IO using the Data Transfer Property (#623). Thanks to Rob Latham.
+    - Add a support for half-precision (16-bit) floating-point based on the Half library (http://half.sourceforge.net) (#587). Thanks to Sergio Botelh.
+    - Enable choosing the allocation time of datasets (#627).
+    - Add possibility to get and set file space strategy. For page allocated files wrap the API to set/retrieve the page size (#618).
+    - Add API for getting Access and Create property lists of HighFive objects (#629).
+    - Let users configure metadata reads and writes at file level (#624). Thanks to Rob Latham.
+
+### Improvements
+    - MPIOFileDriver is now deprecated. Use FileAccessProps (#622).
+    - Support of block argument in API (#584).
+    - Serialization of types is now automagic and so recursive (#586).
+    - Add an argument to specific File Create Properties in File class construtor (#626).
+
+### Bug Fixes
+    - Padding of Compound Types (#581).
+    - Compilation with Visual Studio with C++17 or later (#578). Thanks to Mark Bicknell.
+    - Avoid leaking when printing stack for error (#583).
+
+## Version 2.4.1 - 2022-05-11
+### New Features
+    - Support `std::complex`. Thanks to Philipp.
+
+### Improvements
+    - Improve EnumType/CompoundType
+    - Revert quirky behaviour of `select(const HyperSlab&)`.
+    - All `get_name` functions takes `size_t` and not `hsize_t`.
+    - Remove nix recipes.
+
+### Bug Fixes
+    - Computation of padding.
+    - Related to `0` being an invalid hid but not equal to `H5I_INVALID_HID`.
+
 ## Version 2.4.0 - 2022-04-05
 ### New Features
     - Construct a compound type from an already existing hid (#469). Thanks to Maximilian Nöthe.

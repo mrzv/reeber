@@ -13,9 +13,10 @@
 ## Getting Catch2
 
 Ideally you should be using Catch2 through its [CMake integration](cmake-integration.md#top).
-Catch2 also provides pkg-config files and single TU distribution, but this
-documentation will assume you are using CMake. If you are using single-TU
-distribution instead, remember to replace the included header with `catch_amalgamated.hpp`.
+Catch2 also provides pkg-config files and two file (header + cpp)
+distribution, but this documentation will assume you are using CMake. If
+you are using the two file distribution instead, remember to replace
+the included header with `catch_amalgamated.hpp` ([step by step instructions](migrate-v2-to-v3.md#how-to-migrate-projects-from-v2-to-v3)).
 
 
 ## Writing tests
@@ -94,12 +95,12 @@ before we move on.
 * The test automatically self-registers with the test runner, and user
   does not have do anything more to ensure that it is picked up by the test
   framework. _Note that you can run specific test, or set of tests,
-  through the [command line](command-line#top)._
+  through the [command line](command-line.md#top)._
 * The individual test assertions are written using the `REQUIRE` macro.
   It accepts a boolean expression, and uses expression templates to
   internally decompose it, so that it can be individually stringified
   on test failure.
-  
+
 On the last point, note that there are more testing macros available,
 because not all useful checks can be expressed as a simple boolean
 expression. As an example, checking that an expression throws an exception
@@ -118,7 +119,7 @@ This is best explained through an example ([code](../examples/100-Fix-Section.cp
 
 ```c++
 TEST_CASE( "vectors can be sized and resized", "[vector]" ) {
-
+    // This setup will be done 4 times in total, once for each section
     std::vector<int> v( 5 );
 
     REQUIRE( v.size() == 5 );
@@ -151,11 +152,12 @@ TEST_CASE( "vectors can be sized and resized", "[vector]" ) {
 }
 ```
 
-For each `SECTION` the `TEST_CASE` is executed from the start. This means
+For each `SECTION` the `TEST_CASE` is **executed from the start**. This means
 that each section is entered with a freshly constructed vector `v`, that
 we know has size 5 and capacity at least 5, because the two assertions
-are also checked before the section is entered. Each run through a test
-case will execute one, and only one, leaf section.
+are also checked before the section is entered. This behaviour may not be
+ideal for tests where setup is expensive. Each run through a test case will
+execute one, and only one, leaf section.
 
 Section can also be nested, in which case the parent section can be
 entered multiple times, once for each leaf section. Nested sections are
@@ -177,7 +179,7 @@ To continue on the vector example above, you could add a check that
     }
 ```
 
-Another way to look at sections is that they are a way to define a tree 
+Another way to look at sections is that they are a way to define a tree
 of paths through the test. Each section represents a node, and the final
 tree is walked in depth-first manner, with each path only visiting only
 one leaf node.

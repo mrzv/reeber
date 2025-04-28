@@ -5,7 +5,7 @@ Reporters are a customization point for most of Catch2's output, e.g.
 formatting and writing out [assertions (whether passing or failing),
 sections, test cases, benchmarks, and so on](reporter-events.md#top).
 
-Catch2 comes with a bunch of reporters by default (currently 8), and
+Catch2 comes with a bunch of reporters by default (currently 9), and
 you can also write your own reporter. Because multiple reporters can
 be active at the same time, your own reporters do not even have to handle
 all reporter event, just the ones you are interested in, e.g. benchmarks.
@@ -30,7 +30,7 @@ reporters](#multiple-reporters) to avoid any surprises from doing so.
 <a id="multiple-reporters"></a>
 ## Using multiple reporters
 
-> Support for having multiple parallel reporters was [introduced](https://github.com/catchorg/Catch2/pull/2183) in Catch2 X.Y.Z
+> Support for having multiple parallel reporters was [introduced](https://github.com/catchorg/Catch2/pull/2183) in Catch2 3.0.1
 
 Catch2 supports using multiple reporters at the same time while having
 them write into different destinations. The two main uses of this are
@@ -43,11 +43,16 @@ them write into different destinations. The two main uses of this are
 
 Specifying multiple reporter looks like this:
 ```
---reporter console::- --reporter JUnit::result-junit.xml
+--reporter JUnit::out=result-junit.xml --reporter console::out=-::colour-mode=ansi
 ```
 
+This tells Catch2 to use two reporters, `JUnit` reporter that writes
+its machine-readable XML output to file `result-junit.xml`, and the
+`console` reporter that writes its user-friendly output to stdout and
+uses ANSI colour codes for colouring the output.
+
 Using multiple reporters (or one reporter and one-or-more [event
-listeners](event-listener.md#top)) can have surprisingly complex semantics
+listeners](event-listeners.md#top)) can have surprisingly complex semantics
 when using customization points provided to reporters by Catch2, namely
 capturing stdout/stderr from test cases.
 
@@ -70,7 +75,7 @@ out in batch after each runthrough of a test case is finished.
 You can also write your own custom reporter and tell Catch2 to use it.
 When writing your reporter, you have two options:
 
-* Derive from `Catch::IStreamingReporter`. When doing this, you will have
+* Derive from `Catch::ReporterBase`. When doing this, you will have
   to provide handling for all [reporter events](reporter-events.md#top).
 * Derive from one of the provided [utility reporter bases in
   Catch2](#utility-reporter-bases).
@@ -160,6 +165,26 @@ Currently there are two customization options:
    assertions. Usually reporters do not report successful assertions
    and don't need them for their output, but sometimes the desired output
    format includes passing assertions even without the `-s` flag.
+
+
+### Per-reporter configuration
+
+> Per-reporter configuration was introduced in Catch2 3.0.1
+
+Catch2 supports some configuration to happen per reporter. The configuration
+options fall into one of two categories:
+
+* Catch2-recognized options
+* Reporter-specific options
+
+The former is a small set of universal options that Catch2 handles for
+the reporters, e.g. output file or console colour mode. The latter are
+options that the reporters have to handle themselves, but the keys and
+values can be arbitrary strings, as long as they don't contain `::`. This
+allows writing reporters that can be significantly customized at runtime.
+
+Reporter-specific options always have to be prefixed with "X" (large
+letter X).
 
 
 ### Other expected functionality of a reporter

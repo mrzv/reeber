@@ -1,3 +1,11 @@
+
+//              Copyright Catch2 Authors
+// Distributed under the Boost Software License, Version 1.0.
+//   (See accompanying file LICENSE.txt or copy at
+//        https://www.boost.org/LICENSE_1_0.txt)
+
+// SPDX-License-Identifier: BSL-1.0
+
 // 120-Bdd-ScenarioGivenWhenThen.cpp
 
 // main() provided by linkage with Catch2WithMain
@@ -48,7 +56,7 @@ SCENARIO( "vectors can be sized and resized", "[vector]" ) {
 }
 
 // Compile & run:
-// - g++ -std=c++11 -Wall -I$(CATCH_SINGLE_INCLUDE) -o 120-Bdd-ScenarioGivenWhenThen 120-Bdd-ScenarioGivenWhenThen.cpp && 120-Bdd-ScenarioGivenWhenThen --success
+// - g++ -std=c++14 -Wall -I$(CATCH_SINGLE_INCLUDE) -o 120-Bdd-ScenarioGivenWhenThen 120-Bdd-ScenarioGivenWhenThen.cpp && 120-Bdd-ScenarioGivenWhenThen --success
 // - cl -EHsc -I%CATCH_SINGLE_INCLUDE% 120-Bdd-ScenarioGivenWhenThen.cpp && 120-Bdd-ScenarioGivenWhenThen --success
 
 // Expected compact output (all assertions):

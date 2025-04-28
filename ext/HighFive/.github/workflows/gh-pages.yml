@@ -3,10 +3,12 @@ name: gh-pages
 on:
   push:
     branches:
-      - master
+      - v2.x
   pull_request:
     branches:
+      - v2.x
       - master
+      - main
 
 jobs:
 
@@ -24,7 +26,7 @@ jobs:
       with:
         submodules: 'recursive'
 
-    - uses: mamba-org/provision-with-micromamba@main
+    - uses: mamba-org/setup-micromamba@v1
       with:
         environment-file: doc/environment.yaml
         environment-name: doc-build
@@ -33,16 +35,13 @@ jobs:
       run: |
         CMAKE_OPTIONS=(
           -DHIGHFIVE_UNIT_TESTS=OFF
-          -DHIGHFIVE_USE_BOOST:BOOL=ON
-          -DHIGHFIVE_USE_EIGEN:BOOL=ON
-          -DHIGHFIVE_USE_XTENSOR:BOOL=ON
         )
         cmake -B build -S . "${CMAKE_OPTIONS[@]}"
         cmake --build build --target doc
         cp -r doc/poster build/doc/html/
 
     - name: Deploy to GitHub Pages
-      if: ${{ success() && github.ref == 'refs/heads/master' && github.event_name == 'push' }}
+      if: ${{ success() && github.ref == 'refs/heads/v2.x' && github.event_name == 'push' }}
       uses: crazy-max/ghaction-github-pages@v2
       with:
         target_branch: gh-pages

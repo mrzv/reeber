@@ -1,45 +1,32 @@
-name: Mac builds
+name: Mac Builds
 
 on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: macos-10.15
+    # From macos-14 forward, the baseline "macos-X" image is Arm based,
+    # and not Intel based.
+    runs-on: ${{matrix.image}}
     strategy:
+      fail-fast: false
       matrix:
-        cxx:
-          - g++-9
-          - clang++
+        image: [macos-13, macos-14, macos-15]
         build_type: [Debug, Release]
         std: [14, 17]
-        include:
-          - build_type: Debug
-            examples: ON
-            extra_tests: ON
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
-    - name: Configure build
-      working-directory: ${{runner.workspace}}
-      env:
-        CXX: ${{matrix.cxx}}
-        CXXFLAGS: ${{matrix.cxxflags}}
-      # Note: $GITHUB_WORKSPACE is distinct from ${{runner.workspace}}.
-      #       This is important
+    - name: Configure
       run: |
-        cmake -Bbuild -H$GITHUB_WORKSPACE \
-              -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DCMAKE_CXX_STANDARD=${{matrix.std}} \
-              -DCATCH_DEVELOPMENT_BUILD=ON -DCATCH_BUILD_EXAMPLES=${{matrix.examples}} \
-              -DCATCH_BUILD_EXTRA_TESTS=${{matrix.examples}}
+        cmake --preset basic-tests -GNinja \
+              -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+              -DCMAKE_CXX_STANDARD=${{matrix.std}} \
+              -DCATCH_BUILD_EXAMPLES=ON \
+              -DCATCH_BUILD_EXTRA_TESTS=ON
 
-    - name: Build tests + lib
-      working-directory: ${{runner.workspace}}/build
-      run: make -j 2
+    - name: Build
+      run: cmake --build build
 
-    - name: Run tests
-      env:
-          CTEST_OUTPUT_ON_FAILURE: 1
-      working-directory: ${{runner.workspace}}/build
-      # Hardcode 2 cores we know are there
-      run: ctest -C ${{matrix.build_type}} -j 2
+    - name: Test
+      run: ctest --test-dir build -j --output-on-failure

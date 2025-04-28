@@ -2,7 +2,7 @@
 
 #              Copyright Catch2 Authors
 # Distributed under the Boost Software License, Version 1.0.
-#   (See accompanying file LICENSE_1_0.txt or copy at
+#   (See accompanying file LICENSE.txt or copy at
 #        https://www.boost.org/LICENSE_1_0.txt)
 
 # SPDX-License-Identifier: BSL-1.0
@@ -15,7 +15,7 @@ import subprocess
 def configure_and_build(source_path: str, project_path: str, options: List[Tuple[str, str]]):
     base_configure_cmd = ['cmake',
                           '-B{}'.format(project_path),
-                          '-H{}'.format(source_path),
+                          '-S{}'.format(source_path),
                           '-DCMAKE_BUILD_TYPE=Debug',
                           '-DCATCH_DEVELOPMENT_BUILD=ON']
     for option, value in options:

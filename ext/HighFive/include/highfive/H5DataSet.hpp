@@ -6,8 +6,7 @@
  *          http://www.boost.org/LICENSE_1_0.txt)
  *
  */
-#ifndef H5DATASET_HPP
-#define H5DATASET_HPP
+#pragma once
 
 #include <vector>
 
@@ -89,7 +88,16 @@ class DataSet: public Object,
         return getSpace().getElementCount();
     }
 
-    H5_DEPRECATED("Default constructor creates unsafe uninitialized objects")
+    /// \brief Get the list of properties for creation of this dataset
+    DataSetCreateProps getCreatePropertyList() const {
+        return details::get_plist<DataSetCreateProps>(*this, H5Dget_create_plist);
+    }
+
+    /// \brief Get the list of properties for accession of this dataset
+    DataSetAccessProps getAccessPropertyList() const {
+        return details::get_plist<DataSetAccessProps>(*this, H5Dget_access_plist);
+    }
+
     DataSet() = default;
 
   protected:
@@ -104,5 +112,3 @@ class DataSet: public Object,
 };
 
 }  // namespace HighFive
-
-#endif  // H5DATASET_HPP

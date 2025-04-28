@@ -1,7 +1,7 @@
 
 //              Copyright Catch2 Authors
 // Distributed under the Boost Software License, Version 1.0.
-//   (See accompanying file LICENSE_1_0.txt or copy at
+//   (See accompanying file LICENSE.txt or copy at
 //        https://www.boost.org/LICENSE_1_0.txt)
 
 // SPDX-License-Identifier: BSL-1.0
@@ -17,7 +17,6 @@ namespace Catch {
 
         class IsEmptyMatcher final : public MatcherGenericBase {
         public:
-            // todo: Use polyfills
             template <typename RangeLike>
             bool match(RangeLike&& rng) const {
 #if defined(CATCH_CONFIG_POLYFILL_NONMEMBER_CONTAINER_ACCESS)
@@ -80,7 +79,7 @@ namespace Catch {
         //! Creates a matcher that accepts ranges/containers with specific size
         HasSizeMatcher SizeIs(std::size_t sz);
         template <typename Matcher>
-        std::enable_if_t<Detail::is_matcher<Matcher>::value,
+        std::enable_if_t<Detail::is_matcher_v<Matcher>,
         SizeMatchesMatcher<Matcher>> SizeIs(Matcher&& m) {
             return SizeMatchesMatcher<Matcher>{CATCH_FORWARD(m)};
         }

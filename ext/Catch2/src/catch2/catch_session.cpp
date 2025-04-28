@@ -1,7 +1,7 @@
 
 //              Copyright Catch2 Authors
 // Distributed under the Boost Software License, Version 1.0.
-//   (See accompanying file LICENSE_1_0.txt or copy at
+//   (See accompanying file LICENSE.txt or copy at
 //        https://www.boost.org/LICENSE_1_0.txt)
 
 // SPDX-License-Identifier: BSL-1.0
@@ -11,55 +11,69 @@
 #include <catch2/internal/catch_list.hpp>
 #include <catch2/internal/catch_context.hpp>
 #include <catch2/internal/catch_run_context.hpp>
-#include <catch2/internal/catch_stream.hpp>
 #include <catch2/catch_test_spec.hpp>
 #include <catch2/catch_version.hpp>
-#include <catch2/interfaces/catch_interfaces_reporter.hpp>
 #include <catch2/internal/catch_startup_exception_registry.hpp>
 #include <catch2/internal/catch_sharding.hpp>
+#include <catch2/internal/catch_test_case_registry_impl.hpp>
 #include <catch2/internal/catch_textflow.hpp>
 #include <catch2/internal/catch_windows_h_proxy.hpp>
 #include <catch2/reporters/catch_reporter_multi.hpp>
-#include <catch2/interfaces/catch_interfaces_reporter_registry.hpp>
+#include <catch2/internal/catch_reporter_registry.hpp>
 #include <catch2/interfaces/catch_interfaces_reporter_factory.hpp>
 #include <catch2/internal/catch_move_and_forward.hpp>
+#include <catch2/internal/catch_stdstreams.hpp>
+#include <catch2/internal/catch_istream.hpp>
 
-#include <algorithm>
 #include <cassert>
+#include <exception>
 #include <iomanip>
 #include <set>
 
 namespace Catch {
 
     namespace {
-        const int MaxExitCode = 255;
+        static constexpr int TestFailureExitCode = 42;
+        static constexpr int UnspecifiedErrorExitCode = 1;
+        static constexpr int AllTestsSkippedExitCode = 4;
+        static constexpr int NoTestsRunExitCode = 2;
+        static constexpr int UnmatchedTestSpecExitCode = 3;
+        static constexpr int InvalidTestSpecExitCode = 5;
 
-        IStreamingReporterPtr createReporter(std::string const& reporterName, ReporterConfig const& config) {
-            auto reporter = Catch::getRegistryHub().getReporterRegistry().create(reporterName, config);
+
+        IEventListenerPtr createReporter(std::string const& reporterName, ReporterConfig&& config) {
+            auto reporter = Catch::getRegistryHub().getReporterRegistry().create(reporterName, CATCH_MOVE(config));
             CATCH_ENFORCE(reporter, "No reporter registered with name: '" << reporterName << '\'');
 
             return reporter;
         }
 
-        IStreamingReporterPtr makeReporter(Config const* config) {
+        IEventListenerPtr prepareReporters(Config const* config) {
             if (Catch::getRegistryHub().getReporterRegistry().getListeners().empty()
-                    && config->getReportersAndOutputFiles().size() == 1) {
-                auto& stream = config->getReporterOutputStream(0);
-                return createReporter(config->getReportersAndOutputFiles()[0].reporterName, ReporterConfig(config, stream));
+                    && config->getProcessedReporterSpecs().size() == 1) {
+                auto const& spec = config->getProcessedReporterSpecs()[0];
+                return createReporter(
+                    spec.name,
+                    ReporterConfig( config,
+                                    makeStream( spec.outputFilename ),
+                                    spec.colourMode,
+                                    spec.customOptions ) );
             }
 
             auto multi = Detail::make_unique<MultiReporter>(config);
 
             auto const& listeners = Catch::getRegistryHub().getReporterRegistry().getListeners();
             for (auto const& listener : listeners) {
-                multi->addListener(listener->create(Catch::ReporterConfig(config, config->defaultStream())));
+                multi->addListener(listener->create(config));
             }
 
-            std::size_t reporterIdx = 0;
-            for (auto const& reporterAndFile : config->getReportersAndOutputFiles()) {
-                auto& stream = config->getReporterOutputStream(reporterIdx);
-                multi->addReporter(createReporter(reporterAndFile.reporterName, ReporterConfig(config, stream)));
-                reporterIdx++;
+            for ( auto const& reporterSpec : config->getProcessedReporterSpecs() ) {
+                multi->addReporter( createReporter(
+                    reporterSpec.name,
+                    ReporterConfig( config,
+                                    makeStream( reporterSpec.outputFilename ),
+                                    reporterSpec.colourMode,
+                                    reporterSpec.customOptions ) ) );
             }
 
             return multi;
@@ -67,7 +81,7 @@ namespace Catch {
 
         class TestGroup {
         public:
-            explicit TestGroup(IStreamingReporterPtr&& reporter, Config const* config):
+            explicit TestGroup(IEventListenerPtr&& reporter, Config const* config):
                 m_reporter(reporter.get()),
                 m_config{config},
                 m_context{config, CATCH_MOVE(reporter)} {
@@ -120,7 +134,7 @@ namespace Catch {
 
 
         private:
-            IStreamingReporter* m_reporter;
+            IEventListener* m_reporter;
             Config const* m_config;
             RunContext m_context;
             std::set<TestCaseHandle const*> m_tests;
@@ -151,14 +165,17 @@ namespace Catch {
             getCurrentMutableContext().setConfig(m_config.get());
 
             m_startupExceptions = true;
-            Colour colourGuard( Colour::Red );
-            Catch::cerr() << "Errors occurred during startup!" << '\n';
+            auto errStream = makeStream( "%stderr" );
+            auto colourImpl = makeColourImpl(
+                ColourMode::PlatformDefault, errStream.get() );
+            auto guard = colourImpl->guardColour( Colour::Red );
+            errStream->stream() << "Errors occurred during startup!" << '\n';
             // iterate over all exceptions and notify user
             for ( const auto& ex_ptr : exceptions ) {
                 try {
                     std::rethrow_exception(ex_ptr);
                 } catch ( std::exception const& ex ) {
-                    Catch::cerr() << TextFlow::Column( ex.what() ).indent(2) << '\n';
+                    errStream->stream() << TextFlow::Column( ex.what() ).indent(2) << '\n';
                 }
             }
         }
@@ -186,21 +203,23 @@ namespace Catch {
     }
 
     int Session::applyCommandLine( int argc, char const * const * argv ) {
-        if( m_startupExceptions )
-            return 1;
+        if ( m_startupExceptions ) { return UnspecifiedErrorExitCode; }
 
         auto result = m_cli.parse( Clara::Args( argc, argv ) );
 
         if( !result ) {
             config();
             getCurrentMutableContext().setConfig(m_config.get());
-            Catch::cerr()
-                << Colour( Colour::Red )
+            auto errStream = makeStream( "%stderr" );
+            auto colour = makeColourImpl( ColourMode::PlatformDefault, errStream.get() );
+
+            errStream->stream()
+                << colour->guardColour( Colour::Red )
                 << "\nError(s) in input:\n"
                 << TextFlow::Column( result.errorMessage() ).indent( 2 )
                 << "\n\n";
-            Catch::cerr() << "Run with -? for usage\n\n" << std::flush;
-            return MaxExitCode;
+            errStream->stream() << "Run with -? for usage\n\n" << std::flush;
+            return UnspecifiedErrorExitCode;
         }
 
         if( m_configData.showHelp )
@@ -270,8 +289,7 @@ namespace Catch {
     }
 
     int Session::runInternal() {
-        if( m_startupExceptions )
-            return 1;
+        if ( m_startupExceptions ) { return UnspecifiedErrorExitCode; }
 
         if (m_configData.showHelp || m_configData.libIdentify) {
             return 0;
@@ -282,7 +300,7 @@ namespace Catch {
                           << ") must be greater than the shard index ("
                           << m_configData.shardIndex << ")\n"
                           << std::flush;
-            return 1;
+            return UnspecifiedErrorExitCode;
         }
 
         CATCH_TRY {
@@ -298,14 +316,14 @@ namespace Catch {
             getCurrentMutableContext().setConfig(m_config.get());
 
             // Create reporter(s) so we can route listings through them
-            auto reporter = makeReporter(m_config.get());
+            auto reporter = prepareReporters(m_config.get());
 
             auto const& invalidSpecs = m_config->testSpec().getInvalidSpecs();
             if ( !invalidSpecs.empty() ) {
                 for ( auto const& spec : invalidSpecs ) {
                     reporter->reportInvalidTestSpec( spec );
                 }
-                return 1;
+                return InvalidTestSpecExitCode;
             }
 
 
@@ -319,23 +337,29 @@ namespace Catch {
 
             if ( tests.hadUnmatchedTestSpecs()
                 && m_config->warnAboutUnmatchedTestSpecs() ) {
-                return 3;
+                // UnmatchedTestSpecExitCode
+                return UnmatchedTestSpecExitCode;
             }
 
             if ( totals.testCases.total() == 0
                 && !m_config->zeroTestsCountAsSuccess() ) {
-                return 2;
+                return NoTestsRunExitCode;
             }
 
-            // Note that on unices only the lower 8 bits are usually used, clamping
-            // the return value to 255 prevents false negative when some multiple
-            // of 256 tests has failed
-            return (std::min) (MaxExitCode, static_cast<int>(totals.assertions.failed));
+            if ( totals.testCases.total() > 0 &&
+                 totals.testCases.total() == totals.testCases.skipped
+                && !m_config->zeroTestsCountAsSuccess() ) {
+                return AllTestsSkippedExitCode;
+            }
+
+            if ( totals.assertions.failed ) { return TestFailureExitCode; }
+            return 0;
+
         }
 #if !defined(CATCH_CONFIG_DISABLE_EXCEPTIONS)
         catch( std::exception& ex ) {
             Catch::cerr() << ex.what() << '\n' << std::flush;
-            return MaxExitCode;
+            return UnspecifiedErrorExitCode;
         }
 #endif
     }

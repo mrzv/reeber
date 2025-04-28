@@ -10,10 +10,7 @@
 #include <string>
 #include <vector>
 
-#include <highfive/H5DataSet.hpp>
-#include <highfive/H5DataSpace.hpp>
-#include <highfive/H5File.hpp>
-#include <highfive/H5Reference.hpp>
+#include <highfive/highfive.hpp>
 
 // create a dataset 1D from a vector of int
 void write_dataset() {
@@ -69,13 +66,8 @@ void read_dataset() {
 }
 
 int main() {
-    try {
-        write_dataset();
-        read_dataset();
+    write_dataset();
+    read_dataset();
 
-    } catch (const HighFive::Exception& err) {
-        // catch and print any HDF5 error
-        std::cerr << err.what() << std::endl;
-    }
-    return 0;  // successfully terminated
+    return 0;
 }

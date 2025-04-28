@@ -1,3 +1,11 @@
+
+//              Copyright Catch2 Authors
+// Distributed under the Boost Software License, Version 1.0.
+//   (See accompanying file LICENSE.txt or copy at
+//        https://www.boost.org/LICENSE_1_0.txt)
+
+// SPDX-License-Identifier: BSL-1.0
+
 // 210-Evt-EventListeners.cpp
 
 // Contents:
@@ -308,7 +316,7 @@ struct MyListener : Catch::EventListenerBase {
     using EventListenerBase::EventListenerBase; // inherit constructor
 
     // Get rid of Wweak-tables
-    ~MyListener();
+    ~MyListener() override;
 
     // The whole test run starting
     void testRunStarting( Catch::TestRunInfo const& testRunInfo ) override {
@@ -377,8 +385,7 @@ struct MyListener : Catch::EventListenerBase {
 CATCH_REGISTER_LISTENER( MyListener )
 
 // Get rid of Wweak-tables
-MyListener::~MyListener() {}
-
+MyListener::~MyListener() = default;
 
 // -----------------------------------------------------------------------
 // 3. Test cases:
@@ -420,7 +427,7 @@ TEST_CASE_METHOD( Fixture, "3: Testcase with class-based fixture", "[tag-C][tag-
 }
 
 // Compile & run:
-// - g++ -std=c++11 -Wall -I$(CATCH_SINGLE_INCLUDE) -o 210-Evt-EventListeners 210-Evt-EventListeners.cpp && 210-Evt-EventListeners --success
+// - g++ -std=c++14 -Wall -I$(CATCH_SINGLE_INCLUDE) -o 210-Evt-EventListeners 210-Evt-EventListeners.cpp && 210-Evt-EventListeners --success
 // - cl -EHsc -I%CATCH_SINGLE_INCLUDE% 210-Evt-EventListeners.cpp && 210-Evt-EventListeners --success
 
 // Expected compact output (all assertions):

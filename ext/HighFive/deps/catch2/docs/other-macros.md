@@ -15,6 +15,8 @@ stringification machinery to the _expr_ and records the result. As with
 evaluates to `true`. `CHECKED_ELSE( expr )` work similarly, but the block
 is entered only if the _expr_ evaluated to `false`.
 
+> `CHECKED_X` macros were changed to not count as failure in Catch2 3.0.1.
+
 Example:
 ```cpp
 int a = ...;
@@ -57,9 +59,9 @@ TEST_CASE( "SUCCEED showcase" ) {
 }
 ```
 
-* `STATIC_REQUIRE`
+* `STATIC_REQUIRE` and `STATIC_CHECK`
 
-> [Introduced](https://github.com/catchorg/Catch2/issues/1362) in Catch 2.4.2.
+> `STATIC_REQUIRE` was [introduced](https://github.com/catchorg/Catch2/issues/1362) in Catch2 2.4.2.
 
 `STATIC_REQUIRE( expr )` is a macro that can be used the same way as a
 `static_assert`, but also registers the success with Catch2, so it is
@@ -75,31 +77,21 @@ TEST_CASE("STATIC_REQUIRE showcase", "[traits]") {
 }
 ```
 
-## Test case related macros
+> `STATIC_CHECK` was [introduced](https://github.com/catchorg/Catch2/pull/2318) in Catch2 3.0.1.
 
-* `METHOD_AS_TEST_CASE`
+`STATIC_CHECK( expr )` is equivalent to `STATIC_REQUIRE( expr )`, with the
+difference that when `CATCH_CONFIG_RUNTIME_STATIC_REQUIRE` is defined, it
+becomes equivalent to `CHECK` instead of `REQUIRE`.
 
-`METHOD_AS_TEST_CASE( member-function-pointer, description )` lets you
-register a member function of a class as a Catch2 test case. The class
-will be separately instantiated for each method registered in this way.
-
+Example:
 ```cpp
-class TestClass {
-    std::string s;
-
-public:
-    TestClass()
-        :s( "hello" )
-    {}
-
-    void testCase() {
-        REQUIRE( s == "hello" );
-    }
-};
-
-
-METHOD_AS_TEST_CASE( TestClass::testCase, "Use class's method as a test case", "[class]" )
+TEST_CASE("STATIC_CHECK showcase", "[traits]") {
+    STATIC_CHECK( std::is_void<void>::value );
+    STATIC_CHECK_FALSE( std::is_void<int>::value );
+}
 ```
+
+## Test case related macros
 
 * `REGISTER_TEST_CASE`
 
@@ -117,24 +109,9 @@ is initiated. This means that it either needs to be done in a global
 constructor, or before Catch2's session is created in user's own main._
 
 
-* `ANON_TEST_CASE`
-
-`ANON_TEST_CASE` is a `TEST_CASE` replacement that will autogenerate
-unique name. The advantage of this is that you do not have to think
-of a name for the test case, the disadvantage is that the name doesn't
-necessarily remain stable across different links, and thus it might be
-hard to run directly.
-
-Example:
-```cpp
-ANON_TEST_CASE() {
-    SUCCEED("Hello from anonymous test case");
-}
-```
-
 * `DYNAMIC_SECTION`
 
-> Introduced in Catch 2.3.0.
+> Introduced in Catch2 2.3.0.
 
 `DYNAMIC_SECTION` is a `SECTION` where the user can use `operator<<` to
 create the final name for that section. This can be useful with e.g.

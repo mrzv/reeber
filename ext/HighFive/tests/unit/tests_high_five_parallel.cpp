@@ -13,15 +13,13 @@
 #include <typeinfo>
 #include <vector>
 
-#include <highfive/H5File.hpp>
-#include <highfive/H5DataSet.hpp>
-#include <highfive/H5DataSpace.hpp>
-#include <highfive/H5Group.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_session.hpp>
 
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
-
+#include <highfive/highfive.hpp>
 #include "tests_high_five.hpp"
+#include "data_generator.hpp"
 
 using namespace HighFive;
 
@@ -39,63 +37,197 @@ struct MpiFixture {
     int size;
 };
 
+void check_was_collective(const DataTransferProps& xfer_props) {
+    auto mnccp = MpioNoCollectiveCause(xfer_props);
+    CHECK(mnccp.wasCollective());
+    CHECK(mnccp.getLocalCause() == 0);
+    CHECK(mnccp.getGlobalCause() == 0);
+}
+
 template <typename T>
-void selectionArraySimpleTestParallel() {
+void selectionArraySimpleTestParallel(File& file) {
     int mpi_rank, mpi_size;
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
 
-    typedef typename std::vector<T> Vector;
+    using Vector = std::vector<T>;
 
-    std::ostringstream filename;
-    filename << "h5_rw_select_parallel_test_" << typeNameHelper<T>() << "_test.h5";
-
-    const auto size_x = static_cast<size_t>(mpi_size);
-    const auto offset_x = static_cast<size_t>(mpi_rank);
-    const auto count_x = static_cast<size_t>(mpi_size - mpi_rank);
-
-    const std::string DATASET_NAME("dset");
-
-    Vector values(size_x);
+    const auto size = static_cast<size_t>(mpi_size);
+    Vector values(size);
 
     ContentGenerate<T> generator;
     std::generate(values.begin(), values.end(), generator);
 
-    // Create a new file using the default property lists.
-    FileDriver adam;
-    adam.add(MPIOFileAccess(MPI_COMM_WORLD, MPI_INFO_NULL));
-    File file(filename.str(), File::ReadWrite | File::Create | File::Truncate, adam);
+    const std::string d1_name("dset1");
+    DataSet d1 = file.createDataSet<T>(d1_name, DataSpace::From(values));
+    if (mpi_rank == 0) {
+        d1.write(values);
+    }
 
-    DataSet dataset = file.createDataSet<T>(DATASET_NAME, DataSpace::From(values));
+    const std::string d2_name("dset2");
+    DataSet d2 = file.createDataSet<T>(d2_name, DataSpace::From(values));
 
-    dataset.write(values);
+    auto xfer_props = DataTransferProps{};
+    xfer_props.add(UseCollectiveIO{});
+
+    {
+        auto offset = std::vector<size_t>{static_cast<size_t>(mpi_rank)};
+        auto count = std::vector<size_t>{1ul};
+        auto slice = d2.select(offset, count);
+
+        auto local_values = Vector(count[0]);
+        local_values[0] = values[offset[0]];
+
+        // Write collectively, each MPI rank writes one slab.
+        slice.write(local_values, xfer_props);
+        check_was_collective(xfer_props);
+    }
 
     file.flush();
 
-    // read it back
-    Vector result;
-    std::vector<size_t> offset;
-    offset.push_back(offset_x);
-    std::vector<size_t> size;
-    size.push_back(count_x);
+    // -- read it back
+    const auto offset = static_cast<size_t>(mpi_rank);
+    const auto count = static_cast<size_t>(mpi_size - mpi_rank);
 
-    Selection slice = dataset.select(offset, size);
+    auto check_result = [&values, offset, count](const Vector& result) {
+        CHECK(result.size() == count);
 
-    CHECK(slice.getSpace().getDimensions()[0] == size_x);
-    CHECK(slice.getMemSpace().getDimensions()[0] == count_x);
+        for (size_t i = offset; i < count; ++i) {
+            CHECK(values[i + offset] == result[i]);
+        }
+    };
 
-    slice.read(result);
+    auto make_slice = [size, offset, count](DataSet& dataset) {
+        auto slice = dataset.select(std::vector<size_t>{offset}, std::vector<size_t>{count});
 
-    CHECK(result.size() == count_x);
+        CHECK(slice.getSpace().getDimensions()[0] == size);
+        CHECK(slice.getMemSpace().getDimensions()[0] == count);
 
-    for (size_t i = offset_x; i < count_x; ++i) {
-        CHECK(values[i + offset_x] == result[i]);
+        return slice;
+    };
+
+    auto s1 = make_slice(d1);
+    check_result(s1.template read<Vector>());
+
+    auto s2 = make_slice(d2);
+    check_result(s2.template read<Vector>(xfer_props));
+    check_was_collective(xfer_props);
+}
+
+template <typename T>
+void selectionArraySimpleTestParallelDefaultProps() {
+    std::ostringstream filename;
+    filename << "h5_rw_default_props_select_parallel_test_" << typeNameHelper<T>() << "_test.h5";
+
+    // Create a new file using the default property lists.
+    auto fapl = FileAccessProps{};
+    fapl.add(MPIOFileAccess(MPI_COMM_WORLD, MPI_INFO_NULL));
+
+    File file(filename.str(), File::ReadWrite | File::Create | File::Truncate, fapl);
+
+    selectionArraySimpleTestParallel<T>(file);
+}
+
+template <typename T>
+void selectionArraySimpleTestParallelCollectiveMDProps() {
+    std::ostringstream filename;
+    filename << "h5_rw_collective_md_props_select_parallel_test_" << typeNameHelper<T>()
+             << "_test.h5";
+
+    // Create a new file using the default property lists.
+    auto fapl = FileAccessProps{};
+    fapl.add(MPIOFileAccess(MPI_COMM_WORLD, MPI_INFO_NULL));
+    fapl.add(MPIOCollectiveMetadata());
+
+    File file(filename.str(), File::ReadWrite | File::Create | File::Truncate, fapl);
+
+    selectionArraySimpleTestParallel<T>(file);
+}
+
+TEMPLATE_LIST_TEST_CASE("mpiSelectionArraySimpleDefaultProps", "[template]", numerical_test_types) {
+    selectionArraySimpleTestParallelDefaultProps<TestType>();
+}
+
+TEMPLATE_LIST_TEST_CASE("mpiSelectionArraySimpleCollectiveMD", "[template]", numerical_test_types) {
+    selectionArraySimpleTestParallelCollectiveMDProps<TestType>();
+}
+
+
+TEST_CASE("ReadWriteHalfEmptyDatasets") {
+    int mpi_rank = -1;
+    MPI_Comm mpi_comm = MPI_COMM_WORLD;
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+
+    std::string filename = "rw_collective_some_empty.h5";
+    std::string dset_name = "dset";
+
+    using container_t = std::vector<std::vector<double>>;
+    using traits = testing::ContainerTraits<container_t>;
+
+    auto dims = std::vector<size_t>{5ul, 7ul};
+    auto values = testing::DataGenerator<container_t>::create(dims);
+
+    if (mpi_rank == 0) {
+        auto file = HighFive::File(filename, HighFive::File::Truncate);
+        file.createDataSet(dset_name, values);
+    }
+
+    MPI_Barrier(mpi_comm);
+
+    bool collective_metadata = true;
+    bool collective_transfer = true;
+
+    HighFive::FileAccessProps fapl;
+    fapl.add(HighFive::MPIOFileAccess{MPI_COMM_WORLD, MPI_INFO_NULL});
+    fapl.add(HighFive::MPIOCollectiveMetadata{collective_metadata});
+
+    auto file = HighFive::File(filename, HighFive::File::Truncate, fapl);
+    file.createDataSet(dset_name, values);
+    auto dset = file.getDataSet(dset_name);
+
+    HighFive::DataTransferProps dxpl;
+    dxpl.add(HighFive::UseCollectiveIO{collective_transfer});
+
+    auto hyperslab = HighFive::HyperSlab();
+    auto subdims = std::vector<size_t>(2, 0ul);
+
+    if (mpi_rank == 0) {
+        subdims = std::vector<size_t>{2ul, 4ul};
+        hyperslab |= HighFive::RegularHyperSlab({0ul, 0ul}, subdims);
+    }
+
+    SECTION("read") {
+        auto subvalues = dset.select(hyperslab, DataSpace(subdims)).template read<container_t>();
+
+        for (size_t i = 0; i < subdims[0]; ++i) {
+            for (size_t j = 0; j < subdims[1]; ++j) {
+                REQUIRE(traits::get(subvalues, {i, j}) == traits::get(values, {i, j}));
+            }
+        }
+    }
+
+    SECTION("write") {
+        auto subvalues =
+            testing::DataGenerator<container_t>::create(subdims, [](const std::vector<size_t>& d) {
+                auto default_values = testing::DefaultValues<double>();
+                return -1000.0 + default_values(d);
+            });
+        dset.select(hyperslab, DataSpace(subdims)).write(subvalues, dxpl);
+
+        MPI_Barrier(mpi_comm);
+
+        if (mpi_rank == 0) {
+            auto modified_values = dset.read<container_t>();
+
+            for (size_t i = 0; i < subdims[0]; ++i) {
+                for (size_t j = 0; j < subdims[1]; ++j) {
+                    REQUIRE(traits::get(subvalues, {i, j}) == traits::get(modified_values, {i, j}));
+                }
+            }
+        }
     }
 }
 
-TEMPLATE_LIST_TEST_CASE("mpiSelectionArraySimple", "[template]", numerical_test_types) {
-    selectionArraySimpleTestParallel<TestType>();
-}
 
 int main(int argc, char* argv[]) {
     MpiFixture mpi(argc, argv);

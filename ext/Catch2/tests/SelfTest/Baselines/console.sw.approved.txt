@@ -1,10 +1,9 @@
-Filters: ~[!nonportable]~[!benchmark]~[approvals] *
+Filters: "*" ~[!nonportable] ~[!benchmark] ~[approvals]
+Randomness seeded to: 1
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-<exe-name> is a <version> host application.
+<exe-name> is a Catch2 v<version> host application.
 Run with -? for options
-
-Randomness seeded to: 1
 
 -------------------------------------------------------------------------------
 # A test name that starts with a #
@@ -167,20 +166,20 @@ with expansion:
 -------------------------------------------------------------------------------
 #1905 -- test spec parser properly clears internal state between compound tests
 -------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
+TestSpec.tests.cpp:<line number>
 ...............................................................................
 
-CmdLine.tests.cpp:<line number>: PASSED:
+TestSpec.tests.cpp:<line number>: PASSED:
   REQUIRE( spec.matches(*fakeTestCase("spec . char")) )
 with expansion:
   true
 
-CmdLine.tests.cpp:<line number>: PASSED:
+TestSpec.tests.cpp:<line number>: PASSED:
   REQUIRE( spec.matches(*fakeTestCase("spec , char")) )
 with expansion:
   true
 
-CmdLine.tests.cpp:<line number>: PASSED:
+TestSpec.tests.cpp:<line number>: PASSED:
   REQUIRE_FALSE( spec.matches(*fakeTestCase(R"(spec \, char)")) )
 with expansion:
   !false
@@ -189,20 +188,20 @@ with expansion:
 #1912 -- test spec parser handles escaping
   Various parentheses
 -------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
+TestSpec.tests.cpp:<line number>
 ...............................................................................
 
-CmdLine.tests.cpp:<line number>: PASSED:
+TestSpec.tests.cpp:<line number>: PASSED:
   REQUIRE( spec.matches(*fakeTestCase(R"(spec {a} char)")) )
 with expansion:
   true
 
-CmdLine.tests.cpp:<line number>: PASSED:
+TestSpec.tests.cpp:<line number>: PASSED:
   REQUIRE( spec.matches(*fakeTestCase(R"(spec [a] char)")) )
 with expansion:
   true
 
-CmdLine.tests.cpp:<line number>: PASSED:
+TestSpec.tests.cpp:<line number>: PASSED:
   REQUIRE_FALSE( spec.matches(*fakeTestCase("differs but has similar tag", "[a]")) )
 with expansion:
   !false
@@ -211,10 +210,10 @@ with expansion:
 #1912 -- test spec parser handles escaping
   backslash in test name
 -------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
+TestSpec.tests.cpp:<line number>
 ...............................................................................
 
-CmdLine.tests.cpp:<line number>: PASSED:
+TestSpec.tests.cpp:<line number>: PASSED:
   REQUIRE( spec.matches(*fakeTestCase(R"(spec \ char)")) )
 with expansion:
   true
@@ -761,6 +760,16 @@ Matchers.tests.cpp:<line number>: PASSED:
 with expansion:
   0.0f not is within 1 ULPs of -1.40129846e-45f ([-2.80259693e-45, -0.
   00000000e+00])
+
+-------------------------------------------------------------------------------
+#2615 - Throwing in constructor generator fails test case but does not abort
+-------------------------------------------------------------------------------
+Generators.tests.cpp:<line number>
+...............................................................................
+
+Generators.tests.cpp:<line number>: FAILED:
+due to unexpected exception with message:
+  failure to init
 
 -------------------------------------------------------------------------------
 #748 - captures with unexpected exceptions
@@ -2020,6 +2029,54 @@ with expansion:
   1 == 1
 
 -------------------------------------------------------------------------------
+A TEST_CASE_PERSISTENT_FIXTURE based test run that fails
+  First partial run
+-------------------------------------------------------------------------------
+Class.tests.cpp:<line number>
+...............................................................................
+
+Class.tests.cpp:<line number>: PASSED:
+  REQUIRE( m_a++ == 0 )
+with expansion:
+  0 == 0
+
+-------------------------------------------------------------------------------
+A TEST_CASE_PERSISTENT_FIXTURE based test run that fails
+  Second partial run
+-------------------------------------------------------------------------------
+Class.tests.cpp:<line number>
+...............................................................................
+
+Class.tests.cpp:<line number>: FAILED:
+  REQUIRE( m_a == 0 )
+with expansion:
+  1 == 0
+
+-------------------------------------------------------------------------------
+A TEST_CASE_PERSISTENT_FIXTURE based test run that succeeds
+  First partial run
+-------------------------------------------------------------------------------
+Class.tests.cpp:<line number>
+...............................................................................
+
+Class.tests.cpp:<line number>: PASSED:
+  REQUIRE( m_a++ == 0 )
+with expansion:
+  0 == 0
+
+-------------------------------------------------------------------------------
+A TEST_CASE_PERSISTENT_FIXTURE based test run that succeeds
+  Second partial run
+-------------------------------------------------------------------------------
+Class.tests.cpp:<line number>
+...............................................................................
+
+Class.tests.cpp:<line number>: PASSED:
+  REQUIRE( m_a == 1 )
+with expansion:
+  1 == 1
+
+-------------------------------------------------------------------------------
 A Template product test case - Foo<float>
 -------------------------------------------------------------------------------
 Misc.tests.cpp:<line number>
@@ -2116,32 +2173,42 @@ Approx.tests.cpp:<line number>
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d == 1.23_a )
 with expansion:
-  1.23 == Approx( 1.23 )
+  1.22999999999999998
+  ==
+  Approx( 1.22999999999999998 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d != 1.22_a )
 with expansion:
-  1.23 != Approx( 1.22 )
+  1.22999999999999998
+  !=
+  Approx( 1.21999999999999997 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( -d == -1.23_a )
 with expansion:
-  -1.23 == Approx( -1.23 )
+  -1.22999999999999998
+  ==
+  Approx( -1.22999999999999998 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d == 1.2_a .epsilon(.1) )
 with expansion:
-  1.23 == Approx( 1.2 )
+  1.22999999999999998
+  ==
+  Approx( 1.19999999999999996 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d != 1.2_a .epsilon(.001) )
 with expansion:
-  1.23 != Approx( 1.2 )
+  1.22999999999999998
+  !=
+  Approx( 1.19999999999999996 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d == 1_a .epsilon(.3) )
 with expansion:
-  1.23 == Approx( 1.0 )
+  1.22999999999999998 == Approx( 1.0 )
 
 -------------------------------------------------------------------------------
 A couple of nested sections followed by a failure
@@ -2210,12 +2277,12 @@ with expansion:
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( 100.3 != Approx(100.0) )
 with expansion:
-  100.3 != Approx( 100.0 )
+  100.29999999999999716 != Approx( 100.0 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( 100.3 == Approx(100.0).margin(0.5) )
 with expansion:
-  100.3 == Approx( 100.0 )
+  100.29999999999999716 == Approx( 100.0 )
 
 -------------------------------------------------------------------------------
 An empty test with no assertions
@@ -2333,12 +2400,16 @@ Approx.tests.cpp:<line number>
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( divide( 22, 7 ) == Approx( 3.141 ).epsilon( 0.001 ) )
 with expansion:
-  3.1428571429 == Approx( 3.141 )
+  3.14285714285714279
+  ==
+  Approx( 3.14100000000000001 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( divide( 22, 7 ) != Approx( 3.141 ).epsilon( 0.0001 ) )
 with expansion:
-  3.1428571429 != Approx( 3.141 )
+  3.14285714285714279
+  !=
+  Approx( 3.14100000000000001 )
 
 -------------------------------------------------------------------------------
 Approximate comparisons with different epsilons
@@ -2349,12 +2420,16 @@ Approx.tests.cpp:<line number>
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d != Approx( 1.231 ) )
 with expansion:
-  1.23 != Approx( 1.231 )
+  1.22999999999999998
+  !=
+  Approx( 1.23100000000000009 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d == Approx( 1.231 ).epsilon( 0.1 ) )
 with expansion:
-  1.23 == Approx( 1.231 )
+  1.22999999999999998
+  ==
+  Approx( 1.23100000000000009 )
 
 -------------------------------------------------------------------------------
 Approximate comparisons with floats
@@ -2365,7 +2440,9 @@ Approx.tests.cpp:<line number>
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( 1.23f == Approx( 1.23f ) )
 with expansion:
-  1.23f == Approx( 1.2300000191 )
+  1.230000019f
+  ==
+  Approx( 1.23000001907348633 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( 0.0f == Approx( 0.0f ) )
@@ -2412,12 +2489,16 @@ with expansion:
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( 1.234f == Approx( dMedium ) )
 with expansion:
-  1.234f == Approx( 1.234 )
+  1.233999968f
+  ==
+  Approx( 1.23399999999999999 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( dMedium == Approx( 1.234f ) )
 with expansion:
-  1.234 == Approx( 1.2339999676 )
+  1.23399999999999999
+  ==
+  Approx( 1.23399996757507324 )
 
 -------------------------------------------------------------------------------
 Arbitrary predicate matcher
@@ -2731,9 +2812,9 @@ Message.tests.cpp:<line number>
 
 Message.tests.cpp:<line number>: PASSED:
 with messages:
-  std::vector<int>{1, 2, 3}[0, 1, 2] := 3
-  std::vector<int>{1, 2, 3}[(0, 1)] := 2
-  std::vector<int>{1, 2, 3}[0] := 1
+  custom_index_op<int>{1, 2, 3}[0, 1, 2] := 0
+  custom_index_op<int>{1, 2, 3}[(0, 1)] := 0
+  custom_index_op<int>{1, 2, 3}[0] := 0
   (helper_1436<int, int>{12, -12}) := { 12, -12 }
   (helper_1436<int, int>(-12, 12)) := { -12, 12 }
   (1, 2) := 2
@@ -2895,24 +2976,24 @@ ToStringGeneral.tests.cpp:<line number>
 ...............................................................................
 
 ToStringGeneral.tests.cpp:<line number>: PASSED:
-  CHECK( tab == '\t' )
+  CHECK( ::Catch::Detail::stringify('\t') == "'\\t'" )
 with expansion:
-  '\t' == '\t'
+  "'\t'" == "'\t'"
 
 ToStringGeneral.tests.cpp:<line number>: PASSED:
-  CHECK( newline == '\n' )
+  CHECK( ::Catch::Detail::stringify('\n') == "'\\n'" )
 with expansion:
-  '\n' == '\n'
+  "'\n'" == "'\n'"
 
 ToStringGeneral.tests.cpp:<line number>: PASSED:
-  CHECK( carr_return == '\r' )
+  CHECK( ::Catch::Detail::stringify('\r') == "'\\r'" )
 with expansion:
-  '\r' == '\r'
+  "'\r'" == "'\r'"
 
 ToStringGeneral.tests.cpp:<line number>: PASSED:
-  CHECK( form_feed == '\f' )
+  CHECK( ::Catch::Detail::stringify('\f') == "'\\f'" )
 with expansion:
-  '\f' == '\f'
+  "'\f'" == "'\f'"
 
 -------------------------------------------------------------------------------
 Character pretty printing
@@ -2922,29 +3003,19 @@ ToStringGeneral.tests.cpp:<line number>
 ...............................................................................
 
 ToStringGeneral.tests.cpp:<line number>: PASSED:
-  CHECK( space == ' ' )
+  CHECK( ::Catch::Detail::stringify( ' ' ) == "' '" )
 with expansion:
-  ' ' == ' '
+  "' '" == "' '"
 
 ToStringGeneral.tests.cpp:<line number>: PASSED:
-  REQUIRE( c == chars[i] )
+  CHECK( ::Catch::Detail::stringify( 'A' ) == "'A'" )
 with expansion:
-  'a' == 'a'
+  "'A'" == "'A'"
 
 ToStringGeneral.tests.cpp:<line number>: PASSED:
-  REQUIRE( c == chars[i] )
+  CHECK( ::Catch::Detail::stringify( 'z' ) == "'z'" )
 with expansion:
-  'z' == 'z'
-
-ToStringGeneral.tests.cpp:<line number>: PASSED:
-  REQUIRE( c == chars[i] )
-with expansion:
-  'A' == 'A'
-
-ToStringGeneral.tests.cpp:<line number>: PASSED:
-  REQUIRE( c == chars[i] )
-with expansion:
-  'Z' == 'Z'
+  "'z'" == "'z'"
 
 -------------------------------------------------------------------------------
 Character pretty printing
@@ -2954,29 +3025,55 @@ ToStringGeneral.tests.cpp:<line number>
 ...............................................................................
 
 ToStringGeneral.tests.cpp:<line number>: PASSED:
-  CHECK( null_terminator == '\0' )
+  CHECK( ::Catch::Detail::stringify( '\0' ) == "0" )
+with expansion:
+  "0" == "0"
+
+ToStringGeneral.tests.cpp:<line number>: PASSED:
+  CHECK( ::Catch::Detail::stringify( static_cast<char>(2) ) == "2" )
+with expansion:
+  "2" == "2"
+
+ToStringGeneral.tests.cpp:<line number>: PASSED:
+  CHECK( ::Catch::Detail::stringify( static_cast<char>(5) ) == "5" )
+with expansion:
+  "5" == "5"
+
+-------------------------------------------------------------------------------
+Clara::Arg does not crash on incomplete input
+-------------------------------------------------------------------------------
+Clara.tests.cpp:<line number>
+...............................................................................
+
+Clara.tests.cpp:<line number>: PASSED:
+  CHECK( name.empty() )
+with expansion:
+  true
+
+Clara.tests.cpp:<line number>: PASSED:
+  CHECK( result )
+with expansion:
+  {?}
+
+Clara.tests.cpp:<line number>: PASSED:
+  CHECK( result.type() == Catch::Clara::Detail::ResultType::Ok )
 with expansion:
   0 == 0
 
-ToStringGeneral.tests.cpp:<line number>: PASSED:
-  REQUIRE( c == i )
+Clara.tests.cpp:<line number>: PASSED:
+  CHECK( parsed.type() == Catch::Clara::ParseResultType::NoMatch )
+with expansion:
+  1 == 1
+
+Clara.tests.cpp:<line number>: PASSED:
+  CHECK( parsed.remainingTokens().count() == 2 )
 with expansion:
   2 == 2
 
-ToStringGeneral.tests.cpp:<line number>: PASSED:
-  REQUIRE( c == i )
+Clara.tests.cpp:<line number>: PASSED:
+  CHECK( name.empty() )
 with expansion:
-  3 == 3
-
-ToStringGeneral.tests.cpp:<line number>: PASSED:
-  REQUIRE( c == i )
-with expansion:
-  4 == 4
-
-ToStringGeneral.tests.cpp:<line number>: PASSED:
-  REQUIRE( c == i )
-with expansion:
-  5 == 5
+  true
 
 -------------------------------------------------------------------------------
 Clara::Arg supports single-arg parse the way Opt does
@@ -3024,6 +3121,66 @@ with expansion:
   { "aaa", "bbb" } == { "aaa", "bbb" }
 
 -------------------------------------------------------------------------------
+ColourGuard behaviour
+  ColourGuard is disengaged by default
+-------------------------------------------------------------------------------
+ColourImpl.tests.cpp:<line number>
+...............................................................................
+
+ColourImpl.tests.cpp:<line number>: PASSED:
+  REQUIRE( streamWrapper.str().empty() )
+with expansion:
+  true
+
+-------------------------------------------------------------------------------
+ColourGuard behaviour
+  ColourGuard is engaged by op<<
+-------------------------------------------------------------------------------
+ColourImpl.tests.cpp:<line number>
+...............................................................................
+
+ColourImpl.tests.cpp:<line number>: PASSED:
+  REQUIRE( streamWrapper.str() == "1\nUsing code: 2\n2\nUsing code: 0\n3\n" )
+with expansion:
+  "1
+  Using code: 2
+  2
+  Using code: 0
+  3
+  "
+  ==
+  "1
+  Using code: 2
+  2
+  Using code: 0
+  3
+  "
+
+-------------------------------------------------------------------------------
+ColourGuard behaviour
+  ColourGuard can be engaged explicitly
+-------------------------------------------------------------------------------
+ColourImpl.tests.cpp:<line number>
+...............................................................................
+
+ColourImpl.tests.cpp:<line number>: PASSED:
+  REQUIRE( streamWrapper.str() == "Using code: 2\nA\nB\nUsing code: 0\nC\n" )
+with expansion:
+  "Using code: 2
+  A
+  B
+  Using code: 0
+  C
+  "
+  ==
+  "Using code: 2
+  A
+  B
+  Using code: 0
+  C
+  "
+
+-------------------------------------------------------------------------------
 Combining MatchAllOfGeneric does not nest
 -------------------------------------------------------------------------------
 Matchers.tests.cpp:<line number>
@@ -3037,7 +3194,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1, ( MatcherA() && MatcherB() ) && MatcherC() )
 with expansion:
-  1 ( equals: (int) 1 or (float) 1.0f and equals: (long long) 1 and equals: (T)
+  1 ( equals: (int) 1 or (string) "1" and equals: (long long) 1 and equals: (T)
   1 )
 
 Matchers.tests.cpp:<line number>: PASSED:
@@ -3048,7 +3205,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1, MatcherA() && ( MatcherB() && MatcherC() ) )
 with expansion:
-  1 ( equals: (int) 1 or (float) 1.0f and equals: (long long) 1 and equals: (T)
+  1 ( equals: (int) 1 or (string) "1" and equals: (long long) 1 and equals: (T)
   1 )
 
 Matchers.tests.cpp:<line number>: PASSED:
@@ -3060,7 +3217,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1, ( MatcherA() && MatcherB() ) && ( MatcherC() && MatcherD() ) )
 with expansion:
-  1 ( equals: (int) 1 or (float) 1.0f and equals: (long long) 1 and equals: (T)
+  1 ( equals: (int) 1 or (string) "1" and equals: (long long) 1 and equals: (T)
   1 and equals: true )
 
 -------------------------------------------------------------------------------
@@ -3077,7 +3234,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1, ( MatcherA() || MatcherB() ) || MatcherC() )
 with expansion:
-  1 ( equals: (int) 1 or (float) 1.0f or equals: (long long) 1 or equals: (T) 1
+  1 ( equals: (int) 1 or (string) "1" or equals: (long long) 1 or equals: (T) 1
   )
 
 Matchers.tests.cpp:<line number>: PASSED:
@@ -3088,7 +3245,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1, MatcherA() || ( MatcherB() || MatcherC() ) )
 with expansion:
-  1 ( equals: (int) 1 or (float) 1.0f or equals: (long long) 1 or equals: (T) 1
+  1 ( equals: (int) 1 or (string) "1" or equals: (long long) 1 or equals: (T) 1
   )
 
 Matchers.tests.cpp:<line number>: PASSED:
@@ -3100,7 +3257,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1, ( MatcherA() || MatcherB() ) || ( MatcherC() || MatcherD() ) )
 with expansion:
-  1 ( equals: (int) 1 or (float) 1.0f or equals: (long long) 1 or equals: (T) 1
+  1 ( equals: (int) 1 or (string) "1" or equals: (long long) 1 or equals: (T) 1
   or equals: true )
 
 -------------------------------------------------------------------------------
@@ -3117,7 +3274,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 0, !MatcherA() )
 with expansion:
-  0 not equals: (int) 1 or (float) 1.0f
+  0 not equals: (int) 1 or (string) "1"
 
 Matchers.tests.cpp:<line number>: PASSED:
 with message:
@@ -3126,7 +3283,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1, !!MatcherA() )
 with expansion:
-  1 equals: (int) 1 or (float) 1.0f
+  1 equals: (int) 1 or (string) "1"
 
 Matchers.tests.cpp:<line number>: PASSED:
 with message:
@@ -3136,7 +3293,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 0, !!!MatcherA() )
 with expansion:
-  0 not equals: (int) 1 or (float) 1.0f
+  0 not equals: (int) 1 or (string) "1"
 
 Matchers.tests.cpp:<line number>: PASSED:
 with message:
@@ -3145,7 +3302,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1, !!!!MatcherA() )
 with expansion:
-  1 equals: (int) 1 or (float) 1.0f
+  1 equals: (int) 1 or (string) "1"
 
 -------------------------------------------------------------------------------
 Combining concrete matchers does not use templated matchers
@@ -3173,7 +3330,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1, MatcherA() || MatcherB() )
 with expansion:
-  1 ( equals: (int) 1 or (float) 1.0f or equals: (long long) 1 )
+  1 ( equals: (int) 1 or (string) "1" or equals: (long long) 1 )
 
 Matchers.tests.cpp:<line number>: PASSED:
 with message:
@@ -3183,7 +3340,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1, MatcherA() && MatcherB() )
 with expansion:
-  1 ( equals: (int) 1 or (float) 1.0f and equals: (long long) 1 )
+  1 ( equals: (int) 1 or (string) "1" and equals: (long long) 1 )
 
 Matchers.tests.cpp:<line number>: PASSED:
 with message:
@@ -3194,7 +3351,7 @@ with message:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1, MatcherA() || !MatcherB() )
 with expansion:
-  1 ( equals: (int) 1 or (float) 1.0f or not equals: (long long) 1 )
+  1 ( equals: (int) 1 or (string) "1" or not equals: (long long) 1 )
 
 -------------------------------------------------------------------------------
 Combining templated and concrete matchers
@@ -3806,6 +3963,17 @@ with expansion:
   6 == 6
 
 -------------------------------------------------------------------------------
+Cout stream properly declares it writes to stdout
+-------------------------------------------------------------------------------
+Stream.tests.cpp:<line number>
+...............................................................................
+
+Stream.tests.cpp:<line number>: PASSED:
+  REQUIRE( Catch::makeStream( "-" )->isConsole() )
+with expansion:
+  true
+
+-------------------------------------------------------------------------------
 Custom exceptions can be translated when testing for nothrow
 -------------------------------------------------------------------------------
 Exception.tests.cpp:<line number>
@@ -3846,7 +4014,7 @@ Approx.tests.cpp:<line number>
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( 101.000001 != Approx(100).epsilon(0.01) )
 with expansion:
-  101.000001 != Approx( 100.0 )
+  101.00000099999999748 != Approx( 100.0 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( std::pow(10, -5) != Approx(std::pow(10, -7)) )
@@ -3877,13 +4045,25 @@ with expansion:
   "{** unexpected enum value **}"
 
 -------------------------------------------------------------------------------
-Empty tag is not allowed
+Empty generators can SKIP in constructor
 -------------------------------------------------------------------------------
-Tag.tests.cpp:<line number>
+Skip.tests.cpp:<line number>
 ...............................................................................
 
-Tag.tests.cpp:<line number>: PASSED:
-  REQUIRE_THROWS( Catch::TestCaseInfo( "", { "fake test name", "[]" }, dummySourceLineInfo ) )
+Skip.tests.cpp:<line number>: SKIPPED:
+explicitly with message:
+  This generator is empty
+
+-------------------------------------------------------------------------------
+Empty stream name opens cout stream
+-------------------------------------------------------------------------------
+Stream.tests.cpp:<line number>
+...............................................................................
+
+Stream.tests.cpp:<line number>: PASSED:
+  REQUIRE( Catch::makeStream( "" )->isConsole() )
+with expansion:
+  true
 
 -------------------------------------------------------------------------------
 EndsWith string matcher
@@ -3903,7 +4083,7 @@ with expansion:
   insensitive)
 
 -------------------------------------------------------------------------------
-Enums can quickly have stringification enabled using REGISTER_ENUM
+Enums can quickly have stringification enabled using CATCH_REGISTER_ENUM
 -------------------------------------------------------------------------------
 EnumToString.tests.cpp:<line number>
 ...............................................................................
@@ -3937,7 +4117,7 @@ with expansion:
 
 -------------------------------------------------------------------------------
 Enums in namespaces can quickly have stringification enabled using
-REGISTER_ENUM
+CATCH_REGISTER_ENUM
 -------------------------------------------------------------------------------
 EnumToString.tests.cpp:<line number>
 ...............................................................................
@@ -3961,7 +4141,7 @@ Approx.tests.cpp:<line number>
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( 101.01 != Approx(100).epsilon(0.01) )
 with expansion:
-  101.01 != Approx( 100.0 )
+  101.01000000000000512 != Approx( 100.0 )
 
 -------------------------------------------------------------------------------
 Equality checks that should fail
@@ -3987,27 +4167,31 @@ with expansion:
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.float_nine_point_one == Approx( 9.11f ) )
 with expansion:
-  9.1f == Approx( 9.1099996567 )
+  9.100000381f
+  ==
+  Approx( 9.10999965667724609 )
 
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.float_nine_point_one == Approx( 9.0f ) )
 with expansion:
-  9.1f == Approx( 9.0 )
+  9.100000381f == Approx( 9.0 )
 
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.float_nine_point_one == Approx( 1 ) )
 with expansion:
-  9.1f == Approx( 1.0 )
+  9.100000381f == Approx( 1.0 )
 
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.float_nine_point_one == Approx( 0 ) )
 with expansion:
-  9.1f == Approx( 0.0 )
+  9.100000381f == Approx( 0.0 )
 
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.double_pi == Approx( 3.1415 ) )
 with expansion:
-  3.1415926535 == Approx( 3.1415 )
+  3.14159265350000005
+  ==
+  Approx( 3.14150000000000018 )
 
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.str_hello == "goodbye" )
@@ -4032,7 +4216,9 @@ with expansion:
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( x == Approx( 1.301 ) )
 with expansion:
-  1.3 == Approx( 1.301 )
+  1.30000000000000027
+  ==
+  Approx( 1.30099999999999993 )
 
 -------------------------------------------------------------------------------
 Equality checks that should succeed
@@ -4048,12 +4234,16 @@ with expansion:
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.float_nine_point_one == Approx( 9.1f ) )
 with expansion:
-  9.1f == Approx( 9.1000003815 )
+  9.100000381f
+  ==
+  Approx( 9.10000038146972656 )
 
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.double_pi == Approx( 3.1415926535 ) )
 with expansion:
-  3.1415926535 == Approx( 3.1415926535 )
+  3.14159265350000005
+  ==
+  Approx( 3.14159265350000005 )
 
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.str_hello == "hello" )
@@ -4073,7 +4263,9 @@ with expansion:
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( x == Approx( 1.3 ) )
 with expansion:
-  1.3 == Approx( 1.3 )
+  1.30000000000000027
+  ==
+  Approx( 1.30000000000000004 )
 
 -------------------------------------------------------------------------------
 Equals
@@ -4200,6 +4392,32 @@ Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THROWS_MATCHES( throwsSpecialException( 2 ), SpecialException, ExceptionMatcher{ 2 } )
 with expansion:
   SpecialException::what special exception has value of 2
+
+-------------------------------------------------------------------------------
+Exception message can be matched
+-------------------------------------------------------------------------------
+Matchers.tests.cpp:<line number>
+...............................................................................
+
+Matchers.tests.cpp:<line number>: PASSED:
+  REQUIRE_THROWS_MATCHES( throwsDerivedException(), DerivedException, MessageMatches( StartsWith( "Derived" ) ) )
+with expansion:
+  DerivedException::what  matches "starts with: "Derived""
+
+Matchers.tests.cpp:<line number>: PASSED:
+  REQUIRE_THROWS_MATCHES( throwsDerivedException(), DerivedException, MessageMatches( EndsWith( "::what" ) ) )
+with expansion:
+  DerivedException::what  matches "ends with: "::what""
+
+Matchers.tests.cpp:<line number>: PASSED:
+  REQUIRE_THROWS_MATCHES( throwsDerivedException(), DerivedException, MessageMatches( !StartsWith( "::what" ) ) )
+with expansion:
+  DerivedException::what  matches "not starts with: "::what""
+
+Matchers.tests.cpp:<line number>: PASSED:
+  REQUIRE_THROWS_MATCHES( throwsSpecialException( 2 ), SpecialException, MessageMatches( StartsWith( "Special" ) ) )
+with expansion:
+  SpecialException::what  matches "starts with: "Special""
 
 -------------------------------------------------------------------------------
 Exception messages can be tested for
@@ -4361,6 +4579,15 @@ with expansion:
   3628800 (0x<hex digits>) == 3628800 (0x<hex digits>)
 
 -------------------------------------------------------------------------------
+Filter generator throws exception for empty generator
+-------------------------------------------------------------------------------
+GeneratorsImpl.tests.cpp:<line number>
+...............................................................................
+
+GeneratorsImpl.tests.cpp:<line number>: PASSED:
+  REQUIRE_THROWS_AS( filter( []( int ) { return false; }, value( 3 ) ), Catch::GeneratorException )
+
+-------------------------------------------------------------------------------
 Floating point matchers: double
   Relative
 -------------------------------------------------------------------------------
@@ -4370,22 +4597,22 @@ Matchers.tests.cpp:<line number>
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 10., WithinRel( 11.1, 0.1 ) )
 with expansion:
-  10.0 and 11.1 are within 10% of each other
+  10.0 and 11.09999999999999964 are within 10% of each other
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 10., !WithinRel( 11.2, 0.1 ) )
 with expansion:
-  10.0 not and 11.2 are within 10% of each other
+  10.0 not and 11.19999999999999929 are within 10% of each other
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1., !WithinRel( 0., 0.99 ) )
 with expansion:
-  1.0 not and 0 are within 99% of each other
+  1.0 not and 0.0 are within 99% of each other
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( -0., WithinRel( 0. ) )
 with expansion:
-  -0.0 and 0 are within 2.22045e-12% of each other
+  -0.0 and 0.0 are within 2.22045e-12% of each other
 
 -------------------------------------------------------------------------------
 Floating point matchers: double
@@ -4398,7 +4625,7 @@ Matchers.tests.cpp:<line number>
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( v1, WithinRel( v2 ) )
 with expansion:
-  0.0 and 2.22507e-308 are within 2.22045e-12% of each other
+  0.0 and 0.0 are within 2.22045e-12% of each other
 
 -------------------------------------------------------------------------------
 Floating point matchers: double
@@ -4420,12 +4647,12 @@ with expansion:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 0., !WithinAbs( 1., 0.99 ) )
 with expansion:
-  0.0 not is within 0.99 of 1.0
+  0.0 not is within 0.98999999999999999 of 1.0
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 0., !WithinAbs( 1., 0.99 ) )
 with expansion:
-  0.0 not is within 0.99 of 1.0
+  0.0 not is within 0.98999999999999999 of 1.0
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 11., !WithinAbs( 10., 0.5 ) )
@@ -4445,7 +4672,7 @@ with expansion:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( -10., WithinAbs( -9.6, 0.5 ) )
 with expansion:
-  -10.0 is within 0.5 of -9.6
+  -10.0 is within 0.5 of -9.59999999999999964
 
 -------------------------------------------------------------------------------
 Floating point matchers: double
@@ -4463,8 +4690,8 @@ with expansion:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( nextafter( 1., 2. ), WithinULP( 1., 1 ) )
 with expansion:
-  1.0 is within 1 ULPs of 1.0000000000000000e+00 ([9.9999999999999989e-01, 1.
-  0000000000000002e+00])
+  1.00000000000000022 is within 1 ULPs of 1.0000000000000000e+00 ([9.
+  9999999999999989e-01, 1.0000000000000002e+00])
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 0., WithinULP( nextafter( 0., 1. ), 1 ) )
@@ -4518,7 +4745,7 @@ with expansion:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 0.0001, WithinAbs( 0., 0.001 ) || WithinRel( 0., 0.1 ) )
 with expansion:
-  0.0001 ( is within 0.001 of 0.0 or and 0 are within 10% of each other )
+  0.0001 ( is within 0.001 of 0.0 or and 0.0 are within 10% of each other )
 
 -------------------------------------------------------------------------------
 Floating point matchers: double
@@ -4546,6 +4773,18 @@ Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THROWS_AS( WithinRel( 1., 1. ), std::domain_error )
 
 -------------------------------------------------------------------------------
+Floating point matchers: double
+  IsNaN
+-------------------------------------------------------------------------------
+Matchers.tests.cpp:<line number>
+...............................................................................
+
+Matchers.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( 1., !IsNaN() )
+with expansion:
+  1.0 not is NaN
+
+-------------------------------------------------------------------------------
 Floating point matchers: float
   Relative
 -------------------------------------------------------------------------------
@@ -4555,22 +4794,22 @@ Matchers.tests.cpp:<line number>
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 10.f, WithinRel( 11.1f, 0.1f ) )
 with expansion:
-  10.0f and 11.1 are within 10% of each other
+  10.0f and 11.10000038146972656 are within 10% of each other
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 10.f, !WithinRel( 11.2f, 0.1f ) )
 with expansion:
-  10.0f not and 11.2 are within 10% of each other
+  10.0f not and 11.19999980926513672 are within 10% of each other
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 1.f, !WithinRel( 0.f, 0.99f ) )
 with expansion:
-  1.0f not and 0 are within 99% of each other
+  1.0f not and 0.0 are within 99% of each other
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( -0.f, WithinRel( 0.f ) )
 with expansion:
-  -0.0f and 0 are within 0.00119209% of each other
+  -0.0f and 0.0 are within 0.00119209% of each other
 
 -------------------------------------------------------------------------------
 Floating point matchers: float
@@ -4583,7 +4822,7 @@ Matchers.tests.cpp:<line number>
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( v1, WithinRel( v2 ) )
 with expansion:
-  0.0f and 1.17549e-38 are within 0.00119209% of each other
+  0.0f and 0.0 are within 0.00119209% of each other
 
 -------------------------------------------------------------------------------
 Floating point matchers: float
@@ -4605,12 +4844,12 @@ with expansion:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 0.f, !WithinAbs( 1.f, 0.99f ) )
 with expansion:
-  0.0f not is within 0.9900000095 of 1.0
+  0.0f not is within 0.99000000953674316 of 1.0
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 0.f, !WithinAbs( 1.f, 0.99f ) )
 with expansion:
-  0.0f not is within 0.9900000095 of 1.0
+  0.0f not is within 0.99000000953674316 of 1.0
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 0.f, WithinAbs( -0.f, 0 ) )
@@ -4635,7 +4874,7 @@ with expansion:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( -10.f, WithinAbs( -9.6f, 0.5f ) )
 with expansion:
-  -10.0f is within 0.5 of -9.6000003815
+  -10.0f is within 0.5 of -9.60000038146972656
 
 -------------------------------------------------------------------------------
 Floating point matchers: float
@@ -4658,7 +4897,8 @@ with expansion:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( nextafter( 1.f, 2.f ), WithinULP( 1.f, 1 ) )
 with expansion:
-  1.0f is within 1 ULPs of 1.00000000e+00f ([9.99999940e-01, 1.00000012e+00])
+  1.000000119f is within 1 ULPs of 1.00000000e+00f ([9.99999940e-01, 1.
+  00000012e+00])
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 0.f, WithinULP( nextafter( 0.f, 1.f ), 1 ) )
@@ -4708,7 +4948,8 @@ with expansion:
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( 0.0001f, WithinAbs( 0.f, 0.001f ) || WithinRel( 0.f, 0.1f ) )
 with expansion:
-  0.0001f ( is within 0.001 of 0.0 or and 0 are within 10% of each other )
+  0.0001f ( is within 0.00100000004749745 of 0.0 or and 0.0 are within 10% of
+  each other )
 
 -------------------------------------------------------------------------------
 Floating point matchers: float
@@ -4737,6 +4978,62 @@ Matchers.tests.cpp:<line number>: PASSED:
 
 Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_THROWS_AS( WithinRel( 1.f, 1.f ), std::domain_error )
+
+-------------------------------------------------------------------------------
+Floating point matchers: float
+  IsNaN
+-------------------------------------------------------------------------------
+Matchers.tests.cpp:<line number>
+...............................................................................
+
+Matchers.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( 1., !IsNaN() )
+with expansion:
+  1.0 not is NaN
+
+-------------------------------------------------------------------------------
+GENERATE can combine literals and generators
+-------------------------------------------------------------------------------
+Generators.tests.cpp:<line number>
+...............................................................................
+
+Generators.tests.cpp:<line number>: PASSED:
+  REQUIRE( i % 2 == 0 )
+with expansion:
+  0 == 0
+
+-------------------------------------------------------------------------------
+GENERATE can combine literals and generators
+-------------------------------------------------------------------------------
+Generators.tests.cpp:<line number>
+...............................................................................
+
+Generators.tests.cpp:<line number>: PASSED:
+  REQUIRE( i % 2 == 0 )
+with expansion:
+  0 == 0
+
+-------------------------------------------------------------------------------
+GENERATE can combine literals and generators
+-------------------------------------------------------------------------------
+Generators.tests.cpp:<line number>
+...............................................................................
+
+Generators.tests.cpp:<line number>: PASSED:
+  REQUIRE( i % 2 == 0 )
+with expansion:
+  0 == 0
+
+-------------------------------------------------------------------------------
+GENERATE can combine literals and generators
+-------------------------------------------------------------------------------
+Generators.tests.cpp:<line number>
+...............................................................................
+
+Generators.tests.cpp:<line number>: PASSED:
+  REQUIRE( i % 2 == 0 )
+with expansion:
+  0 == 0
 
 -------------------------------------------------------------------------------
 Generators -- adapters
@@ -6093,7 +6390,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.9 == Approx( -0.9 )
+  -0.90000000000000002
+  ==
+  Approx( -0.90000000000000002 )
 with message:
   Current expected value is -0.9
 
@@ -6107,7 +6406,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.8 == Approx( -0.8 )
+  -0.80000000000000004
+  ==
+  Approx( -0.80000000000000004 )
 with message:
   Current expected value is -0.8
 
@@ -6121,7 +6422,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.7 == Approx( -0.7 )
+  -0.70000000000000007
+  ==
+  Approx( -0.70000000000000007 )
 with message:
   Current expected value is -0.7
 
@@ -6135,7 +6438,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.6 == Approx( -0.6 )
+  -0.60000000000000009
+  ==
+  Approx( -0.60000000000000009 )
 with message:
   Current expected value is -0.6
 
@@ -6149,7 +6454,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.5 == Approx( -0.5 )
+  -0.50000000000000011
+  ==
+  Approx( -0.50000000000000011 )
 with message:
   Current expected value is -0.5
 
@@ -6163,7 +6470,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.4 == Approx( -0.4 )
+  -0.40000000000000013
+  ==
+  Approx( -0.40000000000000013 )
 with message:
   Current expected value is -0.4
 
@@ -6177,7 +6486,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.3 == Approx( -0.3 )
+  -0.30000000000000016
+  ==
+  Approx( -0.30000000000000016 )
 with message:
   Current expected value is -0.3
 
@@ -6191,7 +6502,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.2 == Approx( -0.2 )
+  -0.20000000000000015
+  ==
+  Approx( -0.20000000000000015 )
 with message:
   Current expected value is -0.2
 
@@ -6205,7 +6518,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.1 == Approx( -0.1 )
+  -0.10000000000000014
+  ==
+  Approx( -0.10000000000000014 )
 with message:
   Current expected value is -0.1
 
@@ -6219,7 +6534,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.0 == Approx( -0.0 )
+  -0.00000000000000014
+  ==
+  Approx( -0.00000000000000014 )
 with message:
   Current expected value is -1.38778e-16
 
@@ -6233,7 +6550,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  0.1 == Approx( 0.1 )
+  0.09999999999999987
+  ==
+  Approx( 0.09999999999999987 )
 with message:
   Current expected value is 0.1
 
@@ -6247,7 +6566,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  0.2 == Approx( 0.2 )
+  0.19999999999999987
+  ==
+  Approx( 0.19999999999999987 )
 with message:
   Current expected value is 0.2
 
@@ -6261,7 +6582,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  0.3 == Approx( 0.3 )
+  0.29999999999999988
+  ==
+  Approx( 0.29999999999999988 )
 with message:
   Current expected value is 0.3
 
@@ -6275,7 +6598,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  0.4 == Approx( 0.4 )
+  0.39999999999999991
+  ==
+  Approx( 0.39999999999999991 )
 with message:
   Current expected value is 0.4
 
@@ -6289,7 +6614,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  0.5 == Approx( 0.5 )
+  0.49999999999999989
+  ==
+  Approx( 0.49999999999999989 )
 with message:
   Current expected value is 0.5
 
@@ -6303,7 +6630,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  0.6 == Approx( 0.6 )
+  0.59999999999999987
+  ==
+  Approx( 0.59999999999999987 )
 with message:
   Current expected value is 0.6
 
@@ -6317,7 +6646,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  0.7 == Approx( 0.7 )
+  0.69999999999999984
+  ==
+  Approx( 0.69999999999999984 )
 with message:
   Current expected value is 0.7
 
@@ -6331,7 +6662,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  0.8 == Approx( 0.8 )
+  0.79999999999999982
+  ==
+  Approx( 0.79999999999999982 )
 with message:
   Current expected value is 0.8
 
@@ -6345,7 +6678,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  0.9 == Approx( 0.9 )
+  0.8999999999999998
+  ==
+  Approx( 0.8999999999999998 )
 with message:
   Current expected value is 0.9
 
@@ -6359,7 +6694,7 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx( rangeEnd ) )
 with expansion:
-  1.0 == Approx( 1.0 )
+  0.99999999999999978 == Approx( 1.0 )
 
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE_FALSE( gen.next() )
@@ -6393,7 +6728,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.7 == Approx( -0.7 )
+  -0.69999999999999996
+  ==
+  Approx( -0.69999999999999996 )
 with message:
   Current expected value is -0.7
 
@@ -6407,7 +6744,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.4 == Approx( -0.4 )
+  -0.39999999999999997
+  ==
+  Approx( -0.39999999999999997 )
 with message:
   Current expected value is -0.4
 
@@ -6421,7 +6760,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.1 == Approx( -0.1 )
+  -0.09999999999999998
+  ==
+  Approx( -0.09999999999999998 )
 with message:
   Current expected value is -0.1
 
@@ -6435,7 +6776,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  0.2 == Approx( 0.2 )
+  0.20000000000000001
+  ==
+  Approx( 0.20000000000000001 )
 with message:
   Current expected value is 0.2
 
@@ -6492,7 +6835,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.7 == Approx( -0.7 )
+  -0.69999999999999996
+  ==
+  Approx( -0.69999999999999996 )
 with message:
   Current expected value is -0.7
 
@@ -6506,7 +6851,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.4 == Approx( -0.4 )
+  -0.39999999999999997
+  ==
+  Approx( -0.39999999999999997 )
 with message:
   Current expected value is -0.4
 
@@ -6520,7 +6867,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  -0.1 == Approx( -0.1 )
+  -0.09999999999999998
+  ==
+  Approx( -0.09999999999999998 )
 with message:
   Current expected value is -0.1
 
@@ -6534,7 +6883,9 @@ with message:
 GeneratorsImpl.tests.cpp:<line number>: PASSED:
   REQUIRE( gen.get() == Approx(expected) )
 with expansion:
-  0.2 == Approx( 0.2 )
+  0.20000000000000001
+  ==
+  Approx( 0.20000000000000001 )
 with message:
   Current expected value is 0.2
 
@@ -6733,22 +7084,123 @@ Approx.tests.cpp:<line number>
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d >= Approx( 1.22 ) )
 with expansion:
-  1.23 >= Approx( 1.22 )
+  1.22999999999999998
+  >=
+  Approx( 1.21999999999999997 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d >= Approx( 1.23 ) )
 with expansion:
-  1.23 >= Approx( 1.23 )
+  1.22999999999999998
+  >=
+  Approx( 1.22999999999999998 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE_FALSE( d >= Approx( 1.24 ) )
 with expansion:
-  !(1.23 >= Approx( 1.24 ))
+  !(1.22999999999999998
+  >=
+  Approx( 1.23999999999999999 ))
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d >= Approx( 1.24 ).epsilon(0.1) )
 with expansion:
-  1.23 >= Approx( 1.24 )
+  1.22999999999999998
+  >=
+  Approx( 1.23999999999999999 )
+
+-------------------------------------------------------------------------------
+Hashers with different seed produce different hash with same test case
+-------------------------------------------------------------------------------
+TestCaseInfoHasher.tests.cpp:<line number>
+...............................................................................
+
+TestCaseInfoHasher.tests.cpp:<line number>: PASSED:
+  REQUIRE( h1( dummy ) != h2( dummy ) )
+with expansion:
+  3422778688 (0x<hex digits>)
+  !=
+  130711275 (0x<hex digits>)
+
+-------------------------------------------------------------------------------
+Hashers with same seed produce same hash
+-------------------------------------------------------------------------------
+TestCaseInfoHasher.tests.cpp:<line number>
+...............................................................................
+
+TestCaseInfoHasher.tests.cpp:<line number>: PASSED:
+  REQUIRE( h1( dummy ) == h2( dummy ) )
+with expansion:
+  3422778688 (0x<hex digits>)
+  ==
+  3422778688 (0x<hex digits>)
+
+-------------------------------------------------------------------------------
+Hashing different test cases produces different result
+  Different test name
+-------------------------------------------------------------------------------
+TestCaseInfoHasher.tests.cpp:<line number>
+...............................................................................
+
+TestCaseInfoHasher.tests.cpp:<line number>: PASSED:
+  REQUIRE( h( dummy1 ) != h( dummy2 ) )
+with expansion:
+  2903002874 (0x<hex digits>)
+  !=
+  2668622104 (0x<hex digits>)
+
+-------------------------------------------------------------------------------
+Hashing different test cases produces different result
+  Different classname
+-------------------------------------------------------------------------------
+TestCaseInfoHasher.tests.cpp:<line number>
+...............................................................................
+
+TestCaseInfoHasher.tests.cpp:<line number>: PASSED:
+  REQUIRE( h( dummy1 ) != h( dummy2 ) )
+with expansion:
+  2673152918 (0x<hex digits>)
+  !=
+  3916075712 (0x<hex digits>)
+
+-------------------------------------------------------------------------------
+Hashing different test cases produces different result
+  Different tags
+-------------------------------------------------------------------------------
+TestCaseInfoHasher.tests.cpp:<line number>
+...............................................................................
+
+TestCaseInfoHasher.tests.cpp:<line number>: PASSED:
+  REQUIRE( h( dummy1 ) != h( dummy2 ) )
+with expansion:
+  2074929312 (0x<hex digits>)
+  !=
+  3429949824 (0x<hex digits>)
+
+-------------------------------------------------------------------------------
+Hashing test case produces same hash across multiple calls
+-------------------------------------------------------------------------------
+TestCaseInfoHasher.tests.cpp:<line number>
+...............................................................................
+
+TestCaseInfoHasher.tests.cpp:<line number>: PASSED:
+  REQUIRE( h( dummy ) == h( dummy ) )
+with expansion:
+  3422778688 (0x<hex digits>)
+  ==
+  3422778688 (0x<hex digits>)
+
+-------------------------------------------------------------------------------
+INFO and UNSCOPED_INFO can stream multiple arguments
+-------------------------------------------------------------------------------
+Message.tests.cpp:<line number>
+...............................................................................
+
+Message.tests.cpp:<line number>: FAILED:
+explicitly with messages:
+  This info has multiple parts.
+  This unscoped info has multiple parts.
+  Show infos!
 
 -------------------------------------------------------------------------------
 INFO and WARN do not abort tests
@@ -6912,6 +7364,17 @@ with messages:
   i := 10
 
 -------------------------------------------------------------------------------
+Incomplete AssertionHandler
+-------------------------------------------------------------------------------
+AssertionHandler.tests.cpp:<line number>
+...............................................................................
+
+AssertionHandler.tests.cpp:<line number>: FAILED:
+  REQUIRE( Dummy )
+due to unexpected exception with message:
+  Exception translation was disabled by CATCH_CONFIG_FAST_COMPILE
+
+-------------------------------------------------------------------------------
 Inequality checks that should fail
 -------------------------------------------------------------------------------
 Condition.tests.cpp:<line number>
@@ -6925,12 +7388,16 @@ with expansion:
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.float_nine_point_one != Approx( 9.1f ) )
 with expansion:
-  9.1f != Approx( 9.1000003815 )
+  9.100000381f
+  !=
+  Approx( 9.10000038146972656 )
 
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.double_pi != Approx( 3.1415926535 ) )
 with expansion:
-  3.1415926535 != Approx( 3.1415926535 )
+  3.14159265350000005
+  !=
+  Approx( 3.14159265350000005 )
 
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.str_hello != "hello" )
@@ -6961,27 +7428,31 @@ with expansion:
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.float_nine_point_one != Approx( 9.11f ) )
 with expansion:
-  9.1f != Approx( 9.1099996567 )
+  9.100000381f
+  !=
+  Approx( 9.10999965667724609 )
 
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.float_nine_point_one != Approx( 9.0f ) )
 with expansion:
-  9.1f != Approx( 9.0 )
+  9.100000381f != Approx( 9.0 )
 
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.float_nine_point_one != Approx( 1 ) )
 with expansion:
-  9.1f != Approx( 1.0 )
+  9.100000381f != Approx( 1.0 )
 
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.float_nine_point_one != Approx( 0 ) )
 with expansion:
-  9.1f != Approx( 0.0 )
+  9.100000381f != Approx( 0.0 )
 
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.double_pi != Approx( 3.1415 ) )
 with expansion:
-  3.1415926535 != Approx( 3.1415 )
+  3.14159265350000005
+  !=
+  Approx( 3.14150000000000018 )
 
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.str_hello != "goodbye" )
@@ -7004,6 +7475,291 @@ with expansion:
   5 != 6
 
 -------------------------------------------------------------------------------
+JsonWriter
+  Newly constructed JsonWriter does nothing
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( stream.str() == "" )
+with expansion:
+  "" == ""
+
+-------------------------------------------------------------------------------
+JsonWriter
+  Calling writeObject will create an empty pair of braces
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( stream.str() == "{\n}" )
+with expansion:
+  "{
+  }"
+  ==
+  "{
+  }"
+
+-------------------------------------------------------------------------------
+JsonWriter
+  Calling writeObject with key will create an object to write the value
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( stream.str(), ContainsSubstring( "\"int\": 1," ) && ContainsSubstring( "\"double\": 1.5," ) && ContainsSubstring( "\"true\": true," ) && ContainsSubstring( "\"false\": false," ) && ContainsSubstring( "\"string\": \"this is a string\"," ) && ContainsSubstring( "\"array\": [\n    1,\n    2\n  ]\n}" ) )
+with expansion:
+  "{
+    "int": 1,
+    "double": 1.5,
+    "true": true,
+    "false": false,
+    "string": "this is a string",
+    "array": [
+      1,
+      2
+    ]
+  }" ( contains: ""int": 1," and contains: ""double": 1.5," and contains:
+  ""true": true," and contains: ""false": false," and contains: ""string":
+  "this is a string"," and contains: ""array": [
+      1,
+      2
+    ]
+  }" )
+
+-------------------------------------------------------------------------------
+JsonWriter
+  nesting objects
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( stream.str(), ContainsSubstring( "\"empty_object\": {\n  }," ) && ContainsSubstring( "\"fully_object\": {\n    \"key\": 1\n  }" ) )
+with expansion:
+  "{
+    "empty_object": {
+    },
+    "fully_object": {
+      "key": 1
+    }
+  }" ( contains: ""empty_object": {
+    }," and contains: ""fully_object": {
+      "key": 1
+    }" )
+
+-------------------------------------------------------------------------------
+JsonWriter
+  Calling writeArray will create an empty pair of braces
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( stream.str() == "[\n]" )
+with expansion:
+  "[
+  ]"
+  ==
+  "[
+  ]"
+
+-------------------------------------------------------------------------------
+JsonWriter
+  Calling writeArray creates array to write the values to
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( stream.str() == "[\n  1,\n  1.5,\n  true,\n  false,\n  \"this is a string\",\n  {\n    \"object\": 42\n  },\n  [\n    \"array\",\n    42.5\n  ]\n]" )
+with expansion:
+  "[
+    1,
+    1.5,
+    true,
+    false,
+    "this is a string",
+    {
+      "object": 42
+    },
+    [
+      "array",
+      42.5
+    ]
+  ]"
+  ==
+  "[
+    1,
+    1.5,
+    true,
+    false,
+    "this is a string",
+    {
+      "object": 42
+    },
+    [
+      "array",
+      42.5
+    ]
+  ]"
+
+-------------------------------------------------------------------------------
+JsonWriter
+  Moved from JsonObjectWriter shall not insert superfluous brace
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( stream.str() == "{\n}" )
+with expansion:
+  "{
+  }"
+  ==
+  "{
+  }"
+
+-------------------------------------------------------------------------------
+JsonWriter
+  Moved from JsonArrayWriter shall not insert superfluous bracket
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( stream.str() == "[\n]" )
+with expansion:
+  "[
+  ]"
+  ==
+  "[
+  ]"
+
+-------------------------------------------------------------------------------
+JsonWriter
+  Custom class shall be quoted
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( stream.str() == "\"custom\"" )
+with expansion:
+  ""custom"" == ""custom""
+
+-------------------------------------------------------------------------------
+JsonWriter escapes characters in strings properly
+  Quote in a string is escaped
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( sstream.str() == "\"\\\"\"" )
+with expansion:
+  ""\""" == ""\"""
+
+-------------------------------------------------------------------------------
+JsonWriter escapes characters in strings properly
+  Backslash in a string is escaped
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( sstream.str() == "\"\\\\\"" )
+with expansion:
+  ""\\"" == ""\\""
+
+-------------------------------------------------------------------------------
+JsonWriter escapes characters in strings properly
+  Forward slash in a string is **not** escaped
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( sstream.str() == "\"/\"" )
+with expansion:
+  ""/"" == ""/""
+
+-------------------------------------------------------------------------------
+JsonWriter escapes characters in strings properly
+  Backspace in a string is escaped
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( sstream.str() == "\"\\b\"" )
+with expansion:
+  ""\b"" == ""\b""
+
+-------------------------------------------------------------------------------
+JsonWriter escapes characters in strings properly
+  Formfeed in a string is escaped
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( sstream.str() == "\"\\f\"" )
+with expansion:
+  ""\f"" == ""\f""
+
+-------------------------------------------------------------------------------
+JsonWriter escapes characters in strings properly
+  linefeed in a string is escaped
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( sstream.str() == "\"\\n\"" )
+with expansion:
+  ""\n"" == ""\n""
+
+-------------------------------------------------------------------------------
+JsonWriter escapes characters in strings properly
+  carriage return in a string is escaped
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( sstream.str() == "\"\\r\"" )
+with expansion:
+  ""\r"" == ""\r""
+
+-------------------------------------------------------------------------------
+JsonWriter escapes characters in strings properly
+  tab in a string is escaped
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( sstream.str() == "\"\\t\"" )
+with expansion:
+  ""\t"" == ""\t""
+
+-------------------------------------------------------------------------------
+JsonWriter escapes characters in strings properly
+  combination of characters is escaped
+-------------------------------------------------------------------------------
+Json.tests.cpp:<line number>
+...............................................................................
+
+Json.tests.cpp:<line number>: PASSED:
+  REQUIRE( sstream.str() == "\"\\\\/\\t\\r\\n\"" )
+with expansion:
+  ""\\/\t\r\n"" == ""\\/\t\r\n""
+
+-------------------------------------------------------------------------------
 Lambdas in assertions
 -------------------------------------------------------------------------------
 Compilation.tests.cpp:<line number>
@@ -7023,22 +7779,30 @@ Approx.tests.cpp:<line number>
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d <= Approx( 1.24 ) )
 with expansion:
-  1.23 <= Approx( 1.24 )
+  1.22999999999999998
+  <=
+  Approx( 1.23999999999999999 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d <= Approx( 1.23 ) )
 with expansion:
-  1.23 <= Approx( 1.23 )
+  1.22999999999999998
+  <=
+  Approx( 1.22999999999999998 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE_FALSE( d <= Approx( 1.22 ) )
 with expansion:
-  !(1.23 <= Approx( 1.22 ))
+  !(1.22999999999999998
+  <=
+  Approx( 1.21999999999999997 ))
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d <= Approx( 1.22 ).epsilon(0.1) )
 with expansion:
-  1.23 <= Approx( 1.22 )
+  1.22999999999999998
+  <=
+  Approx( 1.21999999999999997 )
 
 -------------------------------------------------------------------------------
 ManuallyRegistered
@@ -7591,17 +8355,17 @@ with expansion:
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.float_nine_point_one < 9 )
 with expansion:
-  9.1f < 9
+  9.100000381f < 9
 
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.float_nine_point_one > 10 )
 with expansion:
-  9.1f > 10
+  9.100000381f > 10
 
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.float_nine_point_one > 9.2 )
 with expansion:
-  9.1f > 9.2
+  9.100000381f > 9.19999999999999929
 
 Condition.tests.cpp:<line number>: FAILED:
   CHECK( data.str_hello > "hello" )
@@ -7692,17 +8456,17 @@ with expansion:
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.float_nine_point_one > 9 )
 with expansion:
-  9.1f > 9
+  9.100000381f > 9
 
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.float_nine_point_one < 10 )
 with expansion:
-  9.1f < 10
+  9.100000381f < 10
 
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.float_nine_point_one < 9.2 )
 with expansion:
-  9.1f < 9.2
+  9.100000381f < 9.19999999999999929
 
 Condition.tests.cpp:<line number>: PASSED:
   REQUIRE( data.str_hello <= "hello" )
@@ -7894,1004 +8658,73 @@ Matchers.tests.cpp:<line number>: PASSED:
   REQUIRE_NOTHROW( ( EvilMatcher() && EvilMatcher() ) || !EvilMatcher() )
 
 -------------------------------------------------------------------------------
-Parse test names and tags
-  Empty test spec should have no filters
+Parse uints
+  proper inputs
 -------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
+Parse.tests.cpp:<line number>
 ...............................................................................
 
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == false )
+Parse.tests.cpp:<line number>: PASSED:
+  REQUIRE( parseUInt( "0" ) == Optional<unsigned int>{ 0 } )
 with expansion:
-  false == false
+  {?} == {?}
 
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
+Parse.tests.cpp:<line number>: PASSED:
+  REQUIRE( parseUInt( "100" ) == Optional<unsigned int>{ 100 } )
 with expansion:
-  false == false
+  {?} == {?}
 
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
+Parse.tests.cpp:<line number>: PASSED:
+  REQUIRE( parseUInt( "4294967295" ) == Optional<unsigned int>{ 4294967295 } )
 with expansion:
-  false == false
+  {?} == {?}
+
+Parse.tests.cpp:<line number>: PASSED:
+  REQUIRE( parseUInt( "0x<hex digits>", 16 ) == Optional<unsigned int>{ 255 } )
+with expansion:
+  {?} == {?}
 
 -------------------------------------------------------------------------------
-Parse test names and tags
-  Test spec from empty string should have no filters
+Parse uints
+  Bad inputs
 -------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
+Parse.tests.cpp:<line number>
 ...............................................................................
 
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == false )
+Parse.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( parseUInt( "" ) )
 with expansion:
-  false == false
+  !{?}
 
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
+Parse.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( parseUInt( "!!KJHF*#" ) )
 with expansion:
-  false == false
+  !{?}
 
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
+Parse.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( parseUInt( "-1" ) )
 with expansion:
-  false == false
+  !{?}
 
--------------------------------------------------------------------------------
-Parse test names and tags
-  Test spec from just a comma should have no filters
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Test spec from name should have one filter
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Test spec from quoted name should have one filter
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Test spec from name should have one filter
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Wildcard at the start
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( parseTestSpec( "*a" ).matches( *tcA ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Wildcard at the end
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( parseTestSpec( "a*" ).matches( *tcA ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Wildcard at both ends
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( parseTestSpec( "*a*" ).matches( *tcA ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Redundant wildcard at the start
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Redundant wildcard at the end
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Redundant wildcard at both ends
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Wildcard at both ends, redundant at start
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Just wildcard
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Single tag
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Single tag, two matches
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Two tags
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Two tags, spare separated
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Wildcarded name and tag
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Single tag exclusion
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  One tag exclusion and one tag inclusion
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  One tag exclusion and one wldcarded name inclusion
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  One tag exclusion, using exclude:, and one wldcarded name inclusion
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  name exclusion
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  wildcarded name exclusion
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  wildcarded name exclusion with tag inclusion
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  wildcarded name exclusion, using exclude:, with tag inclusion
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  two wildcarded names
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  empty tag
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  empty quoted name
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == false )
-with expansion:
-  false == false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  quoted string followed by tag exclusion
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.hasFilters() == true )
-with expansion:
-  true == true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcA ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcB ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcC ) == false )
-with expansion:
-  false == false
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *tcD ) == true )
-with expansion:
-  true == true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Leading and trailing spaces in test spec
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *fakeTestCase( "  aardvark " ) ) )
-with expansion:
-  true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *fakeTestCase( "  aardvark" ) ) )
-with expansion:
-  true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *fakeTestCase( " aardvark " ) ) )
-with expansion:
-  true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *fakeTestCase( "aardvark " ) ) )
-with expansion:
-  true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *fakeTestCase( "aardvark" ) ) )
-with expansion:
-  true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Leading and trailing spaces in test name
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *fakeTestCase( "  aardvark " ) ) )
-with expansion:
-  true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *fakeTestCase( "  aardvark" ) ) )
-with expansion:
-  true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *fakeTestCase( " aardvark " ) ) )
-with expansion:
-  true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *fakeTestCase( "aardvark " ) ) )
-with expansion:
-  true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches( *fakeTestCase( "aardvark" ) ) )
-with expansion:
-  true
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Shortened hide tags are split apart when parsing
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches(*fakeTestCase("hidden and foo", "[.][foo]")) )
-with expansion:
-  true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK_FALSE( spec.matches(*fakeTestCase("only foo", "[foo]")) )
-with expansion:
-  !false
-
--------------------------------------------------------------------------------
-Parse test names and tags
-  Shortened hide tags also properly handle exclusion
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK_FALSE( spec.matches(*fakeTestCase("hidden and foo", "[.][foo]")) )
+Parse.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( parseUInt( "4294967296" ) )
 with expansion:
-  !false
+  !{?}
 
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK_FALSE( spec.matches(*fakeTestCase("only foo", "[foo]")) )
+Parse.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( parseUInt( "42949672964294967296429496729642949672964294967296" ) )
 with expansion:
-  !false
+  !{?}
 
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK_FALSE( spec.matches(*fakeTestCase("only hidden", "[.]")) )
+Parse.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( parseUInt( "2 4" ) )
 with expansion:
-  !false
+  !{?}
 
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( spec.matches(*fakeTestCase("neither foo nor hidden", "[bar]")) )
+Parse.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( parseUInt( "0x<hex digits>", 10 ) )
 with expansion:
-  true
+  !{?}
 
 -------------------------------------------------------------------------------
 Parsed tags are matched case insensitive
@@ -8944,10 +8777,10 @@ with expansion:
   !{?}
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE_THAT( result.errorMessage(), ContainsSubstring("Shard count must be a positive number") )
+  REQUIRE_THAT( result.errorMessage(), ContainsSubstring( "Could not parse '-1' as shard count" ) )
 with expansion:
-  "Shard count must be a positive number" contains: "Shard count must be a
-  positive number"
+  "Could not parse '-1' as shard count" contains: "Could not parse '-1' as
+  shard count"
 
 -------------------------------------------------------------------------------
 Parsing sharding-related cli flags
@@ -8962,10 +8795,9 @@ with expansion:
   !{?}
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE_THAT( result.errorMessage(), ContainsSubstring("Shard count must be a positive number") )
+  REQUIRE_THAT( result.errorMessage(), ContainsSubstring( "Shard count must be positive" ) )
 with expansion:
-  "Shard count must be a positive number" contains: "Shard count must be a
-  positive number"
+  "Shard count must be positive" contains: "Shard count must be positive"
 
 -------------------------------------------------------------------------------
 Parsing sharding-related cli flags
@@ -8997,10 +8829,10 @@ with expansion:
   !{?}
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE_THAT( result.errorMessage(), ContainsSubstring("Shard index must be a non-negative number") )
+  REQUIRE_THAT( result.errorMessage(), ContainsSubstring( "Could not parse '-12' as shard index" ) )
 with expansion:
-  "Shard index must be a non-negative number" contains: "Shard index must be a
-  non-negative number"
+  "Could not parse '-12' as shard index" contains: "Could not parse '-12' as
+  shard index"
 
 -------------------------------------------------------------------------------
 Parsing sharding-related cli flags
@@ -9270,16 +9102,24 @@ with expansion:
   !false
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( cfg.getReportersAndOutputFiles().size() == 1 )
+  CHECK( cfg.getReporterSpecs().size() == 1 )
 with expansion:
   1 == 1
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( cfg.getReportersAndOutputFiles()[0] == Catch::ConfigData::ReporterAndFile{ expectedReporter, {} } )
+  CHECK( cfg.getReporterSpecs()[0] == Catch::ReporterSpec{ expectedReporter, {}, {}, {} } )
 with expansion:
-  { console, <default-output> }
-  ==
-  { console, <default-output> }
+  {?} == {?}
+
+CmdLine.tests.cpp:<line number>: PASSED:
+  CHECK( cfg.getProcessedReporterSpecs().size() == 1 )
+with expansion:
+  1 == 1
+
+CmdLine.tests.cpp:<line number>: PASSED:
+  CHECK( cfg.getProcessedReporterSpecs()[0] == Catch::ProcessedReporterSpec{ expectedReporter, std::string{}, Catch::ColourMode::PlatformDefault, {} } )
+with expansion:
+  {?} == {?}
 
 -------------------------------------------------------------------------------
 Process can be configured on command line
@@ -9381,11 +9221,9 @@ with message:
   result.errorMessage() := ""
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE( config.reporterSpecifications == vec_ReporterAndFile{ {"console", {}} } )
+  REQUIRE( config.reporterSpecifications == vec_Specs{ { "console", {}, {}, {} } } )
 with expansion:
-  { { console, <default-output> } }
-  ==
-  { { console, <default-output> } }
+  { {?} } == { {?} }
 with message:
   result.errorMessage() := ""
 
@@ -9405,11 +9243,9 @@ with message:
   result.errorMessage() := ""
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE( config.reporterSpecifications == vec_ReporterAndFile{ {"xml", {}} } )
+  REQUIRE( config.reporterSpecifications == vec_Specs{ { "xml", {}, {}, {} } } )
 with expansion:
-  { { xml, <default-output> } }
-  ==
-  { { xml, <default-output> } }
+  { {?} } == { {?} }
 with message:
   result.errorMessage() := ""
 
@@ -9429,11 +9265,9 @@ with message:
   result.errorMessage() := ""
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE( config.reporterSpecifications == vec_ReporterAndFile{ {"junit", {}} } )
+  REQUIRE( config.reporterSpecifications == vec_Specs{ { "junit", {}, {}, {} } } )
 with expansion:
-  { { junit, <default-output> } }
-  ==
-  { { junit, <default-output> } }
+  { {?} } == { {?} }
 with message:
   result.errorMessage() := ""
 
@@ -9472,11 +9306,9 @@ with message:
   result.errorMessage() := ""
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE( config.reporterSpecifications == vec_ReporterAndFile{ {"console", "out.txt"s} } )
+  REQUIRE( config.reporterSpecifications == vec_Specs{ { "console", "out.txt"s, {}, {} } } )
 with expansion:
-  { { console, out.txt } }
-  ==
-  { { console, out.txt } }
+  { {?} } == { {?} }
 with message:
   result.errorMessage() := ""
 
@@ -9496,33 +9328,11 @@ with message:
   result.errorMessage() := ""
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE( config.reporterSpecifications == vec_ReporterAndFile{ {"console", "C:\\Temp\\out.txt"s} } )
+  REQUIRE( config.reporterSpecifications == vec_Specs{ { "console", "C:\\Temp\\out.txt"s, {}, {} } } )
 with expansion:
-  { { console, C:\Temp\out.txt } }
-  ==
-  { { console, C:\Temp\out.txt } }
+  { {?} } == { {?} }
 with message:
   result.errorMessage() := ""
-
--------------------------------------------------------------------------------
-Process can be configured on command line
-  reporter
-  Output file cannot be empty
--------------------------------------------------------------------------------
-CmdLine.tests.cpp:<line number>
-...............................................................................
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( !result )
-with expansion:
-  true
-
-CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE_THAT( result.errorMessage(), ContainsSubstring("empty filename") )
-with expansion:
-  "Reporter 'console' has empty filename specified as its output. Supply a
-  filename or remove the colons to use the default output." contains: "empty
-  filename"
 
 -------------------------------------------------------------------------------
 Process can be configured on command line
@@ -9534,16 +9344,14 @@ CmdLine.tests.cpp:<line number>
 ...............................................................................
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( cli.parse({ "test", "-r", "xml::output.xml", "-r", "junit::output-junit.xml" }) )
+  CHECK( cli.parse({ "test", "-r", "xml::out=output.xml", "-r", "junit::out=output-junit.xml" }) )
 with expansion:
   {?}
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE( config.reporterSpecifications == vec_ReporterAndFile{ {"xml", "output.xml"s}, {"junit", "output-junit.xml"s} } )
+  REQUIRE( config.reporterSpecifications == vec_Specs{ { "xml", "output.xml"s, {}, {} }, { "junit", "output-junit.xml"s, {}, {} } } )
 with expansion:
-  { { xml, output.xml }, { junit, output-junit.xml } }
-  ==
-  { { xml, output.xml }, { junit, output-junit.xml } }
+  { {?}, {?} } == { {?}, {?} }
 
 -------------------------------------------------------------------------------
 Process can be configured on command line
@@ -9555,16 +9363,14 @@ CmdLine.tests.cpp:<line number>
 ...............................................................................
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( cli.parse({ "test", "-r", "xml::output.xml", "-r", "console" }) )
+  CHECK( cli.parse({ "test", "-r", "xml::out=output.xml", "-r", "console" }) )
 with expansion:
   {?}
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE( config.reporterSpecifications == vec_ReporterAndFile{ {"xml", "output.xml"s}, {"console", {}} } )
+  REQUIRE( config.reporterSpecifications == vec_Specs{ { "xml", "output.xml"s, {}, {} }, { "console", {}, {}, {} } } )
 with expansion:
-  { { xml, output.xml }, { console, <default-output> } }
-  ==
-  { { xml, output.xml }, { console, <default-output> } }
+  { {?}, {?} } == { {?}, {?} }
 
 -------------------------------------------------------------------------------
 Process can be configured on command line
@@ -9887,7 +9693,7 @@ with expansion:
   {?}
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE( config.useColour == UseColour::Auto )
+  REQUIRE( config.defaultColourMode == ColourMode::PlatformDefault )
 with expansion:
   0 == 0
 
@@ -9900,12 +9706,12 @@ CmdLine.tests.cpp:<line number>
 ...............................................................................
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( cli.parse({"test", "--use-colour", "auto"}) )
+  CHECK( cli.parse( { "test", "--colour-mode", "default" } ) )
 with expansion:
   {?}
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE( config.useColour == UseColour::Auto )
+  REQUIRE( config.defaultColourMode == ColourMode::PlatformDefault )
 with expansion:
   0 == 0
 
@@ -9918,12 +9724,12 @@ CmdLine.tests.cpp:<line number>
 ...............................................................................
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( cli.parse({"test", "--use-colour", "yes"}) )
+  CHECK( cli.parse({"test", "--colour-mode", "ansi"}) )
 with expansion:
   {?}
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE( config.useColour == UseColour::Yes )
+  REQUIRE( config.defaultColourMode == ColourMode::ANSI )
 with expansion:
   1 == 1
 
@@ -9936,14 +9742,14 @@ CmdLine.tests.cpp:<line number>
 ...............................................................................
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  CHECK( cli.parse({"test", "--use-colour", "no"}) )
+  CHECK( cli.parse({"test", "--colour-mode", "none"}) )
 with expansion:
   {?}
 
 CmdLine.tests.cpp:<line number>: PASSED:
-  REQUIRE( config.useColour == UseColour::No )
+  REQUIRE( config.defaultColourMode == ColourMode::None )
 with expansion:
-  2 == 2
+  3 == 3
 
 -------------------------------------------------------------------------------
 Process can be configured on command line
@@ -9961,8 +9767,8 @@ with expansion:
 CmdLine.tests.cpp:<line number>: PASSED:
   CHECK_THAT( result.errorMessage(), ContainsSubstring( "colour mode must be one of" ) )
 with expansion:
-  "colour mode must be one of: auto, yes or no. 'wrong' not recognised"
-  contains: "colour mode must be one of"
+  "colour mode must be one of: default, ansi, win32, or none. 'wrong' is not
+  recognised" contains: "colour mode must be one of"
 
 -------------------------------------------------------------------------------
 Process can be configured on command line
@@ -10016,7 +9822,9 @@ with expansion:
 CmdLine.tests.cpp:<line number>: PASSED:
   REQUIRE( config.benchmarkConfidenceInterval == Catch::Approx(0.99) )
 with expansion:
-  0.99 == Approx( 0.99 )
+  0.98999999999999999
+  ==
+  Approx( 0.98999999999999999 )
 
 -------------------------------------------------------------------------------
 Process can be configured on command line
@@ -10452,6 +10260,129 @@ with expansion:
 " ( contains: "fake test name" and contains: "fakeTestTag" )
 with message:
   Tested reporter: console
+
+-------------------------------------------------------------------------------
+Reporter's write listings to provided stream
+-------------------------------------------------------------------------------
+Reporters.tests.cpp:<line number>
+...............................................................................
+
+Reporters.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( factories.empty() )
+with expansion:
+  !false
+
+-------------------------------------------------------------------------------
+Reporter's write listings to provided stream
+  JSON reporter lists tags
+-------------------------------------------------------------------------------
+Reporters.tests.cpp:<line number>
+...............................................................................
+
+Reporters.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( listingString, ContainsSubstring("fakeTag"s) )
+with expansion:
+  "{
+    "version": 1,
+    "metadata": {
+      "name": "",
+      "rng-seed": 1234,
+      "catch2-version": "<version>"
+    },
+    "listings": {
+      "tags": [
+        {
+          "aliases": [
+            "fakeTag"
+          ],
+          "count": 1
+        }
+      ]" contains: "fakeTag"
+with message:
+  Tested reporter: JSON
+
+-------------------------------------------------------------------------------
+Reporter's write listings to provided stream
+-------------------------------------------------------------------------------
+Reporters.tests.cpp:<line number>
+...............................................................................
+
+Reporters.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( factories.empty() )
+with expansion:
+  !false
+
+-------------------------------------------------------------------------------
+Reporter's write listings to provided stream
+  JSON reporter lists reporters
+-------------------------------------------------------------------------------
+Reporters.tests.cpp:<line number>
+...............................................................................
+
+Reporters.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( listingString, ContainsSubstring("fake reporter"s) )
+with expansion:
+  "{
+    "version": 1,
+    "metadata": {
+      "name": "",
+      "rng-seed": 1234,
+      "catch2-version": "<version>"
+    },
+    "listings": {
+      "reporters": [
+        {
+          "name": "fake reporter",
+          "description": "fake description"
+        }
+      ]" contains: "fake reporter"
+with message:
+  Tested reporter: JSON
+
+-------------------------------------------------------------------------------
+Reporter's write listings to provided stream
+-------------------------------------------------------------------------------
+Reporters.tests.cpp:<line number>
+...............................................................................
+
+Reporters.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( factories.empty() )
+with expansion:
+  !false
+
+-------------------------------------------------------------------------------
+Reporter's write listings to provided stream
+  JSON reporter lists tests
+-------------------------------------------------------------------------------
+Reporters.tests.cpp:<line number>
+...............................................................................
+
+Reporters.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( listingString, ContainsSubstring( "fake test name"s ) && ContainsSubstring( "fakeTestTag"s ) )
+with expansion:
+  "{
+    "version": 1,
+    "metadata": {
+      "name": "",
+      "rng-seed": 1234,
+      "catch2-version": "<version>"
+    },
+    "listings": {
+      "tests": [
+        {
+          "name": "fake test name",
+          "class-name": "",
+          "tags": [
+            "fakeTestTag"
+          ],
+          "source-location": {
+            "filename": "fake-file.cpp",
+            "line": 123456789
+          }
+        }
+      ]" ( contains: "fake test name" and contains: "fakeTestTag" )
+with message:
+  Tested reporter: JSON
 
 -------------------------------------------------------------------------------
 Reporter's write listings to provided stream
@@ -11114,42 +11045,58 @@ Approx.tests.cpp:<line number>
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d == Approx( 1.23 ) )
 with expansion:
-  1.23 == Approx( 1.23 )
+  1.22999999999999998
+  ==
+  Approx( 1.22999999999999998 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d != Approx( 1.22 ) )
 with expansion:
-  1.23 != Approx( 1.22 )
+  1.22999999999999998
+  !=
+  Approx( 1.21999999999999997 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d != Approx( 1.24 ) )
 with expansion:
-  1.23 != Approx( 1.24 )
+  1.22999999999999998
+  !=
+  Approx( 1.23999999999999999 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d == 1.23_a )
 with expansion:
-  1.23 == Approx( 1.23 )
+  1.22999999999999998
+  ==
+  Approx( 1.22999999999999998 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d != 1.22_a )
 with expansion:
-  1.23 != Approx( 1.22 )
+  1.22999999999999998
+  !=
+  Approx( 1.21999999999999997 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( Approx( d ) == 1.23 )
 with expansion:
-  Approx( 1.23 ) == 1.23
+  Approx( 1.22999999999999998 )
+  ==
+  1.22999999999999998
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( Approx( d ) != 1.22 )
 with expansion:
-  Approx( 1.23 ) != 1.22
+  Approx( 1.22999999999999998 )
+  !=
+  1.21999999999999997
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( Approx( d ) != 1.24 )
 with expansion:
-  Approx( 1.23 ) != 1.24
+  Approx( 1.22999999999999998 )
+  !=
+  1.23999999999999999
 
 Message from section one
 -------------------------------------------------------------------------------
@@ -11926,9 +11873,9 @@ Misc.tests.cpp:<line number>
 ...............................................................................
 
 Misc.tests.cpp:<line number>: PASSED:
-  REQUIRE( sizeof(TestType) > 0 )
+  REQUIRE( std::is_default_constructible<TestType>::value )
 with expansion:
-  1 > 0
+  true
 
 -------------------------------------------------------------------------------
 Template test case with test types specified inside non-copyable and non-
@@ -11938,9 +11885,9 @@ Misc.tests.cpp:<line number>
 ...............................................................................
 
 Misc.tests.cpp:<line number>: PASSED:
-  REQUIRE( sizeof(TestType) > 0 )
+  REQUIRE( std::is_default_constructible<TestType>::value )
 with expansion:
-  4 > 0
+  true
 
 -------------------------------------------------------------------------------
 Template test case with test types specified inside non-default-constructible
@@ -11950,9 +11897,9 @@ Misc.tests.cpp:<line number>
 ...............................................................................
 
 Misc.tests.cpp:<line number>: PASSED:
-  REQUIRE( sizeof(TestType) > 0 )
+  REQUIRE( std::is_trivially_copyable<TestType>::value )
 with expansion:
-  1 > 0
+  true
 
 -------------------------------------------------------------------------------
 Template test case with test types specified inside non-default-constructible
@@ -11962,9 +11909,9 @@ Misc.tests.cpp:<line number>
 ...............................................................................
 
 Misc.tests.cpp:<line number>: PASSED:
-  REQUIRE( sizeof(TestType) > 0 )
+  REQUIRE( std::is_trivially_copyable<TestType>::value )
 with expansion:
-  4 > 0
+  true
 
 -------------------------------------------------------------------------------
 Template test case with test types specified inside std::tuple - MyTypes - 0
@@ -11973,9 +11920,9 @@ Misc.tests.cpp:<line number>
 ...............................................................................
 
 Misc.tests.cpp:<line number>: PASSED:
-  REQUIRE( sizeof(TestType) > 0 )
+  REQUIRE( std::is_arithmetic<TestType>::value )
 with expansion:
-  4 > 0
+  true
 
 -------------------------------------------------------------------------------
 Template test case with test types specified inside std::tuple - MyTypes - 1
@@ -11984,9 +11931,9 @@ Misc.tests.cpp:<line number>
 ...............................................................................
 
 Misc.tests.cpp:<line number>: PASSED:
-  REQUIRE( sizeof(TestType) > 0 )
+  REQUIRE( std::is_arithmetic<TestType>::value )
 with expansion:
-  1 > 0
+  true
 
 -------------------------------------------------------------------------------
 Template test case with test types specified inside std::tuple - MyTypes - 2
@@ -11995,9 +11942,9 @@ Misc.tests.cpp:<line number>
 ...............................................................................
 
 Misc.tests.cpp:<line number>: PASSED:
-  REQUIRE( sizeof(TestType) > 0 )
+  REQUIRE( std::is_arithmetic<TestType>::value )
 with expansion:
-  4 > 0
+  true
 
 -------------------------------------------------------------------------------
 TemplateTest: vectors can be sized and resized - float
@@ -13249,6 +13196,34 @@ Misc.tests.cpp:<line number>: FAILED - but was ok:
 Misc.tests.cpp:<line number>: FAILED:
 
 -------------------------------------------------------------------------------
+Testing checked-if 4
+-------------------------------------------------------------------------------
+Misc.tests.cpp:<line number>
+...............................................................................
+
+Misc.tests.cpp:<line number>: PASSED:
+  CHECKED_ELSE( true )
+
+Misc.tests.cpp:<line number>: FAILED:
+  {Unknown expression after the reported line}
+due to unexpected exception with message:
+  Uncaught exception should fail!
+
+-------------------------------------------------------------------------------
+Testing checked-if 5
+-------------------------------------------------------------------------------
+Misc.tests.cpp:<line number>
+...............................................................................
+
+Misc.tests.cpp:<line number>: FAILED - but was ok:
+  CHECKED_ELSE( false )
+
+Misc.tests.cpp:<line number>: FAILED:
+  {Unknown expression after the reported line}
+due to unexpected exception with message:
+  Uncaught exception should fail!
+
+-------------------------------------------------------------------------------
 The NO_FAIL macro reports a failure but does not fail the test
 -------------------------------------------------------------------------------
 Message.tests.cpp:<line number>
@@ -13284,12 +13259,12 @@ Reporters.tests.cpp:<line number>
 ...............................................................................
 
 Reporters.tests.cpp:<line number>: PASSED:
-  REQUIRE_THAT( listingString, ContainsSubstring("fake reporter"s) )
+  REQUIRE_THAT( listingString, ContainsSubstring( "fake reporter"s ) && ContainsSubstring( "fake description"s ) )
 with expansion:
   "Available reporters:
     fake reporter:  fake description
 
-" contains: "fake reporter"
+" ( contains: "fake reporter" and contains: "fake description" )
 
 -------------------------------------------------------------------------------
 The default listing implementation write to provided stream
@@ -13307,6 +13282,21 @@ with expansion:
   1 test case
 
 " ( contains: "fake test name" and contains: "fakeTestTag" )
+
+-------------------------------------------------------------------------------
+The default listing implementation write to provided stream
+  Listing listeners
+-------------------------------------------------------------------------------
+Reporters.tests.cpp:<line number>
+...............................................................................
+
+Reporters.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( listingString, ContainsSubstring( "fakeListener"s ) && ContainsSubstring( "fake description"s ) )
+with expansion:
+  "Registered listeners:
+    fakeListener:  fake description
+
+" ( contains: "fakeListener" and contains: "fake description" )
 
 -------------------------------------------------------------------------------
 This test 'should' fail but doesn't
@@ -13854,6 +13844,154 @@ with expansion:
   There is no extra whitespace here
 
 -------------------------------------------------------------------------------
+Type conversions of RangeEquals and similar
+  Container conversions
+  Two equal containers of different container types
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_int_a, RangeEquals( c_array ) )
+with expansion:
+  { 1, 2, 3 } elements are { 1, 2, 3 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_int_a, UnorderedRangeEquals( c_array ) )
+with expansion:
+  { 1, 2, 3 } unordered elements are { 1, 2, 3 }
+
+-------------------------------------------------------------------------------
+Type conversions of RangeEquals and similar
+  Container conversions
+  Two equal containers of different container types (differ in array N)
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_int_3, !RangeEquals( array_int_4 ) )
+with expansion:
+  { 1, 2, 3 } not elements are { 1, 2, 3, 4 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_int_3, !UnorderedRangeEquals( array_int_4 ) )
+with expansion:
+  { 1, 2, 3 } not unordered elements are { 1, 2, 3, 4 }
+
+-------------------------------------------------------------------------------
+Type conversions of RangeEquals and similar
+  Container conversions
+  Two equal containers of different container types and value types
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_int_a, RangeEquals( vector_char_a ) )
+with expansion:
+  { 1, 2, 3 } elements are { 1, 2, 3 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_int_a, UnorderedRangeEquals( vector_char_a ) )
+with expansion:
+  { 1, 2, 3 } unordered elements are { 1, 2, 3 }
+
+-------------------------------------------------------------------------------
+Type conversions of RangeEquals and similar
+  Container conversions
+  Two equal containers, one random access, one not
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+with message:
+  ContainerIsRandomAccess( array_int_a ) != ContainerIsRandomAccess(
+  list_char_a )
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_int_a, RangeEquals( list_char_a ) )
+with expansion:
+  { 1, 2, 3 } elements are { 1, 2, 3 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_int_a, UnorderedRangeEquals( list_char_a ) )
+with expansion:
+  { 1, 2, 3 } unordered elements are { 1, 2, 3 }
+
+-------------------------------------------------------------------------------
+Type conversions of RangeEquals and similar
+  Value type
+  Two equal containers of different value types
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_int_a, RangeEquals( vector_char_a ) )
+with expansion:
+  { 1, 2, 3 } elements are { 1, 2, 3 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_int_a, UnorderedRangeEquals( vector_char_a ) )
+with expansion:
+  { 1, 2, 3 } unordered elements are { 1, 2, 3 }
+
+-------------------------------------------------------------------------------
+Type conversions of RangeEquals and similar
+  Value type
+  Two non-equal containers of different value types
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_int_a, !RangeEquals( vector_char_b ) )
+with expansion:
+  { 1, 2, 3 } not elements are { 1, 2, 2 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_int_a, !UnorderedRangeEquals( vector_char_b ) )
+with expansion:
+  { 1, 2, 3 } not unordered elements are { 1, 2, 2 }
+
+-------------------------------------------------------------------------------
+Type conversions of RangeEquals and similar
+  Ranges with begin that needs ADL
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( a, !RangeEquals( b ) )
+with expansion:
+  { 1, 2, 3 } not elements are { 3, 2, 1 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( a, UnorderedRangeEquals( b ) )
+with expansion:
+  { 1, 2, 3 } unordered elements are { 3, 2, 1 }
+
+-------------------------------------------------------------------------------
+Type conversions of RangeEquals and similar
+  Custom predicate
+  Two equal non-empty containers (close enough)
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_a, RangeEquals( array_a_plus_1, close_enough ) )
+with expansion:
+  { 1, 2, 3 } elements are { 2, 3, 4 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_a, UnorderedRangeEquals( array_a_plus_1, close_enough ) )
+with expansion:
+  { 1, 2, 3 } unordered elements are { 2, 3, 4 }
+
+-------------------------------------------------------------------------------
 Unexpected exceptions can be translated
 -------------------------------------------------------------------------------
 Exception.tests.cpp:<line number>
@@ -13861,7 +13999,7 @@ Exception.tests.cpp:<line number>
 
 Exception.tests.cpp:<line number>: FAILED:
 due to unexpected exception with message:
-  3.14
+  3.14000000000000012
 
 -------------------------------------------------------------------------------
 Upcasting special member functions
@@ -13933,27 +14071,27 @@ with expansion:
   { 1, 2, 3, 4, 5 } all match matches undescribed predicate
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[0] )
+  REQUIRE( mocked.m_derefed[0] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[1] )
+  REQUIRE( mocked.m_derefed[1] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[2] )
+  REQUIRE( mocked.m_derefed[2] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[3] )
+  REQUIRE( mocked.m_derefed[3] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[4] )
+  REQUIRE( mocked.m_derefed[4] )
 with expansion:
   true
 
@@ -13971,27 +14109,194 @@ with expansion:
   { 1, 2, 3, 4, 5 } not all match matches undescribed predicate
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[0] )
+  REQUIRE( mocked.m_derefed[0] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[1] )
+  REQUIRE( mocked.m_derefed[1] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[2] )
+  REQUIRE( mocked.m_derefed[2] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE_FALSE( mocked.derefed[3] )
+  REQUIRE_FALSE( mocked.m_derefed[3] )
 with expansion:
   !false
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE_FALSE( mocked.derefed[4] )
+  REQUIRE_FALSE( mocked.m_derefed[4] )
+with expansion:
+  !false
+
+-------------------------------------------------------------------------------
+Usage of AllTrue range matcher
+  Basic usage
+  All true evaluates to true
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, AllTrue() )
+with expansion:
+  { true, true, true, true, true } contains only true
+
+-------------------------------------------------------------------------------
+Usage of AllTrue range matcher
+  Basic usage
+  Empty evaluates to true
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, AllTrue() )
+with expansion:
+  {  } contains only true
+
+-------------------------------------------------------------------------------
+Usage of AllTrue range matcher
+  Basic usage
+  One false evaluates to false
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, !AllTrue() )
+with expansion:
+  { true, true, false, true, true } not contains only true
+
+-------------------------------------------------------------------------------
+Usage of AllTrue range matcher
+  Basic usage
+  All false evaluates to false
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, !AllTrue() )
+with expansion:
+  { false, false, false, false, false } not contains only true
+
+-------------------------------------------------------------------------------
+Usage of AllTrue range matcher
+  Contained type is convertible to bool
+  All true evaluates to true
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, AllTrue() )
+with expansion:
+  { true, true, true, true, true } contains only true
+
+-------------------------------------------------------------------------------
+Usage of AllTrue range matcher
+  Contained type is convertible to bool
+  One false evaluates to false
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, !AllTrue() )
+with expansion:
+  { true, true, false, true, true } not contains only true
+
+-------------------------------------------------------------------------------
+Usage of AllTrue range matcher
+  Contained type is convertible to bool
+  All false evaluates to false
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, !AllTrue() )
+with expansion:
+  { false, false, false, false, false } not contains only true
+
+-------------------------------------------------------------------------------
+Usage of AllTrue range matcher
+  Shortcircuiting
+  All are read
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( mocked, AllTrue() )
+with expansion:
+  { true, true, true, true, true } contains only true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[0] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[1] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[2] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[3] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[4] )
+with expansion:
+  true
+
+-------------------------------------------------------------------------------
+Usage of AllTrue range matcher
+  Shortcircuiting
+  Short-circuited
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( mocked, !AllTrue() )
+with expansion:
+  { true, true, false, true, true } not contains only true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[0] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[1] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[2] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( mocked.m_derefed[3] )
+with expansion:
+  !false
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( mocked.m_derefed[4] )
 with expansion:
   !false
 
@@ -14041,27 +14346,27 @@ with expansion:
   { 1, 2, 3, 4, 5 } not any match matches undescribed predicate
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[0] )
+  REQUIRE( mocked.m_derefed[0] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[1] )
+  REQUIRE( mocked.m_derefed[1] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[2] )
+  REQUIRE( mocked.m_derefed[2] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[3] )
+  REQUIRE( mocked.m_derefed[3] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[4] )
+  REQUIRE( mocked.m_derefed[4] )
 with expansion:
   true
 
@@ -14079,27 +14384,194 @@ with expansion:
   { 1, 2, 3, 4, 5 } any match matches undescribed predicate
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[0] )
+  REQUIRE( mocked.m_derefed[0] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE_FALSE( mocked.derefed[1] )
+  REQUIRE_FALSE( mocked.m_derefed[1] )
 with expansion:
   !false
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE_FALSE( mocked.derefed[2] )
+  REQUIRE_FALSE( mocked.m_derefed[2] )
 with expansion:
   !false
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE_FALSE( mocked.derefed[3] )
+  REQUIRE_FALSE( mocked.m_derefed[3] )
 with expansion:
   !false
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE_FALSE( mocked.derefed[4] )
+  REQUIRE_FALSE( mocked.m_derefed[4] )
+with expansion:
+  !false
+
+-------------------------------------------------------------------------------
+Usage of AnyTrue range matcher
+  Basic usage
+  All true evaluates to true
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, AnyTrue() )
+with expansion:
+  { true, true, true, true, true } contains at least one true
+
+-------------------------------------------------------------------------------
+Usage of AnyTrue range matcher
+  Basic usage
+  Empty evaluates to false
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, !AnyTrue() )
+with expansion:
+  {  } not contains at least one true
+
+-------------------------------------------------------------------------------
+Usage of AnyTrue range matcher
+  Basic usage
+  One true evaluates to true
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, AnyTrue() )
+with expansion:
+  { false, false, true, false, false } contains at least one true
+
+-------------------------------------------------------------------------------
+Usage of AnyTrue range matcher
+  Basic usage
+  All false evaluates to false
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, !AnyTrue() )
+with expansion:
+  { false, false, false, false, false } not contains at least one true
+
+-------------------------------------------------------------------------------
+Usage of AnyTrue range matcher
+  Contained type is convertible to bool
+  All true evaluates to true
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, AnyTrue() )
+with expansion:
+  { true, true, true, true, true } contains at least one true
+
+-------------------------------------------------------------------------------
+Usage of AnyTrue range matcher
+  Contained type is convertible to bool
+  One true evaluates to true
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, AnyTrue() )
+with expansion:
+  { false, false, true, false, false } contains at least one true
+
+-------------------------------------------------------------------------------
+Usage of AnyTrue range matcher
+  Contained type is convertible to bool
+  All false evaluates to false
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, !AnyTrue() )
+with expansion:
+  { false, false, false, false, false } not contains at least one true
+
+-------------------------------------------------------------------------------
+Usage of AnyTrue range matcher
+  Shortcircuiting
+  All are read
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( mocked, AnyTrue() )
+with expansion:
+  { false, false, false, false, true } contains at least one true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[0] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[1] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[2] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[3] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[4] )
+with expansion:
+  true
+
+-------------------------------------------------------------------------------
+Usage of AnyTrue range matcher
+  Shortcircuiting
+  Short-circuited
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( mocked, AnyTrue() )
+with expansion:
+  { false, false, true, true, true } contains at least one true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[0] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[1] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[2] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( mocked.m_derefed[3] )
+with expansion:
+  !false
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( mocked.m_derefed[4] )
 with expansion:
   !false
 
@@ -14149,27 +14621,27 @@ with expansion:
   { 1, 2, 3, 4, 5 } none match matches undescribed predicate
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[0] )
+  REQUIRE( mocked.m_derefed[0] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[1] )
+  REQUIRE( mocked.m_derefed[1] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[2] )
+  REQUIRE( mocked.m_derefed[2] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[3] )
+  REQUIRE( mocked.m_derefed[3] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[4] )
+  REQUIRE( mocked.m_derefed[4] )
 with expansion:
   true
 
@@ -14187,29 +14659,548 @@ with expansion:
   { 1, 2, 3, 4, 5 } not none match matches undescribed predicate
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE( mocked.derefed[0] )
+  REQUIRE( mocked.m_derefed[0] )
 with expansion:
   true
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE_FALSE( mocked.derefed[1] )
+  REQUIRE_FALSE( mocked.m_derefed[1] )
 with expansion:
   !false
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE_FALSE( mocked.derefed[2] )
+  REQUIRE_FALSE( mocked.m_derefed[2] )
 with expansion:
   !false
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE_FALSE( mocked.derefed[3] )
+  REQUIRE_FALSE( mocked.m_derefed[3] )
 with expansion:
   !false
 
 MatchersRanges.tests.cpp:<line number>: PASSED:
-  REQUIRE_FALSE( mocked.derefed[4] )
+  REQUIRE_FALSE( mocked.m_derefed[4] )
 with expansion:
   !false
+
+-------------------------------------------------------------------------------
+Usage of NoneTrue range matcher
+  Basic usage
+  All true evaluates to false
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, !NoneTrue() )
+with expansion:
+  { true, true, true, true, true } not contains no true
+
+-------------------------------------------------------------------------------
+Usage of NoneTrue range matcher
+  Basic usage
+  Empty evaluates to true
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, NoneTrue() )
+with expansion:
+  {  } contains no true
+
+-------------------------------------------------------------------------------
+Usage of NoneTrue range matcher
+  Basic usage
+  One true evaluates to false
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, !NoneTrue() )
+with expansion:
+  { false, false, true, false, false } not contains no true
+
+-------------------------------------------------------------------------------
+Usage of NoneTrue range matcher
+  Basic usage
+  All false evaluates to true
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, NoneTrue() )
+with expansion:
+  { false, false, false, false, false } contains no true
+
+-------------------------------------------------------------------------------
+Usage of NoneTrue range matcher
+  Contained type is convertible to bool
+  All true evaluates to false
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, !NoneTrue() )
+with expansion:
+  { true, true, true, true, true } not contains no true
+
+-------------------------------------------------------------------------------
+Usage of NoneTrue range matcher
+  Contained type is convertible to bool
+  One true evaluates to false
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, !NoneTrue() )
+with expansion:
+  { false, false, true, false, false } not contains no true
+
+-------------------------------------------------------------------------------
+Usage of NoneTrue range matcher
+  Contained type is convertible to bool
+  All false evaluates to true
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( data, NoneTrue() )
+with expansion:
+  { false, false, false, false, false } contains no true
+
+-------------------------------------------------------------------------------
+Usage of NoneTrue range matcher
+  Shortcircuiting
+  All are read
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( mocked, NoneTrue() )
+with expansion:
+  { false, false, false, false, false } contains no true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[0] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[1] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[2] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[3] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[4] )
+with expansion:
+  true
+
+-------------------------------------------------------------------------------
+Usage of NoneTrue range matcher
+  Shortcircuiting
+  Short-circuited
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( mocked, !NoneTrue() )
+with expansion:
+  { false, false, true, true, true } not contains no true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[0] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[1] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked.m_derefed[2] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( mocked.m_derefed[3] )
+with expansion:
+  !false
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( mocked.m_derefed[4] )
+with expansion:
+  !false
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Basic usage
+  Empty container matches empty container
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( empty_vector, RangeEquals( empty_vector ) )
+with expansion:
+  {  } elements are {  }
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Basic usage
+  Empty container does not match non-empty container
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( empty_vector, !RangeEquals( non_empty_vector ) )
+with expansion:
+  {  } not elements are { 1 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( non_empty_vector, !RangeEquals( empty_vector ) )
+with expansion:
+  { 1 } not elements are {  }
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Basic usage
+  Two equal 1-length non-empty containers
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( non_empty_array, RangeEquals( non_empty_array ) )
+with expansion:
+  { 1 } elements are { 1 }
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Basic usage
+  Two equal-sized, equal, non-empty containers
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_a, RangeEquals( array_a ) )
+with expansion:
+  { 1, 2, 3 } elements are { 1, 2, 3 }
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Basic usage
+  Two equal-sized, non-equal, non-empty containers
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_a, !RangeEquals( array_b ) )
+with expansion:
+  { 1, 2, 3 } not elements are { 2, 2, 3 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_a, !RangeEquals( array_c ) )
+with expansion:
+  { 1, 2, 3 } not elements are { 1, 2, 2 }
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Basic usage
+  Two non-equal-sized, non-empty containers (with same first elements)
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_a, !RangeEquals( vector_b ) )
+with expansion:
+  { 1, 2, 3 } not elements are { 1, 2, 3, 4 }
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Custom predicate
+  Two equal non-empty containers (close enough)
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_a, RangeEquals( vector_a_plus_1, close_enough ) )
+with expansion:
+  { 1, 2, 3 } elements are { 2, 3, 4 }
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Custom predicate
+  Two non-equal non-empty containers (close enough)
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_a, !RangeEquals( vector_b, close_enough ) )
+with expansion:
+  { 1, 2, 3 } not elements are { 3, 3, 4 }
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Ranges that need ADL begin/end
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( needs_adl1, RangeEquals( needs_adl2 ) )
+with expansion:
+  { 1, 2, 3, 4, 5 } elements are { 1, 2, 3, 4, 5 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( needs_adl1, RangeEquals( needs_adl3, []( int l, int r ) { return l + 1 == r; } ) )
+with expansion:
+  { 1, 2, 3, 4, 5 } elements are { 2, 3, 4, 5, 6 }
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Compare against std::initializer_list
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( array_a, RangeEquals( { 1, 2, 3 } ) )
+with expansion:
+  { 1, 2, 3 } elements are { 1, 2, 3 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( array_a, RangeEquals( { 2, 4, 6 }, []( int l, int r ) { return l * 2 == r; } ) )
+with expansion:
+  { 1, 2, 3 } elements are { 2, 4, 6 }
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Check short-circuiting behaviour
+  Check short-circuits on failure
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( mocked1, !RangeEquals( arr ) )
+with expansion:
+  { 1, 2, 3, 4 } not elements are { 1, 2, 4, 4 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked1.m_derefed[0] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked1.m_derefed[1] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked1.m_derefed[2] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_FALSE( mocked1.m_derefed[3] )
+with expansion:
+  !false
+
+-------------------------------------------------------------------------------
+Usage of RangeEquals range matcher
+  Check short-circuiting behaviour
+  All elements are checked on success
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( mocked1, RangeEquals( arr ) )
+with expansion:
+  { 1, 2, 3, 4 } elements are { 1, 2, 3, 4 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked1.m_derefed[0] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked1.m_derefed[1] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked1.m_derefed[2] )
+with expansion:
+  true
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE( mocked1.m_derefed[3] )
+with expansion:
+  true
+
+-------------------------------------------------------------------------------
+Usage of UnorderedRangeEquals range matcher
+  Basic usage
+  Empty container matches empty container
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( empty_vector, UnorderedRangeEquals( empty_vector ) )
+with expansion:
+  {  } unordered elements are {  }
+
+-------------------------------------------------------------------------------
+Usage of UnorderedRangeEquals range matcher
+  Basic usage
+  Empty container does not match non-empty container
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( empty_vector, !UnorderedRangeEquals( non_empty_vector ) )
+with expansion:
+  {  } not unordered elements are { 1 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( non_empty_vector, !UnorderedRangeEquals( empty_vector ) )
+with expansion:
+  { 1 } not unordered elements are {  }
+
+-------------------------------------------------------------------------------
+Usage of UnorderedRangeEquals range matcher
+  Basic usage
+  Two equal 1-length non-empty containers
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( non_empty_array, UnorderedRangeEquals( non_empty_array ) )
+with expansion:
+  { 1 } unordered elements are { 1 }
+
+-------------------------------------------------------------------------------
+Usage of UnorderedRangeEquals range matcher
+  Basic usage
+  Two equal-sized, equal, non-empty containers
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_a, UnorderedRangeEquals( array_a ) )
+with expansion:
+  { 1, 2, 3 } unordered elements are { 1, 2, 3 }
+
+-------------------------------------------------------------------------------
+Usage of UnorderedRangeEquals range matcher
+  Basic usage
+  Two equal-sized, non-equal, non-empty containers
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( array_a, !UnorderedRangeEquals( array_b ) )
+with expansion:
+  { 1, 2, 3 } not unordered elements are { 2, 2, 3 }
+
+-------------------------------------------------------------------------------
+Usage of UnorderedRangeEquals range matcher
+  Basic usage
+  Two non-equal-sized, non-empty containers
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_a, !UnorderedRangeEquals( vector_b ) )
+with expansion:
+  { 1, 2, 3 } not unordered elements are { 1, 2, 3, 4 }
+
+-------------------------------------------------------------------------------
+Usage of UnorderedRangeEquals range matcher
+  Custom predicate
+  Two equal non-empty containers (close enough)
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_a, UnorderedRangeEquals( vector_a_plus_1, close_enough ) )
+with expansion:
+  { 1, 10, 20 } unordered elements are { 11, 21, 2 }
+
+-------------------------------------------------------------------------------
+Usage of UnorderedRangeEquals range matcher
+  Custom predicate
+  Two non-equal non-empty containers (close enough)
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  CHECK_THAT( vector_a, !UnorderedRangeEquals( vector_b, close_enough ) )
+with expansion:
+  { 1, 10, 21 } not unordered elements are { 11, 21, 3 }
+
+-------------------------------------------------------------------------------
+Usage of UnorderedRangeEquals range matcher
+  Ranges that need ADL begin/end
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( needs_adl1, UnorderedRangeEquals( needs_adl2 ) )
+with expansion:
+  { 1, 2, 3, 4, 5 } unordered elements are { 1, 2, 3, 4, 5 }
+
+-------------------------------------------------------------------------------
+Usage of UnorderedRangeEquals range matcher
+  Compare against std::initializer_list
+-------------------------------------------------------------------------------
+MatchersRanges.tests.cpp:<line number>
+...............................................................................
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( array_a, UnorderedRangeEquals( { 10, 20, 1 } ) )
+with expansion:
+  { 1, 10, 20 } unordered elements are { 10, 20, 1 }
+
+MatchersRanges.tests.cpp:<line number>: PASSED:
+  REQUIRE_THAT( array_a, UnorderedRangeEquals( { 11, 21, 2 }, []( int l, int r ) { return std::abs( l - r ) <= 1; } ) )
+with expansion:
+  { 1, 10, 20 } unordered elements are { 11, 21, 2 }
 
 -------------------------------------------------------------------------------
 Usage of the SizeIs range matcher
@@ -14286,42 +15277,54 @@ Approx.tests.cpp:<line number>
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d == approx( 1.23 ) )
 with expansion:
-  1.23 == Approx( 1.23 )
+  1.22999999999999998
+  ==
+  Approx( 1.22999999999999998 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d == approx( 1.22 ) )
 with expansion:
-  1.23 == Approx( 1.22 )
+  1.22999999999999998
+  ==
+  Approx( 1.21999999999999997 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d == approx( 1.24 ) )
 with expansion:
-  1.23 == Approx( 1.24 )
+  1.22999999999999998
+  ==
+  Approx( 1.23999999999999999 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( d != approx( 1.25 ) )
 with expansion:
-  1.23 != Approx( 1.25 )
+  1.22999999999999998 != Approx( 1.25 )
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( approx( d ) == 1.23 )
 with expansion:
-  Approx( 1.23 ) == 1.23
+  Approx( 1.22999999999999998 )
+  ==
+  1.22999999999999998
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( approx( d ) == 1.22 )
 with expansion:
-  Approx( 1.23 ) == 1.22
+  Approx( 1.22999999999999998 )
+  ==
+  1.21999999999999997
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( approx( d ) == 1.24 )
 with expansion:
-  Approx( 1.23 ) == 1.24
+  Approx( 1.22999999999999998 )
+  ==
+  1.23999999999999999
 
 Approx.tests.cpp:<line number>: PASSED:
   REQUIRE( approx( d ) != 1.25 )
 with expansion:
-  Approx( 1.23 ) != 1.25
+  Approx( 1.22999999999999998 ) != 1.25
 
 -------------------------------------------------------------------------------
 Variadic macros
@@ -14914,6 +15917,16 @@ with expansion:
   " ( contains: "attr1="true"" and contains: "attr2="false"" )
 
 -------------------------------------------------------------------------------
+a succeeding test can still be skipped
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: PASSED:
+
+Skip.tests.cpp:<line number>: SKIPPED:
+
+-------------------------------------------------------------------------------
 analyse no analysis
 -------------------------------------------------------------------------------
 InternalBenchmark.tests.cpp:<line number>
@@ -15459,6 +16472,34 @@ with expansion:
   1 == 1
 
 -------------------------------------------------------------------------------
+dynamic skipping works with generators
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: SKIPPED:
+explicitly with message:
+  skipping because answer = 41
+
+-------------------------------------------------------------------------------
+dynamic skipping works with generators
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: PASSED:
+
+-------------------------------------------------------------------------------
+dynamic skipping works with generators
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: SKIPPED:
+explicitly with message:
+  skipping because answer = 43
+
+-------------------------------------------------------------------------------
 empty tags are not allowed
 -------------------------------------------------------------------------------
 Tag.tests.cpp:<line number>
@@ -15476,17 +16517,23 @@ InternalBenchmark.tests.cpp:<line number>
 InternalBenchmark.tests.cpp:<line number>: PASSED:
   CHECK( erfc_inv(1.103560) == Approx(-0.09203687623843015) )
 with expansion:
-  -0.0920368762 == Approx( -0.0920368762 )
+  -0.09203687623843014
+  ==
+  Approx( -0.09203687623843015 )
 
 InternalBenchmark.tests.cpp:<line number>: PASSED:
   CHECK( erfc_inv(1.067400) == Approx(-0.05980291115763361) )
 with expansion:
-  -0.0598029112 == Approx( -0.0598029112 )
+  -0.05980291115763361
+  ==
+  Approx( -0.05980291115763361 )
 
 InternalBenchmark.tests.cpp:<line number>: PASSED:
   CHECK( erfc_inv(0.050000) == Approx(1.38590382434967796) )
 with expansion:
-  1.3859038243 == Approx( 1.3859038243 )
+  1.38590382434967774
+  ==
+  Approx( 1.38590382434967796 )
 
 -------------------------------------------------------------------------------
 estimate_clock_resolution
@@ -15532,6 +16579,67 @@ Misc.tests.cpp:<line number>
 ...............................................................................
 
 Misc.tests.cpp:<line number>: PASSED:
+
+-------------------------------------------------------------------------------
+failed assertions before SKIP cause test case to fail
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: FAILED:
+  CHECK( 3 == 4 )
+
+Skip.tests.cpp:<line number>: SKIPPED:
+
+-------------------------------------------------------------------------------
+failing for some generator values causes entire test case to fail
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: FAILED:
+
+-------------------------------------------------------------------------------
+failing for some generator values causes entire test case to fail
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: SKIPPED:
+
+-------------------------------------------------------------------------------
+failing for some generator values causes entire test case to fail
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: FAILED:
+
+-------------------------------------------------------------------------------
+failing for some generator values causes entire test case to fail
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: SKIPPED:
+
+-------------------------------------------------------------------------------
+failing in some unskipped sections causes entire test case to fail
+  skipped
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: SKIPPED:
+
+-------------------------------------------------------------------------------
+failing in some unskipped sections causes entire test case to fail
+  not skipped
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: FAILED:
 
 -------------------------------------------------------------------------------
 first tag
@@ -15840,6 +16948,15 @@ with message:
   Testing if fib[7] (21) is even
 
 -------------------------------------------------------------------------------
+makeStream recognizes %debug stream name
+-------------------------------------------------------------------------------
+Stream.tests.cpp:<line number>
+...............................................................................
+
+Stream.tests.cpp:<line number>: PASSED:
+  REQUIRE_NOTHROW( Catch::makeStream( "%debug" ) )
+
+-------------------------------------------------------------------------------
 make_unique reimplementation
   From lvalue copies
 -------------------------------------------------------------------------------
@@ -16020,6 +17137,40 @@ Misc.tests.cpp:<line number>: PASSED:
 with expansion:
   1 != 2
 
+a-------------------------------------------------------------------------------
+nested sections can be skipped dynamically at runtime
+  A
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+
+No assertions in section 'A'
+
+!
+b1-------------------------------------------------------------------------------
+nested sections can be skipped dynamically at runtime
+  B
+  B1
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+
+No assertions in section 'B1'
+
+!
+-------------------------------------------------------------------------------
+nested sections can be skipped dynamically at runtime
+  B
+  B2
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: SKIPPED:
+
+!
 -------------------------------------------------------------------------------
 non streamable - with conv. op
 -------------------------------------------------------------------------------
@@ -16043,37 +17194,6 @@ with expansion:
   {?} == {?}
 
 -------------------------------------------------------------------------------
-normal_cdf
--------------------------------------------------------------------------------
-InternalBenchmark.tests.cpp:<line number>
-...............................................................................
-
-InternalBenchmark.tests.cpp:<line number>: PASSED:
-  CHECK( normal_cdf(0.000000) == Approx(0.50000000000000000) )
-with expansion:
-  0.5 == Approx( 0.5 )
-
-InternalBenchmark.tests.cpp:<line number>: PASSED:
-  CHECK( normal_cdf(1.000000) == Approx(0.84134474606854293) )
-with expansion:
-  0.8413447461 == Approx( 0.8413447461 )
-
-InternalBenchmark.tests.cpp:<line number>: PASSED:
-  CHECK( normal_cdf(-1.000000) == Approx(0.15865525393145705) )
-with expansion:
-  0.1586552539 == Approx( 0.1586552539 )
-
-InternalBenchmark.tests.cpp:<line number>: PASSED:
-  CHECK( normal_cdf(2.809729) == Approx(0.99752083845315409) )
-with expansion:
-  0.9975208385 == Approx( 0.9975208385 )
-
-InternalBenchmark.tests.cpp:<line number>: PASSED:
-  CHECK( normal_cdf(-1.352570) == Approx(0.08809652095066035) )
-with expansion:
-  0.088096521 == Approx( 0.088096521 )
-
--------------------------------------------------------------------------------
 normal_quantile
 -------------------------------------------------------------------------------
 InternalBenchmark.tests.cpp:<line number>
@@ -16082,17 +17202,23 @@ InternalBenchmark.tests.cpp:<line number>
 InternalBenchmark.tests.cpp:<line number>: PASSED:
   CHECK( normal_quantile(0.551780) == Approx(0.13015979861484198) )
 with expansion:
-  0.1301597986 == Approx( 0.1301597986 )
+  0.13015979861484195
+  ==
+  Approx( 0.13015979861484198 )
 
 InternalBenchmark.tests.cpp:<line number>: PASSED:
   CHECK( normal_quantile(0.533700) == Approx(0.08457408802851875) )
 with expansion:
-  0.084574088 == Approx( 0.084574088 )
+  0.08457408802851875
+  ==
+  Approx( 0.08457408802851875 )
 
 InternalBenchmark.tests.cpp:<line number>: PASSED:
   CHECK( normal_quantile(0.025000) == Approx(-1.95996398454005449) )
 with expansion:
-  -1.9599639845 == Approx( -1.9599639845 )
+  -1.95996398454005405
+  ==
+  Approx( -1.95996398454005449 )
 
 -------------------------------------------------------------------------------
 not allowed
@@ -16410,6 +17536,42 @@ with expansion:
 
 -------------------------------------------------------------------------------
 replaceInPlace
+  no replace in already-replaced string
+  lengthening
+-------------------------------------------------------------------------------
+StringManip.tests.cpp:<line number>
+...............................................................................
+
+StringManip.tests.cpp:<line number>: PASSED:
+  CHECK( Catch::replaceInPlace(letters, "c", "cc") )
+with expansion:
+  true
+
+StringManip.tests.cpp:<line number>: PASSED:
+  CHECK( letters == "abccdefccg" )
+with expansion:
+  "abccdefccg" == "abccdefccg"
+
+-------------------------------------------------------------------------------
+replaceInPlace
+  no replace in already-replaced string
+  shortening
+-------------------------------------------------------------------------------
+StringManip.tests.cpp:<line number>
+...............................................................................
+
+StringManip.tests.cpp:<line number>: PASSED:
+  CHECK( Catch::replaceInPlace(s, "--", "-") )
+with expansion:
+  true
+
+StringManip.tests.cpp:<line number>: PASSED:
+  CHECK( s == "--" )
+with expansion:
+  "--" == "--"
+
+-------------------------------------------------------------------------------
+replaceInPlace
   escape '
 -------------------------------------------------------------------------------
 StringManip.tests.cpp:<line number>
@@ -16424,6 +17586,15 @@ StringManip.tests.cpp:<line number>: PASSED:
   CHECK( s == "didn|'t" )
 with expansion:
   "didn|'t" == "didn|'t"
+
+-------------------------------------------------------------------------------
+request an unknown %-starting stream fails
+-------------------------------------------------------------------------------
+Stream.tests.cpp:<line number>
+...............................................................................
+
+Stream.tests.cpp:<line number>: PASSED:
+  REQUIRE_THROWS( Catch::makeStream( "%somestream" ) )
 
 -------------------------------------------------------------------------------
 resolution
@@ -16613,6 +17784,33 @@ Misc.tests.cpp:<line number>
 No assertions in test case 'second tag'
 
 -------------------------------------------------------------------------------
+sections can be skipped dynamically at runtime
+  not skipped
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: PASSED:
+
+-------------------------------------------------------------------------------
+sections can be skipped dynamically at runtime
+  skipped
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: SKIPPED:
+
+-------------------------------------------------------------------------------
+sections can be skipped dynamically at runtime
+  also not skipped
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: PASSED:
+
+-------------------------------------------------------------------------------
 send a single char to INFO
 -------------------------------------------------------------------------------
 Misc.tests.cpp:<line number>
@@ -16645,6 +17843,16 @@ Tag.tests.cpp:<line number>: PASSED:
   REQUIRE_THAT( testcase.tags, VectorContains( Tag( "magic-tag" ) ) && VectorContains( Tag( "."_catch_sr ) ) )
 with expansion:
   { {?}, {?} } ( Contains: {?} and Contains: {?} )
+
+-------------------------------------------------------------------------------
+skipped tests can optionally provide a reason
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: SKIPPED:
+explicitly with message:
+  skipping because answer = 43
 
 -------------------------------------------------------------------------------
 splitString
@@ -16820,6 +18028,22 @@ with expansion:
   "{ { "green", 55 } }"
   ==
   "{ { "green", 55 } }"
+
+-------------------------------------------------------------------------------
+stdout and stderr streams have %-starting name
+-------------------------------------------------------------------------------
+Stream.tests.cpp:<line number>
+...............................................................................
+
+Stream.tests.cpp:<line number>: PASSED:
+  REQUIRE( Catch::makeStream( "%stderr" )->isConsole() )
+with expansion:
+  true
+
+Stream.tests.cpp:<line number>: PASSED:
+  REQUIRE( Catch::makeStream( "%stdout" )->isConsole() )
+with expansion:
+  true
 
 -------------------------------------------------------------------------------
 stringify ranges
@@ -17058,6 +18282,14 @@ with expansion:
   magic.tag == magic.tag
 
 -------------------------------------------------------------------------------
+tests can be skipped dynamically at runtime
+-------------------------------------------------------------------------------
+Skip.tests.cpp:<line number>
+...............................................................................
+
+Skip.tests.cpp:<line number>: SKIPPED:
+
+-------------------------------------------------------------------------------
 thrown std::strings are translated
 -------------------------------------------------------------------------------
 Exception.tests.cpp:<line number>
@@ -17205,14 +18437,14 @@ ToStringTuple.tests.cpp:<line number>
 ...............................................................................
 
 ToStringTuple.tests.cpp:<line number>: PASSED:
-  CHECK( "1.2f" == ::Catch::Detail::stringify(float(1.2)) )
+  CHECK( "1.5f" == ::Catch::Detail::stringify(float(1.5)) )
 with expansion:
-  "1.2f" == "1.2f"
+  "1.5f" == "1.5f"
 
 ToStringTuple.tests.cpp:<line number>: PASSED:
-  CHECK( "{ 1.2f, 0 }" == ::Catch::Detail::stringify(type{1.2f,0}) )
+  CHECK( "{ 1.5f, 0 }" == ::Catch::Detail::stringify(type{1.5f,0}) )
 with expansion:
-  "{ 1.2f, 0 }" == "{ 1.2f, 0 }"
+  "{ 1.5f, 0 }" == "{ 1.5f, 0 }"
 
 -------------------------------------------------------------------------------
 tuple<int>
@@ -17245,11 +18477,11 @@ ToStringTuple.tests.cpp:<line number>
 ...............................................................................
 
 ToStringTuple.tests.cpp:<line number>: PASSED:
-  CHECK( "{ { 42 }, { }, 1.2f }" == ::Catch::Detail::stringify(value) )
+  CHECK( "{ { 42 }, { }, 1.5f }" == ::Catch::Detail::stringify(value) )
 with expansion:
-  "{ { 42 }, { }, 1.2f }"
+  "{ { 42 }, { }, 1.5f }"
   ==
-  "{ { 42 }, { }, 1.2f }"
+  "{ { 42 }, { }, 1.5f }"
 
 -------------------------------------------------------------------------------
 uniform samples
@@ -17275,7 +18507,23 @@ with expansion:
 InternalBenchmark.tests.cpp:<line number>: PASSED:
   CHECK( e.confidence_interval == 0.95 )
 with expansion:
-  0.95 == 0.95
+  0.94999999999999996 == 0.94999999999999996
+
+-------------------------------------------------------------------------------
+uniform_integer_distribution can return the bounds
+-------------------------------------------------------------------------------
+RandomNumberGeneration.tests.cpp:<line number>
+...............................................................................
+
+RandomNumberGeneration.tests.cpp:<line number>: PASSED:
+  REQUIRE( dist.a() == -10 )
+with expansion:
+  -10 == -10
+
+RandomNumberGeneration.tests.cpp:<line number>: PASSED:
+  REQUIRE( dist.b() == 10 )
+with expansion:
+  10 == 10
 
 -------------------------------------------------------------------------------
 unique_ptr reimplementation: basic functionality
@@ -17764,6 +19012,6 @@ Misc.tests.cpp:<line number>
 Misc.tests.cpp:<line number>: PASSED:
 
 ===============================================================================
-test cases:  381 |  291 passed |  83 failed |  7 failed as expected
-assertions: 2226 | 2056 passed | 143 failed | 27 failed as expected
+test cases:  419 |  313 passed |  86 failed | 6 skipped | 14 failed as expected
+assertions: 2269 | 2087 passed | 147 failed | 35 failed as expected
 

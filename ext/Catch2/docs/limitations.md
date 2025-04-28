@@ -88,8 +88,8 @@ because only one thread passes the `REQUIRE` macro and this is not
     REQUIRE(cnt == 16);
 ```
 
-Because C++11 provides the necessary tools to do this, we are planning
-to remove this limitation in the future.
+We currently do not plan to support thread-safe assertions.
+
 
 ### Process isolation in a test
 Catch does not support running tests in isolated (forked) processes. While this might in the future, the fact that Windows does not support forking and only allows full-on process creation and the desire to keep code as similar as possible across platforms, mean that this is likely to take significant development time, that is not currently available.
@@ -99,7 +99,7 @@ Catch does not support running tests in isolated (forked) processes. While this 
 
 Catch2 keeps test execution in one process strictly serial, and there
 are no plans to change this. If you find yourself with a test suite
-that takes too long to run and yo uwant to make it parallel, you have
+that takes too long to run and you want to make it parallel, you have
 to run multiple processes side by side.
 
 There are 2 basic ways to do that,
@@ -155,7 +155,7 @@ with expansion:
 
 
 ### Clang/G++ -- skipping leaf sections after an exception
-Some versions of `libc++` and `libstdc++` (or their runtimes) have a bug with `std::uncaught_exception()` getting stuck returning `true` after rethrow, even if there are no active exceptions. One such case is this snippet, which skipped the sections "a" and "b", when compiled against `libcxxrt` from master
+Some versions of `libc++` and `libstdc++` (or their runtimes) have a bug with `std::uncaught_exception()` getting stuck returning `true` after rethrow, even if there are no active exceptions. One such case is this snippet, which skipped the sections "a" and "b", when compiled against `libcxxrt` from the master branch
 ```cpp
 #include <catch2/catch_test_macros.hpp>
 
@@ -171,15 +171,21 @@ TEST_CASE("b") {
 }
 ```
 
-If you are seeing a problem like this, i.e. a weird test paths that trigger only under Clang with `libc++`, or only under very specific version of `libstdc++`, it is very likely you are seeing this. The only known workaround is to use a fixed version of your standard library.
+If you are seeing a problem like this, i.e. weird test paths that trigger only under Clang with `libc++`, or only under very specific version of `libstdc++`, it is very likely you are seeing this. The only known workaround is to use a fixed version of your standard library.
 
 
-### libstdc++, `_GLIBCXX_DEBUG` macro and random ordering of tests
+### Visual Studio 2022 -- can't compile assertion with the spaceship operator
 
-Running a Catch2 binary compiled against libstdc++ with `_GLIBCXX_DEBUG`
-macro defined with `--order rand` will cause a debug check to trigger and
-abort the run due to self-assignment.
-[This is a known bug inside libstdc++](https://stackoverflow.com/questions/22915325/avoiding-self-assignment-in-stdshuffle/23691322)
+[The C++ standard requires that `std::foo_ordering` is only comparable with
+a literal 0](https://eel.is/c++draft/cmp#categories.pre-3). There are
+multiple strategies a stdlib implementation can take to achieve this, and
+MSVC's STL has changed the strategy they use between two releases of VS 2022.
 
-Workaround: Don't use `--order rand` when compiling against debug-enabled
-libstdc++.
+With the new strategy, `REQUIRE((a <=> b) == 0)` no longer compiles under
+MSVC. Note that Catch2 can compile code using MSVC STL's new strategy,
+but only when compiled with a C++20 conforming compiler. MSVC is currently
+not conformant enough, but `clang-cl` will compile the assertion above
+using MSVC STL without problem.
+
+This change got in with MSVC v19.37](https://godbolt.org/z/KG9obzdvE).
+

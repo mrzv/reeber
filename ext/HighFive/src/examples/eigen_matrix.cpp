@@ -1,50 +1,33 @@
-/*
- *  Copyright (c), 2017, Adrien Devresse
- *  Copyright (c), 2022, Blue Brain Project
- *
- *  Distributed under the Boost Software License, Version 1.0.
- *    (See accompanying file LICENSE_1_0.txt or copy at
- *          http://www.boost.org/LICENSE_1_0.txt)
- *
- */
-#include <iostream>
+#include <highfive/highfive.hpp>
+#include <highfive/eigen.hpp>
 
-#ifdef H5_USE_EIGEN
+// Example showing reading and writing of `Eigen::Matrix`. Using
+// `Eigen::Matrix` as an example, but `Eigen::Array` works analogously.
+//
+// Both `Eigen::Vector` and `Eigen::Map` have their own examples.
 
-#include <Eigen/Dense>
-#include <highfive/H5File.hpp>
+int main() {
+    HighFive::File file("eigen_matrix.h5", HighFive::File::Truncate);
 
-using namespace HighFive;
+    // Create a matrix.
+    Eigen::MatrixXd A(4, 3);
+    // clang-format off
+    A <<  1,  2,  3,
+          4,  5,  6,
+          7,  8,  9,
+         10, 11, 12;
+    // clang-format on
+    //
+    std::cout << "A = \n" << A << "\n\n";
 
-const std::string FILE_NAME("eigen_matrix_example.h5");
-const std::string DATASET_NAME("dset");
-const int nrows = 10;
-const int ncols = 3;
+    // Write it to the file:
+    file.createDataSet("mat", A);
 
-// Create a 2D dataset 10x3 of double with eigen matrix
-// and write it to a file
-int main(void) {
-    try {
-        Eigen::MatrixXd matrix(nrows, ncols);
+    // ... and read it back as fixed-size and row-major:
+    using Matrix43d = Eigen::Matrix<double, 4, 3, Eigen::RowMajor>;
+    auto B = file.getDataSet("mat").read<Matrix43d>();
 
-        for (int i = 0; i < nrows; ++i) {
-            for (int j = 0; j < ncols; ++j) {
-                matrix(i, j) = double(j + i * 100);
-            }
-        }
+    std::cout << "B = \n" << B << "\n";
 
-        // we create a new hdf5 file
-        File file(FILE_NAME, File::ReadWrite | File::Create | File::Truncate);
-
-        // let's create our dataset of the size of the eigen matrix
-        file.createDataSet(DATASET_NAME, matrix);
-
-    } catch (Exception& err) {
-        // catch and print any HDF5 error
-        std::cerr << err.what() << std::endl;
-    }
-
-    return 0;  // successfully terminated
+    return 0;
 }
-
-#endif

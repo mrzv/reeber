@@ -19,6 +19,7 @@
 [Specify a seed for the Random Number Generator](#specify-a-seed-for-the-random-number-generator)<br>
 [Identify framework and version according to the libIdentify standard](#identify-framework-and-version-according-to-the-libidentify-standard)<br>
 [Wait for key before continuing](#wait-for-key-before-continuing)<br>
+[Skip all benchmarks](#skip-all-benchmarks)<br>
 [Specify the number of benchmark samples to collect](#specify-the-number-of-benchmark-samples-to-collect)<br>
 [Specify the number of resamples for bootstrapping](#specify-the-number-of-resamples-for-bootstrapping)<br>
 [Specify the confidence-interval for bootstrapping](#specify-the-confidence-interval-for-bootstrapping)<br>
@@ -58,16 +59,18 @@ Click one of the following links to take you straight to that option - or scroll
 <a href="#listing-available-tests-tags-or-reporters">   `    --list-tests`</a><br />
 <a href="#listing-available-tests-tags-or-reporters">   `    --list-tags`</a><br />
 <a href="#listing-available-tests-tags-or-reporters">   `    --list-reporters`</a><br />
+<a href="#listing-available-tests-tags-or-reporters">   `    --list-listeners`</a><br />
 <a href="#order">                                       `    --order`</a><br />
 <a href="#rng-seed">                                    `    --rng-seed`</a><br />
 <a href="#libidentify">                                 `    --libidentify`</a><br />
 <a href="#wait-for-keypress">                           `    --wait-for-keypress`</a><br />
+<a href="#skip-benchmarks">                             `    --skip-benchmarks`</a><br />
 <a href="#benchmark-samples">                           `    --benchmark-samples`</a><br />
 <a href="#benchmark-resamples">                         `    --benchmark-resamples`</a><br />
 <a href="#benchmark-confidence-interval">               `    --benchmark-confidence-interval`</a><br />
 <a href="#benchmark-no-analysis">                       `    --benchmark-no-analysis`</a><br />
 <a href="#benchmark-warmup-time">                       `    --benchmark-warmup-time`</a><br />
-<a href="#use-colour">                                  `    --use-colour`</a><br />
+<a href="#colour-mode">                                 `    --colour-mode`</a><br />
 <a href="#test-sharding">                               `    --shard-count`</a><br />
 <a href="#test-sharding">                               `    --shard-index`</a><br />
 <a href=#no-tests-override>                             `    --allow-running-no-tests`</a><br />
@@ -82,62 +85,133 @@ Click one of the following links to take you straight to that option - or scroll
 
 <pre>&lt;test-spec> ...</pre>
 
-Test cases, wildcarded test cases, tags and tag expressions are all passed directly as arguments. Tags are distinguished by being enclosed in square brackets.
+By providing a test spec, you filter which tests will be run. If you call
+Catch2 without any test spec, then it will run all non-hidden test
+cases. A test case is hidden if it has the `[!benchmark]` tag, any tag
+with a dot at the start, e.g. `[.]` or `[.foo]`.
 
-If no test specs are supplied then all test cases, except "hidden" tests, are run.
-A test is hidden by giving it any tag starting with (or just) a period (```.```) - or, in the deprecated case, tagged ```[hide]``` or given name starting with `'./'`. To specify hidden tests from the command line ```[.]``` or ```[hide]``` can be used *regardless of how they were declared*.
+There are three basic test specs that can then be combined into more
+complex specs:
 
-Specs must be enclosed in quotes if they contain spaces. If they do not contain spaces the quotes are optional.
+  * Full test name, e.g. `"Test 1"`.
 
-Wildcards consist of the `*` character at the beginning and/or end of test case names and can substitute for any number of any characters (including none).
+    This allows only test cases whose name is "Test 1".
 
-Test specs are case insensitive.
+  * Wildcarded test name, e.g. `"*Test"`, or `"Test*"`, or `"*Test*"`.
 
-If a spec is prefixed with `exclude:` or the `~` character then the pattern matches an exclusion. This means that tests matching the pattern are excluded from the set - even if a prior inclusion spec included them. Subsequent inclusion specs will take precedence, however.
-Inclusions and exclusions are evaluated in left-to-right order.
+    This allows any test case whose name ends with, starts with, or contains
+    in the middle the string "Test". Note that the wildcard can only be at
+    the start or end.
 
-Test case examples:
+  * Tag name, e.g. `[some-tag]`.
 
+    This allows any test case tagged with "[some-tag]". Remember that some
+    tags are special, e.g. those that start with "." or with "!".
+
+
+You can also combine the basic test specs to create more complex test
+specs. You can:
+
+  * Concatenate specs to apply all of them, e.g. `[some-tag][other-tag]`.
+
+    This allows test cases that are tagged with **both** "[some-tag]" **and**
+    "[other-tag]". A test case with just "[some-tag]" will not pass the filter,
+    nor will test case with just "[other-tag]".
+
+  * Comma-join specs to apply any of them, e.g. `[some-tag],[other-tag]`.
+
+    This allows test cases that are tagged with **either** "[some-tag]" **or**
+    "[other-tag]". A test case with both will obviously also pass the filter.
+
+    Note that commas take precedence over simple concatenation. This means
+    that `[a][b],[c]` accepts tests that are tagged with either both "[a]" and
+    "[b]", or tests that are tagged with just "[c]".
+
+  * Negate the spec by prepending it with `~`, e.g. `~[some-tag]`.
+
+    This rejects any test case that is tagged with "[some-tag]". Note that
+    rejection takes precedence over other filters.
+
+    Note that negations always binds to the following _basic_ test spec.
+    This means that `~[foo][bar]` negates only the "[foo]" tag and not the
+    "[bar]" tag.
+
+Note that when Catch2 is deciding whether to include a test, first it
+checks whether the test matches any negative filters. If it does,
+the test is rejected. After that, the behaviour depends on whether there
+are positive filters as well. If there are no positive filters, all
+remaining non-hidden tests are included. If there are positive filters,
+only tests that match the positive filters are included.
+
+You can also match test names with special characters by escaping them
+with a backslash (`"\"`), e.g. a test named `"Do A, then B"` is matched
+by `"Do A\, then B"` test spec. Backslash also escapes itself.
+
+
+### Examples
+
+Given these TEST_CASEs,
 ```
-thisTestOnly            Matches the test case called, 'thisTestOnly'
-"this test only"        Matches the test case called, 'this test only'
-these*                  Matches all cases starting with 'these'
-exclude:notThis         Matches all tests except, 'notThis'
-~notThis                Matches all tests except, 'notThis'
-~*private*              Matches all tests except those that contain 'private'
-a* ~ab* abc             Matches all tests that start with 'a', except those that
-                        start with 'ab', except 'abc', which is included
-~[tag1]                 Matches all tests except those tagged with '[tag1]'
--# [#somefile]          Matches all tests from the file 'somefile.cpp'
+TEST_CASE("Test 1") {}
+
+TEST_CASE("Test 2", "[.foo]") {}
+
+TEST_CASE("Test 3", "[.bar]") {}
+
+TEST_CASE("Test 4", "[.][foo][bar]") {}
 ```
 
-Names within square brackets are interpreted as tags.
-A series of tags form an AND expression whereas a comma-separated sequence forms an OR expression. e.g.:
+this is the result of these filters
+```
+./tests                      # Selects only the first test, others are hidden
+./tests "Test 1"             # Selects only the first test, other do not match
+./tests ~"Test 1"            # Selects no tests. Test 1 is rejected, other tests are hidden
+./tests "Test *"             # Selects all tests.
+./tests [bar]                # Selects tests 3 and 4. Other tests are not tagged [bar]
+./tests ~[foo]               # Selects test 1, because it is the only non-hidden test without [foo] tag
+./tests [foo][bar]           # Selects test 4.
+./tests [foo],[bar]          # Selects tests 2, 3, 4.
+./tests ~[foo][bar]          # Selects test 3. 2 and 4 are rejected due to having [foo] tag
+./tests ~"Test 2"[foo]       # Selects test 4, because test 2 is explicitly rejected
+./tests [foo][bar],"Test 1"  # Selects tests 1 and 4.
+./tests "Test 1*"            # Selects test 1, wildcard can match zero characters
+```
 
-<pre>[one][two],[three]</pre>
-This matches all tests tagged `[one]` and `[two]`, as well as all tests tagged `[three]`
+_Note: Using plain asterisk on a command line can cause issues with shell
+expansion. Make sure that the asterisk is passed to Catch2 and is not
+interpreted by the shell._
 
-Test names containing special characters, such as `,` or `[` can specify them on the command line using `\`.
-`\` also escapes itself.
 
 <a id="choosing-a-reporter-to-use"></a>
 ## Choosing a reporter to use
 
-<pre>-r, --reporter &lt;reporter[::output-file]&gt;</pre>
-
-> Support for providing output-file through the `-r`, `--reporter` flag was [introduced](https://github.com/catchorg/Catch2/pull/2183) in Catch2 X.Y.Z
+<pre>-r, --reporter &lt;reporter[::key=value]*&gt;</pre>
 
 Reporters are how the output from Catch2 (results of assertions, tests,
 benchmarks and so on) is formatted and written out. The default reporter
 is called the "Console" reporter and is intended to provide relatively
 verbose and human-friendly output.
 
-There are multiple built-in reporters, you can see what they do by using the 
-[`--list-reporter`](command-line.md#listing-available-tests-tags-or-reporters)
+Reporters are also individually configurable. To pass configuration options
+to the reporter, you append `::key=value` to the reporter specification
+as many times as you want, e.g. `--reporter xml::out=someFile.xml` or
+`--reporter custom::colour-mode=ansi::Xoption=2`.
+
+The keys must either be prefixed by "X", in which case they are not parsed
+by Catch2 and are only passed down to the reporter, or one of options
+hardcoded into Catch2. Currently there are only 2,
+["out"](#sending-output-to-a-file), and ["colour-mode"](#colour-mode).
+
+_Note that the reporter might still check the X-prefixed options for
+validity, and throw an error if they are wrong._
+
+> Support for passing arguments to reporters through the `-r`, `--reporter` flag was introduced in Catch2 3.0.1
+
+There are multiple built-in reporters, you can see what they do by using the
+[`--list-reporters`](command-line.md#listing-available-tests-tags-or-reporters)
 flag. If you need a reporter providing custom format outside of the already
 provided ones, look at the ["write your own reporter" part of the reporter
 documentation](reporters.md#writing-your-own-reporter).
-
 
 This option may be passed multiple times to use multiple (different)
 reporters  at the same time. See the [reporter documentation](reporters.md#multiple-reporters)
@@ -146,15 +220,14 @@ reporter can be provided without the output-file part of reporter spec.
 This reporter will use the "default" output destination, based on
 the [`-o`, `--out`](#sending-output-to-a-file) option.
 
-> Support for using multiple different reporters at the same time was [introduced](https://github.com/catchorg/Catch2/pull/2183) in Catch2 X.Y.Z
+> Support for using multiple different reporters at the same time was [introduced](https://github.com/catchorg/Catch2/pull/2183) in Catch2 3.0.1
 
-As with the `--out` option, using `-` for the output file name sends the
-output to stdout.
 
 _Note: There is currently no way to escape `::` in the reporter spec,
-and thus reporter/file names with `::` in them will not work properly.
-As `::` in paths is relatively obscure (unlike `:`), we do not consider
-this an issue._
+and thus the reporter names, or configuration keys and values, cannot
+contain `::`. As `::` in paths is relatively obscure (unlike ':'), we do
+not consider this an issue._
+
 
 <a id="breaking-into-the-debugger"></a>
 ## Breaking into the debugger
@@ -188,9 +261,12 @@ Sometimes this results in a flood of failure messages and you'd rather just see 
 --list-tests
 --list-tags
 --list-reporters
+--list-listeners
 ```
 
-> The `--list*` options became customizable through reporters in Catch2 X.Y.Z
+> The `--list*` options became customizable through reporters in Catch2 3.0.1
+
+> The `--list-listeners` option was added in Catch2 3.0.1
 
 `--list-tests` lists all registered tests matching specified test spec.
 Usually this listing also includes tags, and potentially also other
@@ -202,17 +278,40 @@ similar information.
 
 `--list-reporters` lists all available reporters and their descriptions.
 
+`--list-listeners` lists all registered listeners and their descriptions.
+
+The [`--verbosity` argument](#output-verbosity) modifies the level of detail provided by the default `--list*` options
+as follows:
+
+| Option             | `normal` (default)              | `quiet`             | `high`                                  |
+|--------------------|---------------------------------|---------------------|-----------------------------------------|
+| `--list-tests`     | Test names and tags             | Test names only     | Same as `normal`, plus source code line |
+| `--list-tags`      | Tags and counts                 | Same as `normal`    | Same as `normal`                        |
+| `--list-reporters` | Reporter names and descriptions | Reporter names only | Same as `normal`                        |
+| `--list-listeners` | Listener names and descriptions | Same as `normal`    | Same as `normal`                        |
 
 <a id="sending-output-to-a-file"></a>
 ## Sending output to a file
 <pre>-o, --out &lt;filename&gt;
 </pre>
 
-Use this option to send all output to a file. By default output is sent to stdout (note that uses of stdout and stderr *from within test cases* are redirected and included in the report - so even stderr will effectively end up on stdout).
+Use this option to send all output to a file, instead of stdout. You can
+use `-` as the filename to explicitly send the output to stdout (this is
+useful e.g. when using multiple reporters).
 
-Using `-` as the filename sends the output to stdout.
+> Support for `-` as the filename was introduced in Catch2 3.0.1
 
-> Support for `-` as the filename was introduced in Catch2 X.Y.Z
+Filenames starting with "%" (percent symbol) are reserved by Catch2 for
+meta purposes, e.g. using `%debug` as the filename opens stream that
+writes to platform specific debugging/logging mechanism.
+
+Catch2 currently recognizes 3 meta streams:
+
+* `%debug` - writes to platform specific debugging/logging output
+* `%stdout` - writes to stdout
+* `%stderr` - writes to stderr
+
+> Support for `%stdout` and `%stderr` was introduced in Catch2 3.0.1
 
 
 <a id="naming-a-test-run"></a>
@@ -245,7 +344,7 @@ This option transforms tabs and newline characters into ```\t``` and ```\n``` re
 <pre>-w, --warn &lt;warning name></pre>
 
 You can think of Catch2's warnings as the equivalent of `-Werror` (`/WX`)
-flag for C++ compilers. It turns some suspicious occurences, like a section
+flag for C++ compilers. It turns some suspicious occurrences, like a section
 without assertions, into errors. Because these might be intended, warnings
 are not enabled by default, but user can opt in.
 
@@ -260,21 +359,21 @@ There are currently two warnings implemented:
                         // not match any tests.
 ```
 
-> `UnmatchedTestSpec` was introduced in Catch2 X.Y.Z.
+> `UnmatchedTestSpec` was introduced in Catch2 3.0.1.
 
 
 <a id="reporting-timings"></a>
 ## Reporting timings
 <pre>-d, --durations &lt;yes/no></pre>
 
-When set to ```yes``` Catch will report the duration of each test case, in milliseconds. Note that it does this regardless of whether a test case passes or fails. Note, also, the certain reporters (e.g. Junit) always report test case durations regardless of this option being set or not.
+When set to ```yes``` Catch will report the duration of each test case, in seconds with millisecond precision. Note that it does this regardless of whether a test case passes or fails. Note, also, the certain reporters (e.g. Junit) always report test case durations regardless of this option being set or not.
 
 <pre>-D, --min-duration &lt;value></pre>
 
 > `--min-duration` was [introduced](https://github.com/catchorg/Catch2/pull/1910) in Catch2 2.13.0
 
 When set, Catch will report the duration of each test case that took more
-than &lt;value> seconds, in milliseconds. This option is overriden by both
+than &lt;value> seconds, in seconds with millisecond precision. This option is overridden by both
 `-d yes` and `-d no`, so that either all durations are reported, or none
 are.
 
@@ -300,8 +399,8 @@ Test cases are ordered one of three ways:
 
 ### decl
 Declaration order (this is the default order if no --order argument is provided).
-Tests in the same TU are sorted using their declaration orders, different
-TUs are in an implementation (linking) dependent order.
+Tests in the same translation unit are sorted using their declaration orders,
+different TUs are sorted in an implementation (linking) dependent order.
 
 
 ### lex
@@ -310,12 +409,18 @@ Lexicographic order. Tests are sorted by their name, their tags are ignored.
 
 ### rand
 
-Randomly sorted. The order is dependent on Catch2's random seed (see
+Randomly ordered. The order is dependent on Catch2's random seed (see
 [`--rng-seed`](#rng-seed)), and is subset invariant. What this means
 is that as long as the random seed is fixed, running only some tests
 (e.g. via tag) does not change their relative order.
 
 > The subset stability was introduced in Catch2 v2.12.0
+
+Since the random order was made subset stable, we promise that given
+the same random seed, the order of test cases will be the same across
+different platforms, as long as the tests were compiled against identical
+version of Catch2. We reserve the right to change the relative order
+of tests cases between Catch2 versions, but it is unlikely to happen often.
 
 
 <a id="rng-seed"></a>
@@ -347,6 +452,16 @@ See [The LibIdentify repo for more information and examples](https://github.com/
 
 Will cause the executable to print a message and wait until the return/ enter key is pressed before continuing -
 either before running any tests, after running all tests - or both, depending on the argument.
+
+<a id="skip-benchmarks"></a>
+## Skip all benchmarks
+<pre>--skip-benchmarks</pre>
+
+> [Introduced](https://github.com/catchorg/Catch2/issues/2408) in Catch2 3.0.1.
+
+This flag tells Catch2 to skip running all benchmarks. Benchmarks in this
+case mean code blocks in `BENCHMARK` and `BENCHMARK_ADVANCED` macros, not
+test cases with the `[!benchmark]` tag.
 
 <a id="benchmark-samples"></a>
 ## Specify the number of benchmark samples to collect
@@ -452,52 +567,74 @@ start of the first section.</br>
 ## Filenames as tags
 <pre>-#, --filenames-as-tags</pre>
 
-When this option is used then every test is given an additional tag which is formed of the unqualified
-filename it is found in, with any extension stripped, prefixed with the `#` character.
+This option adds an extra tag to all test cases. The tag is `#` followed
+by the unqualified filename the test case is defined in, with the _last_
+extension stripped out.
 
-So, for example,  tests within the file `~\Dev\MyProject\Ferrets.cpp` would be tagged `[#Ferrets]`.
+For example, tests within the file `tests\SelfTest\UsageTests\BDD.tests.cpp`
+will be given the `[#BDD.tests]` tag.
 
-<a id="use-colour"></a>
+
+<a id="colour-mode"></a>
 ## Override output colouring
-<pre>--use-colour &lt;yes|no|auto&gt;</pre>
+<pre>--colour-mode &lt;ansi|win32|none|default&gt;</pre>
 
-Catch colours output for terminals, but omits colouring when it detects that
-output is being sent to a pipe. This is done to avoid interfering with automated
-processing of output.
+> The `--colour-mode` option replaced the old `--colour` option in Catch2 3.0.1
 
-`--use-colour yes` forces coloured output, `--use-colour no` disables coloured
-output. The default behaviour is `--use-colour auto`.
+
+Catch2 support two different ways of colouring terminal output, and by
+default it attempts to make a good guess on which implementation to use
+(and whether to even use it, e.g. Catch2 tries to avoid writing colour
+codes when writing the results into a file).
+
+`--colour-mode` allows the user to explicitly select what happens.
+
+* `--colour-mode ansi` tells Catch2 to always use ANSI colour codes, even
+when writing to a file
+* `--colour-mode win32` tells Catch2 to use colour implementation based
+  on Win32 terminal API
+* `--colour-mode none` tells Catch2 to disable colours completely
+* `--colour-mode default` lets Catch2 decide
+
+`--colour-mode default` is the default setting.
+
 
 <a id="test-sharding"></a>
 ## Test Sharding
 <pre>--shard-count <#number of shards>, --shard-index <#shard index to run></pre>
 
-> [Introduced](https://github.com/catchorg/Catch2/pull/2257) in Catch2 X.Y.Z.
+> [Introduced](https://github.com/catchorg/Catch2/pull/2257) in Catch2 3.0.1.
 
-When `--shard-count <#number of shards>` is used, the tests to execute will be split evenly in to the given number of sets,
-identified by indicies starting at 0. The tests in the set given by `--shard-index <#shard index to run>` will be executed.
-The default shard count is `1`, and the default index to run is `0`. It is an error to specify a shard index greater than
-the number of shards.
+When `--shard-count <#number of shards>` is used, the tests to execute
+will be split evenly in to the given number of sets, identified by indices
+starting at 0. The tests in the set given by
+`--shard-index <#shard index to run>` will be executed. The default shard
+count is `1`, and the default index to run is `0`.
 
-This is useful when you want to split test execution across multiple processes, as is done with [Bazel test sharding](https://docs.bazel.build/versions/main/test-encyclopedia.html#test-sharding). 
+_Shard index must be less than number of shards. As the name suggests,
+it is treated as an index of the shard to run._
+
+Sharding is useful when you want to split test execution across multiple
+processes, as is done with the [Bazel test sharding](https://docs.bazel.build/versions/main/test-encyclopedia.html#test-sharding).
+
 
 <a id="no-tests-override"></a>
 ## Allow running the binary without tests
 <pre>--allow-running-no-tests</pre>
 
-> Introduced in Catch2 X.Y.Z.
+> Introduced in Catch2 3.0.1.
 
-By default, Catch2 test binaries return non-0 exit code if no tests were
-run, e.g. if the binary was compiled with no tests, or the provided test
-spec matched no tests. This flag overrides that, so a test run with no
-tests still returns 0.
+By default, Catch2 test binaries return non-0 exit code if no tests were run,
+e.g. if the binary was compiled with no tests, the provided test spec matched no
+tests, or all tests [were skipped at runtime](skipping-passing-failing.md#top). This flag
+overrides that, so a test run with no tests still returns 0.
 
 ## Output verbosity
 ```
 -v, --verbosity <quiet|normal|high>
 ```
 
-Changing verbosity might change how much details Catch2's reporters output.
+Changing verbosity might change how many details Catch2's reporters output.
 However, you should consider changing the verbosity level as a _suggestion_.
 Not all reporters support all verbosity levels, e.g. because the reporter's
 format cannot meaningfully change. In that case, the verbosity level is

@@ -2,6 +2,7 @@ Adrien Devresse
 Alexandru Săvulescu
 Ali Can Demiralp
 Angelos Plastropoulos
+@antonysigma
 Chris Byrohl
 Chris De Grendele
 @contre
@@ -12,6 +13,8 @@ Fernando L. Pereira
 @guoxy
 Haoran Ni
 Henry Schreiner
+@hn-sl
+Hunter Belanger
 @JaWSnl
 Jia Li
 John W. Peterson
@@ -21,12 +24,14 @@ Kerim Khemraev
 Luc Grosheintz
 Marian Heil
 Mario Emmenlauer
+Mark Bicknell
 Mathieu Bernard
 Matthias Wolf
 Maximilian Nöthe
 @Mightrider
 Mike DePalatis
 Mike Gevaert
+Moritz Koenemann
 Nico Jahn
 Nicolas Cornu (maintainer)
 Omar Awile
@@ -34,8 +39,11 @@ Pablo Toharia
 Philip Deegan
 Philipp Gloor
 Pramod Kumbhar
+@Quark-X10
 Richard Shaw
 Rick Nitsche
+Rob Latham
+Sergio Botelh
 Sergio Rivas-Gomez
 @spacescientist
 Taiguara Tupinambás
@@ -44,6 +52,7 @@ Tino Wagner
 Tobias Klauser
 Tom de Geus
 Tom Vander Aa
+Torsten Reuschel
 Tristan Carel
 Wolf Vollprecht
 Y. Yang

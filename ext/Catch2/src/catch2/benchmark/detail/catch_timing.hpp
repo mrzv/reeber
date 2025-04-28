@@ -1,7 +1,7 @@
 
 //              Copyright Catch2 Authors
 // Distributed under the Boost Software License, Version 1.0.
-//   (See accompanying file LICENSE_1_0.txt or copy at
+//   (See accompanying file LICENSE.txt or copy at
 //        https://www.boost.org/LICENSE_1_0.txt)
 
 // SPDX-License-Identifier: BSL-1.0
@@ -13,18 +13,16 @@
 #include <catch2/benchmark/catch_clock.hpp>
 #include <catch2/benchmark/detail/catch_complete_invoke.hpp>
 
-#include <type_traits>
-
 namespace Catch {
     namespace Benchmark {
-        template <typename Duration, typename Result>
+        template <typename Result>
         struct Timing {
-            Duration elapsed;
+            IDuration elapsed;
             Result result;
             int iterations;
         };
-        template <typename Clock, typename Func, typename... Args>
-        using TimingOf = Timing<ClockDuration<Clock>, Detail::CompleteType_t<FunctionReturnType<Func, Args...>>>;
+        template <typename Func, typename... Args>
+        using TimingOf = Timing<Detail::CompleteType_t<FunctionReturnType<Func, Args...>>>;
     } // namespace Benchmark
 } // namespace Catch
 

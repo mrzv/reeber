@@ -11,24 +11,47 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <tuple>
+#include <sstream>
+#include <functional>
+#include <iomanip>
 
+// We don't need windows specific functionality. However, to better detect defects caused by macros,
+// we include this header.
+// The list of identifiers is taken from `Boost::Predef`.
+#if defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) || defined(__TOS_WIN__) || \
+    defined(__WINDOWS__)
+#define NOMINMAX
+#include <Windows.h>
+#endif
+
+using ldcomplex = std::complex<long double>;
 using dcomplex = std::complex<double>;
 using fcomplex = std::complex<float>;
 
-using floating_numerics_test_types = std::tuple<float, double>;
+using base_test_types = std::tuple<int,
+                                   unsigned int,
+                                   long,
+                                   unsigned long,
+                                   unsigned char,
+                                   char,
+                                   float,
+                                   double,
+                                   long long,
+                                   unsigned long long,
+                                   ldcomplex,
+                                   dcomplex,
+                                   fcomplex>;
 
-using numerical_test_types = std::tuple<int,
-                                        unsigned int,
-                                        long,
-                                        unsigned long,
-                                        unsigned char,
-                                        char,
-                                        float,
-                                        double,
-                                        long long,
-                                        unsigned long long,
-                                        dcomplex,
-                                        fcomplex>;
+#ifdef HIGHFIVE_TEST_HALF_FLOAT
+#include <highfive/half_float.hpp>
+
+using float16_t = half_float::half;
+using numerical_test_types =
+    decltype(std::tuple_cat(std::declval<base_test_types>(), std::tuple<float16_t>()));
+#else
+using numerical_test_types = base_test_types;
+#endif
 
 using dataset_test_types =
     std::tuple<int, unsigned int, long, unsigned long, unsigned char, char, float, double>;
@@ -92,6 +115,11 @@ struct ContentGenerate {
 };
 
 template <>
+ContentGenerate<ldcomplex>::ContentGenerate()
+    : _init(0, 0)
+    , _inc(ldcomplex(1, 1) + ldcomplex(1, 1) / ldcomplex(10)) {}
+
+template <>
 ContentGenerate<dcomplex>::ContentGenerate()
     : _init(0, 0)
     , _inc(dcomplex(1, 1) + dcomplex(1, 1) / dcomplex(10)) {}
@@ -124,7 +152,7 @@ struct ContentGenerate<std::string> {
         ContentGenerate<char> gen;
         std::string random_string;
         std::mt19937_64 rgen;
-        rgen.seed(88);
+        rgen.seed(42);
         std::uniform_int_distribution<unsigned> int_dist(0, 1000);
         const size_t size_string = int_dist(rgen);
 
@@ -138,15 +166,21 @@ struct ContentGenerate<std::string> {
 template <typename T>
 inline std::string typeNameHelper() {
     std::string name = typeid(T).name();
-#if defined(WIN32)
-    // Replace illegal windows file path characters
     std::replace(std::begin(name), std::end(name), ' ', '_');
     std::replace(std::begin(name), std::end(name), '<', '_');
     std::replace(std::begin(name), std::end(name), '>', '_');
     std::replace(std::begin(name), std::end(name), ':', '_');
-#endif
-    return name;
+
+    if (name.size() > 64) {
+        std::stringstream hash;
+        hash << std::hex << std::hash<std::string>{}(name);
+
+        return hash.str();
+    } else {
+        return name;
+    }
 }
+
 
 template <typename ElemT, typename DataT>
 inline HighFive::DataSet readWriteDataset(const DataT& ndvec,

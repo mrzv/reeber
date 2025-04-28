@@ -1,7 +1,7 @@
 
 //              Copyright Catch2 Authors
 // Distributed under the Boost Software License, Version 1.0.
-//   (See accompanying file LICENSE_1_0.txt or copy at
+//   (See accompanying file LICENSE.txt or copy at
 //        https://www.boost.org/LICENSE_1_0.txt)
 
 // SPDX-License-Identifier: BSL-1.0
@@ -12,7 +12,6 @@
 #include <catch2/internal/catch_stringref.hpp>
 
 #include <chrono>
-#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -42,10 +41,15 @@ namespace Catch {
         LexicographicallySorted,
         Randomized
     };
-    enum class UseColour {
-        Auto,
-        Yes,
-        No
+    enum class ColourMode : std::uint8_t {
+        //! Let Catch2 pick implementation based on platform detection
+        PlatformDefault,
+        //! Use ANSI colour code escapes
+        ANSI,
+        //! Use Win32 console colour API
+        Win32,
+        //! Don't use any colour
+        None
     };
     struct WaitForKeypress { enum When {
         Never,
@@ -55,13 +59,13 @@ namespace Catch {
     }; };
 
     class TestSpec;
+    class IStream;
 
-    struct IConfig : Detail::NonCopyable {
-
+    class IConfig : public Detail::NonCopyable {
+    public:
         virtual ~IConfig();
 
         virtual bool allowThrows() const = 0;
-        virtual std::ostream& defaultStream() const = 0;
         virtual StringRef name() const = 0;
         virtual bool includeSuccessfulResults() const = 0;
         virtual bool shouldDebugBreak() const = 0;
@@ -79,10 +83,11 @@ namespace Catch {
         virtual uint32_t rngSeed() const = 0;
         virtual unsigned int shardCount() const = 0;
         virtual unsigned int shardIndex() const = 0;
-        virtual UseColour useColour() const = 0;
+        virtual ColourMode defaultColourMode() const = 0;
         virtual std::vector<std::string> const& getSectionsToRun() const = 0;
         virtual Verbosity verbosity() const = 0;
 
+        virtual bool skipBenchmarks() const = 0;
         virtual bool benchmarkNoAnalysis() const = 0;
         virtual unsigned int benchmarkSamples() const = 0;
         virtual double benchmarkConfidenceInterval() const = 0;

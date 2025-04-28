@@ -1,7 +1,7 @@
 
 //              Copyright Catch2 Authors
 // Distributed under the Boost Software License, Version 1.0.
-//   (See accompanying file LICENSE_1_0.txt or copy at
+//   (See accompanying file LICENSE.txt or copy at
 //        https://www.boost.org/LICENSE_1_0.txt)
 
 // SPDX-License-Identifier: BSL-1.0
@@ -79,14 +79,14 @@ enum class EnumClass3 { Value1, Value2, Value3, Value4 };
 CATCH_REGISTER_ENUM( EnumClass3, EnumClass3::Value1, EnumClass3::Value2, EnumClass3::Value3 )
 
 
-TEST_CASE( "Enums can quickly have stringification enabled using REGISTER_ENUM" ) {
+TEST_CASE( "Enums can quickly have stringification enabled using CATCH_REGISTER_ENUM" ) {
     using Catch::Detail::stringify;
     REQUIRE( stringify( EnumClass3::Value1 ) == "Value1" );
     REQUIRE( stringify( EnumClass3::Value2 ) == "Value2" );
     REQUIRE( stringify( EnumClass3::Value3 ) == "Value3" );
     REQUIRE( stringify( EnumClass3::Value4 ) == "{** unexpected enum value **}" );
 
-    EnumClass3 ec3 = EnumClass3 ::Value2;
+    EnumClass3 ec3 = EnumClass3::Value2;
     REQUIRE( stringify( ec3 ) == "Value2" );
 }
 
@@ -101,7 +101,7 @@ CATCH_REGISTER_ENUM( Bikeshed::Colours,
                      Bikeshed::Colours::Green,
                      Bikeshed::Colours::Blue )
 
-TEST_CASE( "Enums in namespaces can quickly have stringification enabled using REGISTER_ENUM" ) {
+TEST_CASE( "Enums in namespaces can quickly have stringification enabled using CATCH_REGISTER_ENUM" ) {
     using Catch::Detail::stringify;
     REQUIRE( stringify( Bikeshed::Colours::Red ) == "Red" );
     REQUIRE( stringify( Bikeshed::Colours::Blue ) == "Blue" );

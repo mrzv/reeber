@@ -1,3 +1,11 @@
+
+//              Copyright Catch2 Authors
+// Distributed under the Boost Software License, Version 1.0.
+//   (See accompanying file LICENSE.txt or copy at
+//        https://www.boost.org/LICENSE_1_0.txt)
+
+// SPDX-License-Identifier: BSL-1.0
+
 // 030-Asn-Require-Check.cpp
 
 // Catch has two natural expression assertion macro's:
@@ -53,7 +61,7 @@ TEST_CASE( "Assert that something is false (continue after failure)", "[check-fa
 }
 
 // Compile & run:
-// - g++ -std=c++11 -Wall -I$(CATCH_SINGLE_INCLUDE) -o 030-Asn-Require-Check 030-Asn-Require-Check.cpp && 030-Asn-Require-Check --success
+// - g++ -std=c++14 -Wall -I$(CATCH_SINGLE_INCLUDE) -o 030-Asn-Require-Check 030-Asn-Require-Check.cpp && 030-Asn-Require-Check --success
 // - cl -EHsc -I%CATCH_SINGLE_INCLUDE% 030-Asn-Require-Check.cpp && 030-Asn-Require-Check --success
 
 // Expected compact output (all assertions):

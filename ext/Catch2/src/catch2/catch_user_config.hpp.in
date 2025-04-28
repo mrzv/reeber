@@ -1,7 +1,7 @@
 
 //              Copyright Catch2 Authors
 // Distributed under the Boost Software License, Version 1.0.
-//   (See accompanying file LICENSE_1_0.txt or copy at
+//   (See accompanying file LICENSE.txt or copy at
 //        https://www.boost.org/LICENSE_1_0.txt)
 
 // SPDX-License-Identifier: BSL-1.0
@@ -32,7 +32,13 @@
 #    error Cannot force ANDROID_LOGWRITE to both ON and OFF
 #endif
 
+#cmakedefine CATCH_CONFIG_COLOUR_WIN32
+#cmakedefine CATCH_CONFIG_NO_COLOUR_WIN32
 
+#if defined( CATCH_CONFIG_COLOUR_WIN32 ) && \
+    defined( CATCH_CONFIG_NO_COLOUR_WIN32 )
+#    error Cannot force COLOUR_WIN32 to be ON and OFF
+#endif
 
 #cmakedefine CATCH_CONFIG_COUNTER
 #cmakedefine CATCH_CONFIG_NO_COUNTER
@@ -124,6 +130,16 @@
 
 
 
+#cmakedefine CATCH_CONFIG_GETENV
+#cmakedefine CATCH_CONFIG_NO_GETENV
+
+#if defined( CATCH_CONFIG_GETENV ) && \
+    defined( CATCH_CONFIG_NO_GETENV )
+#    error Cannot force GETENV to both ON and OFF
+#endif
+
+
+
 #cmakedefine CATCH_CONFIG_USE_ASYNC
 #cmakedefine CATCH_CONFIG_NO_USE_ASYNC
 
@@ -153,15 +169,31 @@
 #endif
 
 
+#cmakedefine CATCH_CONFIG_EXPERIMENTAL_STATIC_ANALYSIS_SUPPORT
+#cmakedefine CATCH_CONFIG_NO_EXPERIMENTAL_STATIC_ANALYSIS_SUPPORT
+
+#if defined( CATCH_CONFIG_EXPERIMENTAL_STATIC_ANALYSIS_SUPPORT ) && \
+    defined( CATCH_CONFIG_NO_EXPERIMENTAL_STATIC_ANALYSIS_SUPPORT )
+#    error Cannot force STATIC_ANALYSIS_SUPPORT to both ON and OFF
+#endif
+
+
+#cmakedefine CATCH_CONFIG_USE_BUILTIN_CONSTANT_P
+#cmakedefine CATCH_CONFIG_NO_USE_BUILTIN_CONSTANT_P
+
+#if defined( CATCH_CONFIG_USE_BUILTIN_CONSTANT_P ) && \
+    defined( CATCH_CONFIG_NO_USE_BUILTIN_CONSTANT_P )
+#    error Cannot force USE_BUILTIN_CONSTANT_P to both ON and OFF
+#endif
+
+
 // ------
 // Simple toggle defines
-// their value is never used and they cannot be overriden
+// their value is never used and they cannot be overridden
 // ------
 
 
-#cmakedefine CATCH_CONFIG_COLOUR_ANSI
-#cmakedefine CATCH_CONFIG_COLOUR_NONE
-#cmakedefine CATCH_CONFIG_COLOUR_WINDOWS
+#cmakedefine CATCH_CONFIG_BAZEL_SUPPORT
 #cmakedefine CATCH_CONFIG_DISABLE_EXCEPTIONS
 #cmakedefine CATCH_CONFIG_DISABLE_EXCEPTIONS_CUSTOM_HANDLER
 #cmakedefine CATCH_CONFIG_DISABLE
@@ -175,7 +207,10 @@
 #cmakedefine CATCH_CONFIG_FAST_COMPILE
 #cmakedefine CATCH_CONFIG_NOSTDOUT
 #cmakedefine CATCH_CONFIG_PREFIX_ALL
+#cmakedefine CATCH_CONFIG_PREFIX_MESSAGES
 #cmakedefine CATCH_CONFIG_WINDOWS_CRTDBG
+
+#cmakedefine CATCH_CONFIG_SHARED_LIBRARY
 
 
 // ------

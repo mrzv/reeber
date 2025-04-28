@@ -1,3 +1,11 @@
+
+//              Copyright Catch2 Authors
+// Distributed under the Boost Software License, Version 1.0.
+//   (See accompanying file LICENSE.txt or copy at
+//        https://www.boost.org/LICENSE_1_0.txt)
+
+// SPDX-License-Identifier: BSL-1.0
+
 // 100-Fix-Section.cpp
 
 // Catch has two ways to express fixtures:
@@ -45,7 +53,7 @@ TEST_CASE( "vectors can be sized and resized", "[vector]" ) {
 }
 
 // Compile & run:
-// - g++ -std=c++11 -Wall -I$(CATCH_SINGLE_INCLUDE) -o 100-Fix-Section 100-Fix-Section.cpp && 100-Fix-Section --success
+// - g++ -std=c++14 -Wall -I$(CATCH_SINGLE_INCLUDE) -o 100-Fix-Section 100-Fix-Section.cpp && 100-Fix-Section --success
 // - cl -EHsc -I%CATCH_SINGLE_INCLUDE% 100-Fix-Section.cpp && 100-Fix-Section --success
 
 // Expected compact output (all assertions):
