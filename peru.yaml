@@ -1,0 +1,19 @@
+imports:
+    HighFive: ./ext/HighFive
+    Catch2:   ./ext/Catch2
+    fmt: ./ext/fmt
+
+git module HighFive:
+    url: https://github.com/BlueBrain/HighFive
+    rev: dfc06537fdb20f5e572c20bc6febd22dd5d08246
+
+git module Catch2:
+    url: git@github.com:catchorg/Catch2.git
+    rev: 4ff57aba42938478f8b626c0862409f6eb7548f0
+    reup: devel
+
+git module fmt:
+    url: https://github.com/fmtlib/fmt
+    rev: 505ee058f7d5ec2a2a80eae82011ad48122b1551
+
+

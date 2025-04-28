@@ -93,7 +93,7 @@ void read_from_hdf5_file(std::string infn,
             b->extra_fabs_.emplace_back(extra_fab, shape, c_order);
             b->extra_names_.push_back(all_var_names[i]);
 
-            datasets[i].select(from, size).read(core_grid.data());
+            datasets[i].select(from, size).read_raw(core_grid.data());
 
             auto& g = b->extra_fabs_.back();
             diy::for_each(shape, [&](const typename FabBlockR::Shape& p) {

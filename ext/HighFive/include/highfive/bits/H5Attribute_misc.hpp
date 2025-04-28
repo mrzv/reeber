@@ -6,142 +6,178 @@
  *          http://www.boost.org/LICENSE_1_0.txt)
  *
  */
-#ifndef H5ATTRIBUTE_MISC_HPP
-#define H5ATTRIBUTE_MISC_HPP
+#pragma once
 
+#include <H5Ipublic.h>
 #include <algorithm>
 #include <functional>
 #include <numeric>
 #include <sstream>
 #include <string>
 
-#ifdef H5_USE_BOOST
-#include <boost/multi_array.hpp>
-#endif
-
-#include <H5Apublic.h>
 #include <H5Ppublic.h>
 
+#include "../H5DataSpace.hpp"
 #include "H5Converter_misc.hpp"
+#include "H5Inspector_misc.hpp"
+#include "H5ReadWrite_misc.hpp"
 #include "H5Utils.hpp"
+#include "h5a_wrapper.hpp"
+#include "h5d_wrapper.hpp"
+#include "squeeze.hpp"
+#include "assert_compatible_spaces.hpp"
 
 namespace HighFive {
 
 inline std::string Attribute::getName() const {
-    return details::get_name([&](char *buffer, hsize_t length) {
-        return H5Aget_name(_hid, length, buffer);
-    });
+    return details::get_name(
+        [&](char* buffer, size_t length) { return detail::h5a_get_name(_hid, length, buffer); });
 }
 
 inline size_t Attribute::getStorageSize() const {
-    return static_cast<size_t>(H5Aget_storage_size(_hid));
+    if (!this->isValid()) {
+        throw AttributeException("Invalid call to `DataSet::getFile` for invalid object");
+    }
+
+    return static_cast<size_t>(detail::h5a_get_storage_size(_hid));
 }
 
 inline DataType Attribute::getDataType() const {
     DataType res;
-    res._hid = H5Aget_type(_hid);
+    res._hid = detail::h5a_get_type(_hid);
     return res;
 }
 
 inline DataSpace Attribute::getSpace() const {
     DataSpace space;
-    if ((space._hid = H5Aget_space(_hid)) < 0) {
-        HDF5ErrMapper::ToException<AttributeException>(
-            "Unable to get DataSpace out of Attribute");
-    }
+    space._hid = detail::h5a_get_space(_hid);
     return space;
 }
 
-inline DataSpace Attribute::getMemSpace() const { return getSpace(); }
-
-template <typename T>
-inline void Attribute::read(T& array) const {
-    static_assert(!std::is_const<typename std::remove_reference<T>::type>::value,
-                  "read() requires a non-const array to read into");
-    using element_type = typename details::type_of_array<T>::type;
-    const size_t dim_array = details::array_dims<T>::value;
-    DataSpace space = getSpace();
-    DataSpace mem_space = getMemSpace();
-
-    if (!details::checkDimensions(mem_space, dim_array)) {
-        std::ostringstream ss;
-        ss << "Impossible to read attribute of dimensions "
-           << mem_space.getNumberDimensions() << " into arrays of dimensions "
-           << dim_array;
-        throw DataSpaceException(ss.str());
-    }
-
-    const DataType mem_datatype = create_and_check_datatype<element_type>();
-
-    // Apply pre read conversions
-    details::data_converter<T> converter(mem_space);
-
-    if (H5Aread(getId(), mem_datatype.getId(),
-                static_cast<void*>(converter.transform_read(array))) < 0) {
-        HDF5ErrMapper::ToException<AttributeException>(
-            "Error during HDF5 Read: ");
-    }
-
-    // re-arrange results
-    converter.process_result(array);
+inline DataSpace Attribute::getMemSpace() const {
+    return _mem_space.getId() == H5I_INVALID_HID ? getSpace() : _mem_space;
 }
 
 template <typename T>
-inline void Attribute::read(T* array) const {
+inline T Attribute::read() const {
+    T array;
+    read(array);
+    return array;
+}
+
+template <typename T>
+inline void Attribute::read(T& array) const {
+    const DataSpace& mem_space = getMemSpace();
+    auto file_datatype = getDataType();
+    const details::BufferInfo<T> buffer_info(
+        file_datatype,
+        [this]() -> std::string { return this->getName(); },
+        details::BufferInfo<T>::Operation::read);
+
+    if (!details::checkDimensions(mem_space, buffer_info.getMinRank(), buffer_info.getMaxRank())) {
+        std::ostringstream ss;
+        ss << "Impossible to read attribute of dimensions " << mem_space.getNumberDimensions()
+           << " into arrays of dimensions: " << buffer_info.getMinRank() << "(min) to "
+           << buffer_info.getMaxRank() << "(max)";
+        throw DataSpaceException(ss.str());
+    }
+    auto dims = mem_space.getDimensions();
+
+    if (mem_space.getElementCount() == 0) {
+        details::inspector<T>::prepare(array, dims);
+        return;
+    }
+
+    auto r = details::data_converter::get_reader<T>(dims, array, file_datatype);
+    read_raw(r.getPointer(), buffer_info.data_type);
+    // re-arrange results
+    r.unserialize(array);
+
+    auto t = buffer_info.data_type;
+    auto c = t.getClass();
+
+    if (c == DataTypeClass::VarLen || t.isVariableStr()) {
+#if H5_VERSION_GE(1, 12, 0)
+        // This one have been created in 1.12.0
+        (void) detail::h5t_reclaim(t.getId(), mem_space.getId(), H5P_DEFAULT, r.getPointer());
+#else
+        // This one is deprecated since 1.12.0
+        (void) detail::h5d_vlen_reclaim(t.getId(), mem_space.getId(), H5P_DEFAULT, r.getPointer());
+#endif
+    }
+}
+
+template <typename T>
+inline void Attribute::read_raw(T* array, const DataType& mem_datatype) const {
     static_assert(!std::is_const<T>::value,
                   "read() requires a non-const structure to read data into");
-    using element_type = typename details::type_of_array<T>::type;
-    DataSpace mem_space = getMemSpace();
 
-    const DataType mem_datatype = create_and_check_datatype<element_type>();
+    detail::h5a_read(getId(), mem_datatype.getId(), static_cast<void*>(array));
+}
 
-    if (H5Aread(getId(), mem_datatype.getId(),
-                static_cast<void*>(array)) < 0) {
-        HDF5ErrMapper::ToException<AttributeException>(
-            "Error during HDF5 Read: ");
-    }
+template <typename T>
+inline void Attribute::read_raw(T* array) const {
+    using element_type = typename details::inspector<T>::base_type;
+    const DataType& mem_datatype = create_and_check_datatype<element_type>();
+
+    read_raw(array, mem_datatype);
 }
 
 template <typename T>
 inline void Attribute::write(const T& buffer) {
-    using element_type = typename details::type_of_array<T>::type;
-    const size_t dim_buffer = details::array_dims<T>::value;
-    DataSpace space = getSpace();
-    DataSpace mem_space = getMemSpace();
+    const DataSpace& mem_space = getMemSpace();
+    auto dims = mem_space.getDimensions();
 
-    if (!details::checkDimensions(mem_space, dim_buffer)) {
+    if (mem_space.getElementCount() == 0) {
+        return;
+    }
+
+    auto file_datatype = getDataType();
+
+    const details::BufferInfo<T> buffer_info(
+        file_datatype,
+        [this]() -> std::string { return this->getName(); },
+        details::BufferInfo<T>::Operation::write);
+
+    if (!details::checkDimensions(mem_space, buffer_info.getMinRank(), buffer_info.getMaxRank())) {
         std::ostringstream ss;
-        ss << "Impossible to write buffer of dimensions " << dim_buffer
-           << " into attribute of dimensions "
-           << mem_space.getNumberDimensions();
+        ss << "Impossible to write attribute of dimensions " << mem_space.getNumberDimensions()
+           << " into arrays of dimensions: " << buffer_info.getMinRank() << "(min) to "
+           << buffer_info.getMaxRank() << "(max)";
         throw DataSpaceException(ss.str());
     }
-
-    const DataType mem_datatype = create_and_check_datatype<element_type>();
-    details::data_converter<T> converter(mem_space);
-
-    if (H5Awrite(getId(), mem_datatype.getId(),
-                 static_cast<const void*>(converter.transform_write(buffer))) < 0) {
-        HDF5ErrMapper::ToException<DataSetException>(
-            "Error during HDF5 Write: ");
-    }
+    auto w = details::data_converter::serialize<T>(buffer, dims, file_datatype);
+    write_raw(w.getPointer(), buffer_info.data_type);
 }
 
 template <typename T>
-inline void Attribute::write_raw(const T& buffer) {
-    using element_type = typename details::type_of_array<T>::type;
-    DataSpace space = getSpace();
-    DataSpace mem_space = getMemSpace();
-    const DataType mem_datatype = create_and_check_datatype<element_type>();
-    details::data_converter<T> converter(mem_space);
+inline void Attribute::write_raw(const T* buffer, const DataType& mem_datatype) {
+    detail::h5a_write(getId(), mem_datatype.getId(), buffer);
+}
 
-    if (H5Awrite(getId(), mem_datatype.getId(),
-                 static_cast<const void*>(converter.transform_write(buffer))) < 0) {
-        HDF5ErrMapper::ToException<DataSetException>(
-            "Error during HDF5 Write: ");
-    }
+template <typename T>
+inline void Attribute::write_raw(const T* buffer) {
+    using element_type = typename details::inspector<T>::base_type;
+    const auto& mem_datatype = create_and_check_datatype<element_type>();
+
+    write_raw(buffer, mem_datatype);
+}
+
+inline Attribute Attribute::squeezeMemSpace(const std::vector<size_t>& axes) const {
+    auto mem_dims = this->getMemSpace().getDimensions();
+    auto squeezed_dims = detail::squeeze(mem_dims, axes);
+
+    auto attr = *this;
+    attr._mem_space = DataSpace(squeezed_dims);
+    return attr;
+}
+
+inline Attribute Attribute::reshapeMemSpace(const std::vector<size_t>& new_dims) const {
+    detail::assert_compatible_spaces(this->getMemSpace(), new_dims);
+
+    auto attr = *this;
+    attr._mem_space = DataSpace(new_dims);
+    return attr;
 }
 
 }  // namespace HighFive
-
-#endif // H5ATTRIBUTE_MISC_HPP

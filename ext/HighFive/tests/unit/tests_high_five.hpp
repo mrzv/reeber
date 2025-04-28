@@ -11,34 +11,57 @@
 #include <random>
 #include <string>
 #include <vector>
-#include <boost/mpl/list.hpp>
+#include <tuple>
+#include <sstream>
+#include <functional>
+#include <iomanip>
 
-// Since, 1.59: semicolon has been removed from the end of the BOOST_GLOBAL_FIXTURE
-// https://github.com/boostorg/test/commit/3f7216db3db2e11a768d8d0c8bb18632f106c466
-#if BOOST_VERSION >= 105900
-#define BOOST_GLOBAL_FIXTURE_END ;
-#else
-#define BOOST_GLOBAL_FIXTURE_END
+// We don't need windows specific functionality. However, to better detect defects caused by macros,
+// we include this header.
+// The list of identifiers is taken from `Boost::Predef`.
+#if defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) || defined(__TOS_WIN__) || \
+    defined(__WINDOWS__)
+#define NOMINMAX
+#include <Windows.h>
 #endif
 
-using complex = std::complex<double>;
+using ldcomplex = std::complex<long double>;
+using dcomplex = std::complex<double>;
+using fcomplex = std::complex<float>;
 
-typedef boost::mpl::list<float, double> floating_numerics_test_types;
+using base_test_types = std::tuple<int,
+                                   unsigned int,
+                                   long,
+                                   unsigned long,
+                                   unsigned char,
+                                   char,
+                                   float,
+                                   double,
+                                   long long,
+                                   unsigned long long,
+                                   ldcomplex,
+                                   dcomplex,
+                                   fcomplex>;
 
-typedef boost::mpl::list<int, unsigned int, long, unsigned long, unsigned char, char,
-                         float, double, long long, unsigned long long, complex>
-    numerical_test_types;
+#ifdef HIGHFIVE_TEST_HALF_FLOAT
+#include <highfive/half_float.hpp>
 
-typedef boost::mpl::list<int, unsigned int, long, unsigned long, unsigned char, char,
-                         float, double>
-    dataset_test_types;
+using float16_t = half_float::half;
+using numerical_test_types =
+    decltype(std::tuple_cat(std::declval<base_test_types>(), std::tuple<float16_t>()));
+#else
+using numerical_test_types = base_test_types;
+#endif
+
+using dataset_test_types =
+    std::tuple<int, unsigned int, long, unsigned long, unsigned char, char, float, double>;
 
 
 template <typename T, typename Func>
 void fillVec(std::vector<std::vector<T>>& v, std::vector<size_t> dims, const Func& f) {
     v.resize(dims[0]);
     dims.erase(dims.begin());
-    for (auto& subvec : v) {
+    for (auto& subvec: v) {
         fillVec(subvec, dims, f);
     }
 }
@@ -92,9 +115,19 @@ struct ContentGenerate {
 };
 
 template <>
-ContentGenerate<complex>::ContentGenerate()
+ContentGenerate<ldcomplex>::ContentGenerate()
     : _init(0, 0)
-    , _inc(complex(1, 1) + complex(1, 1) / complex(10)) {}
+    , _inc(ldcomplex(1, 1) + ldcomplex(1, 1) / ldcomplex(10)) {}
+
+template <>
+ContentGenerate<dcomplex>::ContentGenerate()
+    : _init(0, 0)
+    , _inc(dcomplex(1, 1) + dcomplex(1, 1) / dcomplex(10)) {}
+
+template <>
+ContentGenerate<fcomplex>::ContentGenerate()
+    : _init(0, 0)
+    , _inc(fcomplex(1, 1) + fcomplex(1, 1) / fcomplex(10)) {}
 
 template <>
 struct ContentGenerate<char> {
@@ -119,7 +152,7 @@ struct ContentGenerate<std::string> {
         ContentGenerate<char> gen;
         std::string random_string;
         std::mt19937_64 rgen;
-        rgen.seed(88);
+        rgen.seed(42);
         std::uniform_int_distribution<unsigned> int_dist(0, 1000);
         const size_t size_string = int_dist(rgen);
 
@@ -133,28 +166,33 @@ struct ContentGenerate<std::string> {
 template <typename T>
 inline std::string typeNameHelper() {
     std::string name = typeid(T).name();
-#if defined(WIN32)
-    //Replace illegal windows file path characters
     std::replace(std::begin(name), std::end(name), ' ', '_');
     std::replace(std::begin(name), std::end(name), '<', '_');
     std::replace(std::begin(name), std::end(name), '>', '_');
     std::replace(std::begin(name), std::end(name), ':', '_');
-#endif
-    return name;
+
+    if (name.size() > 64) {
+        std::stringstream hash;
+        hash << std::hex << std::hash<std::string>{}(name);
+
+        return hash.str();
+    } else {
+        return name;
+    }
 }
 
+
 template <typename ElemT, typename DataT>
-inline HighFive::DataSet
-readWriteDataset(const DataT& ndvec,
-                 DataT& result,
-                 const size_t ndims,
-                 const std::string& struct_t) {
+inline HighFive::DataSet readWriteDataset(const DataT& ndvec,
+                                          DataT& result,
+                                          const size_t ndims,
+                                          const std::string& struct_t) {
     using namespace HighFive;
     const std::string DATASET_NAME("dset");
 
     std::ostringstream filename;
-    filename << "h5_rw_" << struct_t << "_" << ndims << "d_"
-             << typeNameHelper<ElemT>() << "_test.h5";
+    filename << "h5_rw_" << struct_t << "_" << ndims << "d_" << typeNameHelper<ElemT>()
+             << "_test.h5";
 
     // Create a new file using the default property lists.
     File file(filename.str(), File::Truncate);
@@ -166,4 +204,3 @@ readWriteDataset(const DataT& ndvec,
     dataset.read(result);
     return dataset;
 }
-

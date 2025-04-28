@@ -9,13 +9,9 @@
 #include <algorithm>
 #include <complex>
 
-#undef H5_USE_BOOST
-#define H5_USE_BOOST
+#include <highfive/highfive.hpp>
 
-#include <boost/multi_array.hpp>
-#include <highfive/H5DataSet.hpp>
-#include <highfive/H5DataSpace.hpp>
-#include <highfive/H5File.hpp>
+#include <highfive/boost.hpp>
 
 typedef std::complex<double> complex_t;
 
@@ -25,7 +21,7 @@ int main() {
     multi_array[1][1][0][0] = complex_t{1.1, 1.2};
 
     HighFive::File file("multi_array_complex.h5", HighFive::File::Truncate);
-
     HighFive::DataSet dataset = file.createDataSet("multi_array", multi_array);
+
     return 0;
 }

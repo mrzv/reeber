@@ -1,13 +1,8 @@
-#include <highfive/H5File.hpp>
-#include <highfive/H5Group.hpp>
-#include <highfive/H5DataSet.hpp>
-#include <highfive/H5DataSpace.hpp>
-#include <highfive/H5Attribute.hpp>
+#include <highfive/highfive.hpp>
 
 using namespace HighFive;
 
-int main(void)
-{
+int main(void) {
     /* We are going to create group in root directory then add
      * dataset to this group and attach attribute to the dataset.
      * Then we are trying to get path to the root, group dataset
@@ -24,12 +19,13 @@ int main(void)
     Group group = file.createGroup("group");
 
     // Create a dummy dataset of one single integer
-    DataSet dataset = group.createDataSet("data", DataSpace(1), AtomicType<int>());
+    DataSet dataset = group.createDataSet("data", DataSpace(1), create_datatype<int>());
     dataset.write(100);
 
     // Let's also add a attribute to this dataset
     std::string string_list("very important DataSet!");
-    Attribute attribute = dataset.createAttribute<std::string>("attribute", DataSpace::From(string_list));
+    Attribute attribute = dataset.createAttribute<std::string>("attribute",
+                                                               DataSpace::From(string_list));
     attribute.write(string_list);
 
     // Get path and names
@@ -47,7 +43,8 @@ int main(void)
 
     // We can still use moved dataset
     // Let's create new attribute
-    Attribute attributeNew = dataset.createAttribute<std::string>("attributeNew", DataSpace::From(string_list));
+    Attribute attributeNew = dataset.createAttribute<std::string>("attributeNew",
+                                                                  DataSpace::From(string_list));
     attribute.write(string_list);
     std::cout << "new attribute name: " << attributeNew.getName() << std::endl;
     std::cout << std::endl;
