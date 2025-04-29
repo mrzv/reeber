@@ -5,7 +5,7 @@ imports:
 
 git module HighFive:
     url: https://github.com/highfive-devs/highfive
-    rev: dfc06537fdb20f5e572c20bc6febd22dd5d08246
+    rev: a92b0f87ff518425c0c424079a0e33fb3e61f755
 
 git module Catch2:
     url: git@github.com:catchorg/Catch2.git
