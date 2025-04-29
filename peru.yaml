@@ -4,7 +4,7 @@ imports:
     fmt: ./ext/fmt
 
 git module HighFive:
-    url: https://github.com/BlueBrain/HighFive
+    url: https://github.com/highfive-devs/highfive
     rev: dfc06537fdb20f5e572c20bc6febd22dd5d08246
 
 git module Catch2:
