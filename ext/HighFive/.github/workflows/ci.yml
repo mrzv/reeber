@@ -1,10 +1,11 @@
-name: HighFive_CI
+name: Unit Tests
 
 concurrency:
   group: ${{ github.workflow }}#${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref == 'main' }}
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
@@ -30,9 +31,6 @@ jobs:
   # Job testing compiling on several Ubuntu systems + MPI
   # =========================================================
   #
-  # For 20.04:  bare and activate Boost, OpenCV
-  # For latest: activate Boost, Eigen, OpenCV, with Ninja
-  #
   # XTensor tests are run for conda/mamba and MacOS
   Linux_MPI:
     runs-on: ${{matrix.config.os}}
@@ -41,10 +39,10 @@ jobs:
       matrix:
         include:
           - config:
-              os: ubuntu-20.04
+              os: ubuntu-24.04
               pkgs: ''
           - config:
-              os: ubuntu-20.04
+              os: ubuntu-24.04
               pkgs: 'libboost-all-dev libopencv-dev'
               flags: '-DHIGHFIVE_TEST_BOOST:Bool=ON -DHIGHFIVE_TEST_OPENCV:Bool=ON -GNinja'
           - config:
@@ -52,7 +50,7 @@ jobs:
               pkgs: 'libboost-all-dev libeigen3-dev libopencv-dev'
               flags: '-DHIGHFIVE_TEST_BOOST:Bool=ON -DHIGHFIVE_TEST_EIGEN:Bool=ON -DHIGHFIVE_TEST_OPENCV:Bool=ON -GNinja'
           - config:
-              os: ubuntu-20.04
+              os: ubuntu-24.04
               pkgs: 'libboost-all-dev'
               flags: '-DCMAKE_CXX_STANDARD=17 -DHIGHFIVE_TEST_BOOST:Bool=ON'
           - config:
@@ -63,14 +61,9 @@ jobs:
               flags: '-DHIGHFIVE_TEST_BOOST=Off -DCMAKE_CXX_STANDARD=20 -DHIGHFIVE_HAS_CONCEPTS=On'
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
-
-    - name: "Setup MPI"
-      uses: mpi4py/setup-mpi@v1
-      with:
-        mpi: openmpi
 
     - name: "Install libraries"
       run: |
@@ -102,10 +95,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        hdf5_version : [ hdf5-1_8_23, hdf5-1_10_11, hdf5-1_12_3, hdf5_1.14.5 ]
+        hdf5_version : [ hdf5-1_8_23, hdf5-1_10_11, hdf5-1_12_3, hdf5_1.14.6 ]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
     - name: "Install libraries"
@@ -146,28 +139,37 @@ jobs:
   # Job testing several compilers on a stable Linux
   # ====================================================
   Linux_Compilers:
-    runs-on: ubuntu-20.04
+    runs-on: ${{matrix.os}}
+    env: ${{ matrix.env }}
     strategy:
       matrix:
+        os: [ "ubuntu-24.04" ]
         env: [
-          {CC: clang-10, CXX: clang++-10},
-          {CC: clang-12, CXX: clang++-12},
-          {CC: gcc-9, CXX: g++-9},
-          {CC: gcc-10, CXX: g++-10},
+          {CC: clang-18, CXX: clang++-18, pkgs: "clang-18"},
+          {CC: gcc-9, CXX: g++-9, pkgs: "gcc-9 g++-9"},
+          {CC: gcc-14, CXX: g++-14, pkgs: "gcc-14 g++-14"},
         ]
 
+        include:
+          - os: "ubuntu-22.04"
+            env:
+              CC: clang-11
+              CXX: clang++-11
+              pkgs: clang-11
+
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
     - name: "Install libraries"
       run: |
         sudo apt-get -qq update
+        sudo apt-get -qq install ${pkgs}
         sudo apt-get -qq install libboost-all-dev libhdf5-dev libsz2 ninja-build
 
     - name: Build
-      env: ${{matrix.env}}
       run: |
         CMAKE_OPTIONS=(-DHIGHFIVE_TEST_BOOST=ON -GNinja)
         source $GITHUB_WORKSPACE/.github/build.sh
@@ -199,7 +201,7 @@ jobs:
         ]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -209,7 +211,6 @@ jobs:
         sudo apt-get -qq install boost1.83 libeigen3-dev libhdf5-dev libsz2 ninja-build
 
     - name: Build
-      env: ${{matrix.env}}
       run: |
         CMAKE_OPTIONS=(
           -GNinja
@@ -240,12 +241,12 @@ jobs:
   # Job to check using HighFive from other CMake projects
   # =====================================================
   CMake_Project:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         parallelism: [ serial, parallel ]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -275,9 +276,9 @@ jobs:
   # Job checking the benchmarks work
   # ================================
   Benchmarks:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -307,7 +308,7 @@ jobs:
             cxxstd: "20"
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -351,13 +352,13 @@ jobs:
         cxxstd: ["14", "17", "20"]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
-    - uses: mamba-org/setup-micromamba@v1
+    - uses: mamba-org/setup-micromamba@v2
       with:
-        environment-file: doc/environment.yaml
+        environment-file: .github/mamba_env.yaml
         environment-name: win-test
 
     - name: Build
