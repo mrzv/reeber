@@ -1,5 +1,5 @@
-project                     (Reeber Fortran CXX C)
 cmake_minimum_required      (VERSION 3.15)
+project                     (Reeber Fortran CXX C)
 
 option                      (amrex              "Build Reeber with AMReX support"               OFF)
 option                      (trace              "Enable trace log"                              OFF)
